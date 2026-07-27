@@ -5,15 +5,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 rc=0
 
 echo "=== bash 3.2 parse ==="
-/bin/bash --version | head -1
-for f in "$here"/../*.sh "$here"/*.sh; do
-  [ -f "$f" ] || continue
-  if /bin/bash -n "$f" 2>/dev/null; then
-    printf 'ok    %s\n' "$(basename "$f")"
-  else
-    printf 'FAIL  %s\n' "$(basename "$f")"; /bin/bash -n "$f" 2>&1 | head -2; rc=1
-  fi
-done
+/bin/bash "$here/parse-check.sh" || rc=1
 
 echo; echo "=== deny-only ==="
 /bin/bash "$here/deny-only-check.sh" || rc=1

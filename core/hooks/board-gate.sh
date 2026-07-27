@@ -32,9 +32,24 @@ set -uo pipefail
 
 case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
 
-command -v python3 >/dev/null 2>&1 || exit 2
-
 payload="$(cat 2>/dev/null || true)"
+
+# Fast path, in shell, before python3 is ever started. This gate is enabled in
+# every session, so it runs on every tool call — and starting python3 costs
+# ~50ms each time (measured 2026-07-27). A tool call that never mentions the
+# board has nothing here to adjudicate.
+#
+# `records` is the discriminator rather than the full path because the python
+# below normalizes `docs/reports/../reports/records/...` and this must not be
+# narrower than what it would then catch. A payload that mentions the word and
+# turns out to be unrelated simply falls through and the python allows it —
+# this is an optimization, never a verdict.
+case "$payload" in
+  *records*) ;;
+  *) trap - EXIT; exit 0 ;;
+esac
+
+command -v python3 >/dev/null 2>&1 || exit 2
 
 # bash 3.2: a quoted heredoc nested inside $( … ) is NOT literal — read the
 # program at top level (see mint.sh for the measured failure).
@@ -103,13 +118,11 @@ for c in candidates:
 if not hits:
     allow()                  # nothing under the board: not this gate's business
 
-# --- R3: no role, no record writes -------------------------------------
-if not os.environ.get("CLAUDE_ROLE", "").strip():
-    deny("a write under docs/reports/records/ from a session with no "
-         "CLAUDE_ROLE. The board belongs to role sessions; this one carries "
-         "no rulebook gates. (contract sections 8/19)")
-
 # --- R1: the tokens directory is written by no tool --------------------
+# Unconditional, everywhere, before any "is this even a board" question. A
+# `.token` under a records/ tree is either a forged approval or something no
+# tool should be writing regardless; there is no repository where a tool
+# writing one is correct.
 for tail in hits:
     parts = tail.split("/")
     if "tokens" in parts[1:] or tail.endswith(".token"):
@@ -140,6 +153,7 @@ def sha(p):
     except OSError:
         return None
 
+role = os.environ.get("CLAUDE_ROLE", "").strip()
 root = root_of()
 if not root:
     deny("cannot resolve the project root for a record write")
@@ -148,6 +162,19 @@ plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
 canon = os.path.join(plugin_root, "contract", "role-handoff-contract.md")
 repo = os.path.join(root, "docs", "specs", "role-handoff-contract.md")
 canon_sha, repo_sha = sha(canon), sha(repo)
+
+# Not every repository with a docs/reports/records/ directory is a board.
+# This gate is enabled in every session, and someone keeping quarterly sales
+# records under that path has nothing to do with the contract — refusing
+# their writes would be a false positive, not enforcement (reproduced
+# 2026-07-27). No contract and no role means no board: stand aside.
+#
+# The two halves are separate on purpose. A role IS set, so muster spawned
+# this session, but the contract is missing → that is a real error and R2
+# still denies. And R1 above already ran, so the tokens rule holds even here.
+if repo_sha is None and not role:
+    allow()
+
 if canon_sha is None:
     deny("the plugin's canonical contract is unreadable at %s — refusing "
          "record writes rather than enforcing an unknown contract" % canon)
@@ -155,6 +182,14 @@ if repo_sha is None:
     deny("this repository has no docs/specs/role-handoff-contract.md. A "
          "board without its contract is not a board; plant it with "
          "`spawn.py init` first")
+
+# --- R3: no role, no record writes -------------------------------------
+# Below R2 on purpose: reaching here means this IS a board (its contract
+# matches), so a session with no role has no business writing it.
+if not role:
+    deny("a write under docs/reports/records/ from a session with no "
+         "CLAUDE_ROLE. The board belongs to role sessions; this one carries "
+         "no rulebook gates. (contract sections 8/19)")
 if repo_sha != canon_sha:
     deny("this repository's role-handoff-contract.md differs from the "
          "canonical shipped in core (repo %s… vs canonical %s…). The "
