@@ -96,20 +96,27 @@ class ConsumeTests(unittest.TestCase):
                 consent.consume(td, "k")
             self.assertTrue(os.path.isfile(p))
 
-    def test_concurrent_consume_single_use(self):
-        """The claim-then-read pattern ensures single-use semantics.
-        A second consumer's rename will fail, making the guard atomic."""
+    def test_claim_failure_raises_consent_error(self):
+        """The claim rename is the single-use guard. If the claim fails,
+        ConsentError is raised (not a raw OSError). This guards the race: two
+        consumers both read and validate the same token, then race to claim it.
+        Exactly one rename succeeds; the loser's OSError becomes ConsentError.
+        Removing this guard would let OSError escape."""
         with tempfile.TemporaryDirectory() as td:
             write_token(td, "k")
-            p = os.path.join(td, "k.token")
-            # Simulate a first consumer claiming the token by renaming it
-            claimed = p + ".claimed-first"
-            os.rename(p, claimed)
-            # Now a second consumer should fail to claim
-            with self.assertRaises(consent.ConsentError):
-                consent.consume(td, "k")
-            # The claimed file must still exist (evidence)
-            self.assertTrue(os.path.isfile(claimed))
+
+            # Patch os.rename in consent module to fail on claim
+            original_rename = consent.os.rename
+
+            def failing_rename(src, dst):
+                raise FileNotFoundError("simulated claim failure")
+
+            consent.os.rename = failing_rename
+            try:
+                with self.assertRaises(consent.ConsentError):
+                    consent.consume(td, "k")
+            finally:
+                consent.os.rename = original_rename
 
 
 if __name__ == "__main__":

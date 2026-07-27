@@ -69,43 +69,43 @@ def consume(tokens_dir, kind):
     let the same approving write pass four times in a row, so one human
     decision authorized every later re-scoping of that subject.
 
-    This function uses a claim-then-read pattern: the token is renamed to a
-    .claimed-* file before parsing. This ensures the single-use guarantee is
-    atomic — the first to successfully rename owns the token, and a second
-    consumer's rename will fail, making the guard local and obvious.
+    This function uses a read-validate-claim-last pattern: read and fully
+    validate the token at its original path first, then claim it (rename it).
+    This ensures: (1) validation failures never move the file, so evidence
+    preservation is automatic; (2) the claim rename is the single-use guard,
+    with nothing to restore on failure.
     """
     p = token_path(tokens_dir, kind)
-    claimed = p + ".claimed-%d" % os.getpid()
 
     try:
-        os.rename(p, claimed)
-    except OSError as e:
-        raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
-
-    try:
-        with open(claimed, encoding="utf-8-sig") as fh:
+        with open(p, encoding="utf-8-sig") as fh:
             text = fh.read(1 << 16)
     except (OSError, UnicodeDecodeError) as e:
-        os.rename(claimed, p)
         raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
 
     fields = _parse(text)
     missing = [k for k in _REQUIRED if not fields.get(k)]
     if missing:
-        os.rename(claimed, p)
         raise ConsentError(
             "approval token for kind %r is missing %s; refusing rather than "
             "guessing what it authorized" % (kind, ", ".join(missing)))
     if fields["kind"] != kind:
-        os.rename(claimed, p)
         raise ConsentError(
             "approval token in %s declares kind %r but was read as %r"
             % (p, fields["kind"], kind))
     if fields["actor"] != "user":
-        os.rename(claimed, p)
         raise ConsentError(
             "approval token for kind %r has actor %r; only a human may "
             "authorize this" % (kind, fields["actor"]))
+
+    claimed = p + ".claimed-%d" % os.getpid()
+    try:
+        os.rename(p, claimed)
+    except OSError as e:
+        raise ConsentError(
+            "no approval token for kind %r could not be claimed (%s); "
+            "refusing rather than leaving a replayable token in place"
+            % (kind, e))
 
     try:
         os.remove(claimed)
