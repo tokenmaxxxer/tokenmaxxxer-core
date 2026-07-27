@@ -58,25 +58,45 @@ if os.environ.get("TOKENMAXXXER_UNATTENDED", "") not in ("", "0", "false", "no",
 #   "subject beta is blocked and stays where it is. Separately, I approve the
 #    scope for subject alpha."   -> minted a token for BETA.
 #
+# Fenced and indented code blocks are quoted material — a pasted transcript,
+# or an example of the phrasing someone should use — never the user's own
+# assertion. Strip them before any analysis. Measured 2026-07-27: approval
+# wording pasted inside a ``` fence minted a token.
+speech = re.sub(r"```.*?```", " ", prompt, flags=re.S)
+speech = re.sub(r"(?m)^[ \t]{4,}.*$", " ", speech)
+
 # The state name is an identifier, never a speech act. Blank it first, or
 # `\bscope\b[^.\n]*\bapproved\b` spans the literal `scope-approved` (the hyphen
 # is a word boundary) and "this subject is not yet scope-approved" reads as an
 # approval.
-speech = re.sub(r"(?i)\bscope[-_ ]?approved\b", " <state> ", prompt)
+speech = re.sub(r"(?i)\bscope[-_ ]?approved\b", " <state> ", speech)
 speech = speech.replace("’", "'")
 
 # A sentence disqualifies itself by being a question, a hedge, a negation, or a
 # report of someone else's words. Verb suffixes are open (`refus\w*`) — the
 # closed form `\brefus\b` shipped once and could not match "refuse" at all.
+#
+# `would`/`could`/`if i`/etc. disqualify hypothetical and subjunctive framing
+# ("If I were QA I would approve..."). This also rejects a genuine "I would
+# like to approve the scope" — that is the safe direction and is accepted;
+# do not narrow it back to "would not" only.
+#
+# The Korean markers 않/못/아니 are anchored to negation-conjugation suffixes,
+# not left as bare syllables: a bare syllable also matches inside ordinary
+# words (피아니스트 "pianist", 못지않게 "no less than") and silently rejects an
+# approval that merely contains one, with no signal to the user that it did.
 DISQUALIFY = re.compile(
-    r"(?i)\?\s*$"
+    r"(?i)\?"
     r"|\b(not|never|cannot|shall not|will not|would not|should not|must not"
     r"|can't|won't|wont|shan't|shouldn't|wouldn't|couldn't|didn't|doesn't"
     r"|don't|isn't|aren't|wasn't|weren't|hasn't|haven't"
     r"|refus\w*|declin\w*|without|instead of|unsure|maybe|might"
+    r"|would|could|if i|suppose|imagine|hypothetically"
     r"|i think|i wonder|did anyone|has anyone|do you|should we|shall we)\b"
+    r"|\bfor example\b|\be\.g\."
     r"|\b(says?|said|according to|comment|quoted?|per the)\b"
-    r"|하지\s*마|하지\s*말|말고|말라|않|없이|금지|아니|못\s*"
+    r"|하지\s*마|하지\s*말|말고|말라|없이|금지"
+    r"|않(?:다|고|아|은|을|습니다|았)|못\s*(?:한|해|하|합니다)|아니(?:다|고|라|야|에요|ㅂ니다|었)"
     r"|확실치|확실하지|모르겠|인가요|일까요|라고\s*(?:한다|했다|합니다)")
 
 APPROVES = re.compile(
@@ -87,7 +107,12 @@ SUBJECT = re.compile(r"(?i)\bsubject[\s:]+([A-Za-z0-9][A-Za-z0-9_-]{0,127})")
 
 subject = None
 approving_sentence = None
-for sentence in re.split(r"(?<=[.!?\n])\s+", speech):
+# Split on trailing punctuation whether or not whitespace follows it. A
+# missing space ("...subject X?Let's circle back...") used to merge two
+# sentences into one, moving the "?" off the end and defeating the only
+# position-anchored disqualifier above — measured 2026-07-27, and "should I"
+# is not itself on the negation word list, so the "?" was the only guard.
+for sentence in re.split(r"(?<=[.!?\n])\s*", speech):
     s = sentence.strip()
     if not s or DISQUALIFY.search(s) or not APPROVES.search(s):
         continue
@@ -101,9 +126,6 @@ for sentence in re.split(r"(?<=[.!?\n])\s+", speech):
     break
 
 if subject is None:
-    bail()
-# Reject bare assent even if a keyword coincidentally appears.
-if re.match(r"^\s*(ok|okay|sure|sounds good|yep|yes|k|fine)\s*[.!]?\s*$", prompt, re.I):
     bail()
 
 KIND = "scope-proposed--scope-approved"

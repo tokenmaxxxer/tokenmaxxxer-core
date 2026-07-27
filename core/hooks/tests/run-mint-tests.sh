@@ -63,9 +63,39 @@ check reject should-not        "subject $SUB: you should not approve the scope o
 check reject wouldnt           "subject $SUB: I wouldn't approve the scope as written."
 check reject question-anyone   "subject $SUB - did anyone approve the scope yet?"
 check reject third-party       "subject $SUB: the PR comment says QA approved the scope last week."
-check reject hedged            "subject $SUB: this might be ready to approve, I think."
+check reject hedged            "subject $SUB: I think we should approve the scope now."
+# Belt-and-braces: bare assent never names a subject either, so this is
+# already covered by the subject-required gate, not a dedicated bare-assent
+# rule (mint.sh dropped that rule as dead code: reaching it required
+# subject != None, and no assent phrase contains one).
 check reject bare-assent       "ok"
 check reject no-subject        "I approve the scope."
+
+# --- regression cases added 2026-07-27, reproduced by the coordinator ------
+#
+# Position-anchored rule defeated by a missing space: the sentence splitter
+# only breaks where whitespace follows [.!?\n], so "...subject X?Let's..."
+# (no space after "?") merges into one sentence, the "?" is no longer at the
+# end, and the end-anchored disqualifier never fires. "should I" is not on
+# the negation word list, so the "?" was the ONLY guard on this sentence.
+check reject qmark-spaced       "Should I approve the scope for subject $SUB? Let's circle back tomorrow."
+check reject qmark-unspaced     "Should I approve the scope for subject $SUB?Let's circle back tomorrow."
+
+# Quoted material inside a code fence read as the user's own assertion.
+check reject code-fence         "Here is the log:
+\`\`\`
+I approve the scope for subject $SUB.
+\`\`\`"
+
+# Hypothetical/subjunctive framing ("would", "if I were") is not a negation
+# and was not on the disqualify list.
+check reject hypothetical       "If I were QA I would approve the scope for subject $SUB."
+
+# Korean negation markers matched as bare syllables, so an approval whose
+# wording merely CONTAINS one (a pianist, "no less than") was silently
+# rejected with no signal to the user that their approval did not register.
+check "mint:$SUB" ko-pianist    "subject $SUB 의 범위를 피아니스트인 내가 승인한다."
+check "mint:$SUB" ko-notless    "그 못지않게 중요한 subject $SUB 의 범위를 승인한다."
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
