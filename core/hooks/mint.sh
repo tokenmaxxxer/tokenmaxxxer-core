@@ -58,12 +58,18 @@ if os.environ.get("TOKENMAXXXER_UNATTENDED", "") not in ("", "0", "false", "no",
 #   "subject beta is blocked and stays where it is. Separately, I approve the
 #    scope for subject alpha."   -> minted a token for BETA.
 #
-# Fenced and indented code blocks are quoted material — a pasted transcript,
-# or an example of the phrasing someone should use — never the user's own
-# assertion. Strip them before any analysis. Measured 2026-07-27: approval
-# wording pasted inside a ``` fence minted a token.
-speech = re.sub(r"```.*?```", " ", prompt, flags=re.S)
-speech = re.sub(r"(?m)^[ \t]{4,}.*$", " ", speech)
+# A fenced code block is quoted material — a pasted transcript, or an example
+# of the phrasing someone should use — never the user's own assertion. Strip
+# it before any analysis. Measured 2026-07-27: approval wording pasted inside
+# a ``` fence minted a token. The close is optional: an opening fence with no
+# matching close strips to the end of the text rather than leaving the whole
+# thing unstripped. A nested four-backtick fence is not specially handled —
+# that is a Markdown parser, not a few characters, so it is left alone.
+#
+# Indented text is NOT stripped: that also blanked an ordinary quoted chat
+# reply (indentation is how most clients mark one), which is a false reject,
+# not a false accept — measured 2026-07-27.
+speech = re.sub(r"```.*?(?:```|\Z)", " ", prompt, flags=re.S)
 
 # The state name is an identifier, never a speech act. Blank it first, or
 # `\bscope\b[^.\n]*\bapproved\b` spans the literal `scope-approved` (the hyphen
@@ -81,10 +87,33 @@ speech = speech.replace("’", "'")
 # like to approve the scope" — that is the safe direction and is accepted;
 # do not narrow it back to "would not" only.
 #
-# The Korean markers 않/못/아니 are anchored to negation-conjugation suffixes,
-# not left as bare syllables: a bare syllable also matches inside ordinary
-# words (피아니스트 "pianist", 못지않게 "no less than") and silently rejects an
-# approval that merely contains one, with no signal to the user that it did.
+# Long-form negation ("-지 않다" / "-지 못하다") is matched by the connective
+# -지 immediately before 않/못, not by enumerating what follows: every ending
+# (않는다/않았다/않을 것이다/않습니다/못했다/못한다/못합니다/...) attaches AFTER
+# 않/못, so listing endings is both incomplete (missed 않는다, 못했다) and, for
+# some endings, impossible — Hangul syllables COMPOSE, so "아니" + "ㅂ니다" is
+# not a substring of the real word 아닙니다 at all (닙 is one precomposed
+# codepoint, not 니 followed by ㅂ: `"아니" in "아닙니다"` is False). Measured
+# 2026-07-27: enumerating conjugations minted 아닙니다, 아님, 않는다, 못했다—
+# three of them unambiguous refusals read as consent, which is worse than the
+# false-reject it replaced.
+#
+# 아니다's OWN endings (-다/-고/-라/-야/-에요/-었) do not merge, so "아니" + that
+# suffix is a real substring; but its -ㅂ니다/-ㅁ endings DO merge (아니+ㅂ니다
+# -> 아닙니다, 아니+ㅁ -> 아님), so those are listed as complete precomposed
+# words rather than assembled from a prefix + a separately-typed suffix — that
+# assembly is exactly what breaks under composition, per the note above.
+#
+# "지" must be followed by whitespace before 않/못, not `\s*` (zero-or-more):
+# 못지않게 ("no less than") fuses 지 directly onto 않 with NO space, and is a
+# single idiom, not the auxiliary construction; the auxiliary is always
+# written with a space (...하지 않다/못하다). `\s*` would also disqualify a
+# same-sentence 못지않게, which is a real approval, not a refusal.
+#
+# Known gap, not chased further: a sentence combining the idiom 못지않다 with
+# an approval AND an unrelated real "-지 않다" negation in the same clause is
+# still ambiguous to a substring match. Out of scope here — see the design
+# note in the task report.
 DISQUALIFY = re.compile(
     r"(?i)\?"
     r"|\b(not|never|cannot|shall not|will not|would not|should not|must not"
@@ -96,7 +125,8 @@ DISQUALIFY = re.compile(
     r"|\bfor example\b|\be\.g\."
     r"|\b(says?|said|according to|comment|quoted?|per the)\b"
     r"|하지\s*마|하지\s*말|말고|말라|없이|금지"
-    r"|않(?:다|고|아|은|을|습니다|았)|못\s*(?:한|해|하|합니다)|아니(?:다|고|라|야|에요|ㅂ니다|었)"
+    r"|지\s+않|지\s+못"
+    r"|아니(?:다|고|라|야|에요|었)|아닌|아님|아닙니다|아닙니까"
     r"|확실치|확실하지|모르겠|인가요|일까요|라고\s*(?:한다|했다|합니다)")
 
 APPROVES = re.compile(
@@ -107,12 +137,22 @@ SUBJECT = re.compile(r"(?i)\bsubject[\s:]+([A-Za-z0-9][A-Za-z0-9_-]{0,127})")
 
 subject = None
 approving_sentence = None
-# Split on trailing punctuation whether or not whitespace follows it. A
-# missing space ("...subject X?Let's circle back...") used to merge two
-# sentences into one, moving the "?" off the end and defeating the only
-# position-anchored disqualifier above — measured 2026-07-27, and "should I"
-# is not itself on the negation word list, so the "?" was the only guard.
-for sentence in re.split(r"(?<=[.!?\n])\s*", speech):
+# Split on [.!?\n] followed by whitespace, same as before the question rule
+# was un-anchored. A zero-width splitter (matching even with no whitespace
+# after the punctuation) was tried and reverted: it also split "I approve the
+# scope, per section 4.2, for subject X." at the decimal point, tearing the
+# subject from its approving clause and rejecting a real approval. It was
+# never load-bearing — the fix that actually closes the missing-space hole is
+# the bare `\?` above, not the splitter: with `\s+`, a missing space after "?"
+# ("...subject X?Let's circle back...") keeps the whole thing ONE sentence,
+# and that sentence still contains a "?" somewhere, which the un-anchored
+# rule now catches regardless of position. Measured 2026-07-27.
+#
+# A sentence containing a "?" anywhere still disqualifies even when it also
+# contains a clean approval elsewhere in the same clause, e.g. "I approve (is
+# that clear?) the scope for subject X." This is accepted, not accidental: a
+# sentence carrying a question is not a clean assertion of approval.
+for sentence in re.split(r"(?<=[.!?\n])\s+", speech):
     s = sentence.strip()
     if not s or DISQUALIFY.search(s) or not APPROVES.search(s):
         continue

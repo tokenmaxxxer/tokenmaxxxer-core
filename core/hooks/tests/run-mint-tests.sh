@@ -97,5 +97,56 @@ check reject hypothetical       "If I were QA I would approve the scope for subj
 check "mint:$SUB" ko-pianist    "subject $SUB 의 범위를 피아니스트인 내가 승인한다."
 check "mint:$SUB" ko-notless    "그 못지않게 중요한 subject $SUB 의 범위를 승인한다."
 
+# --- regression cases added 2026-07-27, round 2: coordinator reproduced   ---
+# five more gaps against the round-1 fix. Findings A, B, C, D below.
+
+# Finding A: anchoring negation to conjugation ENDINGS made the false-reject
+# worse, not better — three unambiguous refusals started minting real
+# tokens, because Hangul syllables compose: 아니다 + ㅂ니다 is not a substring
+# of the real word 아닙니다 (닙 is one precomposed codepoint), so no ending
+# list can enumerate its way to that word at all, and 않는다/못했다 were plain
+# gaps. Fixed by matching the connective -지 before 않/못 instead (every
+# ending attaches AFTER, so it never needs enumerating) plus complete literal
+# words for 아니다's own merged forms (아닌/아님/아닙니다/아닙니까). This is the
+# coordinator's exact verification table, both directions.
+check reject ko-aux-anh1        "subject $SUB 의 범위를 승인하지 않는다."
+check reject ko-aux-anh2        "subject $SUB 의 범위를 승인하지 않았다."
+check reject ko-aux-anh3        "subject $SUB 의 범위를 승인하지 않을 것이다."
+check reject ko-aux-anh4        "subject $SUB 의 범위를 승인하지 않습니다."
+check reject ko-aux-mot1        "subject $SUB 의 범위를 승인하지 못했다."
+check reject ko-aux-mot2        "subject $SUB 의 범위를 승인하지 못한다."
+check reject ko-aux-mot3        "subject $SUB 의 범위를 승인하지 못합니다."
+check reject ko-cop-anida       "subject $SUB 의 범위는 승인된 것이 아니다."
+check reject ko-cop-anibnida    "subject $SUB 의 범위는 승인된 것이 아닙니다."
+check reject ko-cop-anieossda   "subject $SUB 의 범위는 승인된 것이 아니었다."
+check reject ko-cop-anim        "subject $SUB 의 범위는 승인된 것이 아님."
+# Coordinator's exact mint side of the table (a third entry, the plain
+# baseline "subject X 의 scope 를 승인한다.", is identical wording to
+# approve-ko above and is not repeated here).
+check "mint:$SUB" ko-tbl-pianist "subject $SUB 의 scope 를 승인한다. 피아니스트가 봐도 문제없다."
+check "mint:$SUB" ko-tbl-notless "subject $SUB 의 범위를 승인한다. 지난번 못지않게 꼼꼼하다."
+
+# Finding B: the round-1 zero-width splitter (`\s*`) also split "per section
+# 4.2" at the decimal point, tearing the subject from its approving clause.
+# Reverted to `\s+`; the bare `\?` from round 1 is what actually closes the
+# missing-space hole (qmark-unspaced above), independent of the splitter.
+check "mint:$SUB" decimal-point "I approve the scope, per section 4.2, for subject $SUB."
+# A sentence carrying a "?" ANYWHERE still disqualifies, even with a clean
+# approval elsewhere in the same clause — accepted, not accidental.
+check reject qmark-embedded     "I approve (is that clear?) the scope for subject $SUB."
+
+# Finding C: indented-block stripping blanked an ordinary quoted chat reply
+# (indentation is how most clients mark one). Removed; only fenced blocks
+# are treated as quoted material.
+check "mint:$SUB" quoted-reply  "Replying to your message:
+    I approve the scope for subject $SUB."
+
+# Finding D: an opening fence with no closing fence left the payload
+# unstripped, because the old pattern required a closing marker to match at
+# all. The close is now optional: strip from the opening fence to the next
+# fence or the end of the text.
+check reject fence-unclosed     "\`\`\`
+I approve the scope for subject $SUB."
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
