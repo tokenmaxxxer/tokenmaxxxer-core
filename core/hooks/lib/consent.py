@@ -39,9 +39,9 @@ def find(tokens_dir, kind):
 
     Note: find() checks for <kind>.token only, not .claimed-* files. If
     consume() failed due to malformed content or read errors, the token
-    remains at .claimed-<pid> and will not be reported by find(). This is
-    correct behavior — a malformed token should not appear as available
-    approval to a subsequent caller.
+    remains at .claimed-<pid>-<random> and will not be reported by find().
+    This is correct behavior — a malformed token should not appear as
+    available approval to a subsequent caller.
     """
     p = token_path(tokens_dir, kind)
     try:
@@ -70,19 +70,26 @@ def consume(tokens_dir, kind):
     let the same approving write pass four times in a row, so one human
     decision authorized every later re-scoping of that subject.
 
-    Claim first and keep the claim: the token is renamed to .claimed-<pid>
-    before being read. This ensures (1) TOCTOU safety — the rename captures
-    the bytes, so nothing can be swapped under us while validating, and
-    (2) no restores — validation failures leave the token claimed but
-    unconsumed, which is fail-closed.
+    Claim first and keep the claim: the token is renamed to
+    .claimed-<pid>-<random> before being read. This ensures (1) TOCTOU
+    safety — the rename captures the bytes, so nothing can be swapped under
+    us while validating, and (2) no restores — validation failures leave the
+    token claimed but unconsumed, which is fail-closed.
+
+    The claimed name includes a random component, not just the pid: the pid
+    alone is unique per process, not per attempt, and os.rename silently
+    replaces an existing destination on POSIX. Two failed consumes in the
+    same process — or two short-lived hook processes that happen to reuse a
+    pid — would otherwise collide on the same claimed path, and the second
+    failure would destroy the first failure's stranded evidence.
 
     Known limitation: if os.remove fails after validation succeeds, the token
-    is stranded under .claimed-<pid> and the human must re-approve. This is
-    the fail-closed call — we refuse rather than proceeding with a partially
-    consumed token.
+    is stranded under .claimed-<pid>-<random> and the human must re-approve.
+    This is the fail-closed call — we refuse rather than proceeding with a
+    partially consumed token.
     """
     p = token_path(tokens_dir, kind)
-    claimed = p + ".claimed-%d" % os.getpid()
+    claimed = p + ".claimed-%d-%s" % (os.getpid(), os.urandom(8).hex())
 
     try:
         os.rename(p, claimed)

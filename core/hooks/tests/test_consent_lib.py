@@ -76,9 +76,9 @@ class ConsumeTests(unittest.TestCase):
     def test_malformed_raises_and_leaves_file(self):
         """Fail closed: a malformed token is refused and the file survives.
         With claim-first-keep-claimed, the file is left at the claimed path
-        (.token.claimed-<pid>) where it will not be found by find() but can be
-        recovered by a human who reads the error message. The message must name
-        the claimed path."""
+        (.token.claimed-<pid>-<random>) where it will not be found by find()
+        but can be recovered by a human who reads the error message. The
+        message must name the claimed path."""
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, "k.token")
             with open(p, "w") as fh:
@@ -92,7 +92,7 @@ class ConsumeTests(unittest.TestCase):
                 self.assertIn(".claimed-", error_msg)
                 # Extract the claimed path: it's the path between "at " and " is"
                 import re
-                match = re.search(r"at ([^\s]+\.claimed-\d+)", error_msg)
+                match = re.search(r"at (\S+\.claimed-\S+)", error_msg)
                 self.assertIsNotNone(match, f"Error message did not name claimed path: {error_msg}")
                 claimed_path = match.group(1)
                 self.assertTrue(os.path.isfile(claimed_path),
@@ -115,7 +115,7 @@ class ConsumeTests(unittest.TestCase):
                 self.assertIn(".claimed-", error_msg)
                 # Extract and verify the claimed file exists
                 import re
-                match = re.search(r"at ([^\s]+\.claimed-\d+)", error_msg)
+                match = re.search(r"at (\S+\.claimed-\S+)", error_msg)
                 self.assertIsNotNone(match, f"Error message did not name claimed path: {error_msg}")
                 claimed_path = match.group(1)
                 self.assertTrue(os.path.isfile(claimed_path),
@@ -123,6 +123,38 @@ class ConsumeTests(unittest.TestCase):
                 # Original path should not exist
                 self.assertFalse(os.path.isfile(p),
                                  f"Original path should not exist: {p}")
+
+    def test_second_failed_consume_does_not_destroy_first_evidence(self):
+        """os.getpid() is unique per process, not per attempt. Two failed
+        consumes for the same kind in the same process must not collide on
+        the same claimed path - a second failure must not overwrite the
+        first failure's stranded evidence via os.rename's silent replace."""
+        import re
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "k.token")
+            with open(p, "w") as fh:
+                fh.write("FIRST-FAILURE-EVIDENCE\n")
+            with self.assertRaises(consent.ConsentError) as ctx1:
+                consent.consume(td, "k")
+            match1 = re.search(r"at (\S+\.claimed-\S+)", str(ctx1.exception))
+            self.assertIsNotNone(match1, str(ctx1.exception))
+            claimed1 = match1.group(1)
+
+            with open(p, "w") as fh:
+                fh.write("SECOND-FAILURE-EVIDENCE\n")
+            with self.assertRaises(consent.ConsentError) as ctx2:
+                consent.consume(td, "k")
+            match2 = re.search(r"at (\S+\.claimed-\S+)", str(ctx2.exception))
+            self.assertIsNotNone(match2, str(ctx2.exception))
+            claimed2 = match2.group(1)
+
+            self.assertNotEqual(claimed1, claimed2)
+            self.assertTrue(os.path.isfile(claimed1), claimed1)
+            self.assertTrue(os.path.isfile(claimed2), claimed2)
+            with open(claimed1) as fh:
+                self.assertEqual(fh.read(), "FIRST-FAILURE-EVIDENCE\n")
+            with open(claimed2) as fh:
+                self.assertEqual(fh.read(), "SECOND-FAILURE-EVIDENCE\n")
 
     def test_claim_failure_raises_consent_error(self):
         """The claim rename is the single-use guard. If the claim fails,
