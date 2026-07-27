@@ -89,6 +89,25 @@ class ConsumeTests(unittest.TestCase):
                 consent.consume(td, "k", allowed_actors=())
             self.assertIsNotNone(consent.find(td, "k"))
 
+    def test_subject_mismatch_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", subject="Alpha")
+            with self.assertRaises(consent.ConsentError):
+                consent.consume(td, "k", subject="alpha")
+
+    def test_subject_match_consumes(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", subject="alpha")
+            got = consent.consume(td, "k", subject="alpha")
+            self.assertEqual(got["subject"], "alpha")
+
+    def test_directory_at_token_path_is_not_found(self):
+        """getsize() is truthy for a directory, so a directory planted at
+        <kind>.token used to read as an available approval."""
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "k.token"))
+            self.assertIsNone(consent.find(td, "k"))
+
     def test_second_consume_raises(self):
         """A token that survives its use is a standing approval. Measured
         2026-07-27: one repo never removed it, so the same approving write

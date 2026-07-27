@@ -79,12 +79,23 @@ def git_top(p):
     return None
 
 def plausible(r):
-    return bool(r) and os.path.isdir(r) and os.path.exists(os.path.join(r, ".git"))
+    # A repo, or a board: the contract file is the board's opt-in marker, and
+    # requiring .git alone left every non-git project with a permanently
+    # inoperative consent mechanism that signalled nothing.
+    if not r or not os.path.isdir(r):
+        return False
+    return (os.path.exists(os.path.join(r, ".git"))
+            or os.path.isfile(os.path.join(r, "docs", "specs",
+                                           "role-handoff-contract.md")))
 
-cpd = os.environ.get("CLAUDE_PROJECT_DIR")
+def norm(r):
+    return posixpath.normpath(os.path.realpath(r).replace("\\", "/"))
+
 root = None
-if cpd and plausible(cpd):
-    root = posixpath.normpath(os.path.realpath(cpd).replace("\\", "/"))
+for cand in (os.environ.get("CLAUDE_PROJECT_DIR"), event.get("cwd")):
+    if isinstance(cand, str) and plausible(cand):
+        root = norm(cand)
+        break
 if root is None:
     root = git_top(os.getcwd())
 if not root:
@@ -94,21 +105,45 @@ if not root:
 # KIND_RE already excludes `/` and `..`, and this is the second lock.
 records_root = posixpath.join(root, "docs", "reports", "records")
 tokens_dir = posixpath.join(records_root, subject, "tokens")
+
+# Check containment of what already exists BEFORE creating anything. A
+# symlink at docs/, docs/reports/ or records/ relocates the whole tree, and
+# realpath makes that transparent — so verify records/ itself resolves back
+# under the root, and never makedirs through it first.
+for existing in (records_root, posixpath.dirname(records_root)):
+    if os.path.exists(existing) and not (norm(existing) + "/").startswith(root + "/"):
+        bail()
+
 try:
     os.makedirs(tokens_dir, exist_ok=True)
 except OSError:
     bail()
-tokens_real = posixpath.normpath(os.path.realpath(tokens_dir).replace("\\", "/"))
-records_real = posixpath.normpath(os.path.realpath(records_root).replace("\\", "/"))
-if not tokens_real.startswith(records_real + "/"):
+tokens_real = norm(tokens_dir)
+records_real = norm(records_root)
+if not tokens_real.startswith(records_real + "/") or \
+        not (records_real + "/").startswith(root + "/"):
     bail()
 
 token_file = posixpath.join(tokens_real, kind + ".token")
 if posixpath.dirname(token_file) != tokens_real:
     bail()
 
+# A consumed token must not be restorable. Measured 2026-07-27: the records
+# tree is committed by roles, so `git checkout -- .` after a consume brought
+# the token back and the same approval passed again — exactly the standing-
+# approval bug consume() removes tokens to prevent. A self-ignoring
+# directory keeps tokens out of every commit.
+try:
+    ignore = posixpath.join(tokens_real, ".gitignore")
+    if not os.path.exists(ignore):
+        with open(ignore, "w", encoding="utf-8") as fh:
+            fh.write("*\n")
+except OSError:
+    pass
+
 # `phrase` is the challenge line itself. It cannot carry a secret, so the
 # credential-redaction pass the prose version needed is gone with the prose.
+tmp = None
 try:
     fd, tmp = tempfile.mkstemp(dir=tokens_real, prefix=".token.")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -118,10 +153,22 @@ try:
         fh.write("phrase: APPROVE %s %s\n" % (kind, subject))
     os.replace(tmp, token_file)
 except OSError:
+    # Clean up the temp file: it holds a COMPLETE valid token body with
+    # actor: user. Leaving it behind litters the tokens directory with
+    # durable unconsumed approval evidence, and the model can force this
+    # path by pre-creating a directory at <kind>.token.
+    if tmp is not None:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
     bail()
 
 sys.exit(0)
 PY
 
-CORE_PAYLOAD="$payload" python3 -c "$CORE_MINT" || true
+# A UserPromptSubmit hook's stdout is injected into the model's context, and
+# stderr is reachable (a multi-megabyte turn overflows the env var and bash
+# reports E2BIG). This hook speaks to nobody: silence both.
+CORE_PAYLOAD="$payload" python3 -c "$CORE_MINT" >/dev/null 2>&1 || true
 exit 0
