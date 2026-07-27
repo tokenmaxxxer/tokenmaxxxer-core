@@ -1,0 +1,13 @@
+{
+  "name": "tokenmaxxxer-core",
+  "owner": {
+    "name": "tokenmaxxxer"
+  },
+  "plugins": [
+    {
+      "name": "core",
+      "source": "./core",
+      "description": "Shared machinery every tokenmaxxxer role enables alongside its own rulebook. Owns one implementation of human approval: minting a single-use token from the user's own turn, and finding and consuming it from a role's gate. A role knows which of its transitions need a human; core knows whether a human approved."
+    }
+  ]
+}

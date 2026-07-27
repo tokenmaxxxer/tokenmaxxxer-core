@@ -1,0 +1,8 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "description": "Human-approval machinery shared by every tokenmaxxxer role. Mints a single-use approval token from an assertion in the user's own turn; a role's gate finds and consumes it. Gates in this plugin refuse but never permit.",
+  "author": {
+    "name": "tokenmaxxxer"
+  }
+}
