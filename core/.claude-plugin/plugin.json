@@ -1,7 +1,6 @@
 {
   "name": "core",
-  "version": "0.1.0",
-  "description": "Human-approval machinery shared by every tokenmaxxxer role. Mints a single-use approval token from an assertion in the user's own turn; a role's gate finds and consumes it. Gates in this plugin refuse but never permit.",
+  "description": "Human-approval machinery shared by every tokenmaxxxer role. Mints a single-use approval token from an exact challenge line in the user's own turn; a role's gate finds and consumes it. Ships the canonical role-handoff contract and a deny-only board gate. Gates in this plugin refuse but never permit. No version field on purpose: for a git-distributed plugin the commit SHA is the version, so every commit is an update.",
   "author": {
     "name": "tokenmaxxxer"
   }
