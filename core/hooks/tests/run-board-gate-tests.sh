@@ -79,6 +79,48 @@ drifted deny  record-contract-drift   Write '{"file_path":"'$REC'/qa.md","conten
 drifted deny  record-contract-missing Write '{"file_path":"'$REC'/qa.md","content":"x"}' missing
 drifted allow nonrecord-no-contract   Write '{"file_path":"src/main.py","content":"x"}' missing
 
+# --- not every repo with this path is a board -----------------------------
+# Reproduced 2026-07-27: with core enabled at user scope, a repository keeping
+# quarterly sales records under docs/reports/records/ had its writes refused.
+# No contract and no role means no board. But a token is still a token.
+notboard() {
+  want="$1"; name="$2"; tinput="$3"
+  td="$(cd "$(mktemp -d)" && pwd -P)"
+  git init -q "$td"
+  mkdir -p "$td/docs/reports/records/alpha"
+  printf '%s' "$(printf '{"tool_name":"Write","tool_input":%s,"cwd":"%s"}' "$tinput" "$td")" \
+    | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  if [ "$got" = "$want" ]; then
+    pass=$((pass + 1)); printf 'ok     %-30s %s\n' "$name" "$got"
+  else
+    fail=$((fail + 1)); printf 'FAIL   %-30s want=%s got=%s\n' "$name" "$want" "$got"
+  fi
+}
+notboard allow unrelated-repo-record  '{"file_path":"docs/reports/records/2024-q1.md","content":"매출"}'
+notboard allow unrelated-repo-subject '{"file_path":"docs/reports/records/alpha/notes.md","content":"x"}'
+notboard deny  unrelated-repo-token   '{"file_path":"docs/reports/records/alpha/tokens/k.token","content":"x"}'
+
+# --- the shell fast path must not change any verdict ----------------------
+fastpath() {
+  td="$(cd "$(mktemp -d)" && pwd -P)"
+  git init -q "$td"
+  printf '{"tool_name":"Read","tool_input":{"file_path":"src/app.py"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  rm -rf "$td"
+  if [ "$rc" = 0 ]; then
+    pass=$((pass + 1)); printf 'ok     %-30s allow (python3 never started)\n' "unrelated-tool-call"
+  else
+    fail=$((fail + 1)); printf 'FAIL   %-30s want=allow got=exit-%s\n' "unrelated-tool-call" "$rc"
+  fi
+}
+fastpath
+
 # --- R3: no role, no record writes ----------------------------------------
 run deny  record-no-role       Write '{"file_path":"'$REC'/qa.md","content":"x"}' CLAUDE_ROLE=
 run deny  token-no-role        Bash  '{"command":"tee '$REC'/tokens/k.token < /tmp/x"}' CLAUDE_ROLE=
@@ -92,19 +134,26 @@ run allow bash-cat-record      Bash  '{"command":"cat '$REC'/qa.md"}'
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch          Write '{"file_path":"'$REC'/tokens/k.token","content":"x"}' CORE_OFF=1
 
-garbage() {  # unparseable payload must refuse, not pass through
+# An unparseable payload that MENTIONS the board must refuse — the gate cannot
+# tell what was about to be written. One that never mentions it cannot be a
+# board write at all: the path has to appear in the payload for the python to
+# find it, so there is nothing to fail closed about.
+garbage() {
+  want="$1"; name="$2"; raw="$3"
   td="$(mktemp -d)"; git init -q "$td"
-  printf 'not json' | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  printf '%s' "$raw" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
-  if [ "$rc" = 2 ]; then
-    pass=$((pass + 1)); printf 'ok     %-30s deny\n' "garbage-payload"
+  if [ "$got" = "$want" ]; then
+    pass=$((pass + 1)); printf 'ok     %-30s %s\n' "$name" "$got"
   else
-    fail=$((fail + 1)); printf 'FAIL   %-30s want=deny got=exit-%s\n' "garbage-payload" "$rc"
+    fail=$((fail + 1)); printf 'FAIL   %-30s want=%s got=%s\n' "$name" "$want" "$got"
   fi
 }
-garbage
+garbage deny  garbage-mentioning-board 'not json docs/reports/records/alpha/qa.md'
+garbage allow garbage-unrelated        'not json at all'
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
