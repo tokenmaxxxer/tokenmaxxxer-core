@@ -74,27 +74,55 @@ class ConsumeTests(unittest.TestCase):
                 consent.consume(td, "k")
 
     def test_malformed_raises_and_leaves_file(self):
-        """Fail closed: a token we cannot parse is refused, and is not silently
-        deleted — deleting it would destroy the evidence."""
+        """Fail closed: a malformed token is refused and the file survives.
+        With claim-first-keep-claimed, the file is left at the claimed path
+        (.token.claimed-<pid>) where it will not be found by find() but can be
+        recovered by a human who reads the error message. The message must name
+        the claimed path."""
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, "k.token")
             with open(p, "w") as fh:
                 fh.write("this is not a token\n")
-            with self.assertRaises(consent.ConsentError):
+            try:
                 consent.consume(td, "k")
-            self.assertTrue(os.path.isfile(p))
+                self.fail("Expected ConsentError")
+            except consent.ConsentError as e:
+                error_msg = str(e)
+                # The error message must name the claimed path
+                self.assertIn(".claimed-", error_msg)
+                # Extract the claimed path: it's the path between "at " and " is"
+                import re
+                match = re.search(r"at ([^\s]+\.claimed-\d+)", error_msg)
+                self.assertIsNotNone(match, f"Error message did not name claimed path: {error_msg}")
+                claimed_path = match.group(1)
+                self.assertTrue(os.path.isfile(claimed_path),
+                                f"File not found at claimed path: {claimed_path}")
 
     def test_invalid_utf8_raises_and_leaves_file(self):
-        """UnicodeDecodeError on invalid UTF-8 bytes must raise ConsentError,
-        and the file must survive to preserve evidence."""
+        """UnicodeDecodeError on invalid UTF-8 bytes must raise ConsentError.
+        The claimed token survives at the claimed path, not the original path."""
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, "k.token")
             # Write a token with an invalid UTF-8 byte sequence
             with open(p, "wb") as fh:
                 fh.write(b"kind: k\nsubject: a\nactor: user\nphrase: bad-\xff-byte\n")
-            with self.assertRaises(consent.ConsentError):
+            try:
                 consent.consume(td, "k")
-            self.assertTrue(os.path.isfile(p))
+                self.fail("Expected ConsentError")
+            except consent.ConsentError as e:
+                error_msg = str(e)
+                # The error message must name the claimed path
+                self.assertIn(".claimed-", error_msg)
+                # Extract and verify the claimed file exists
+                import re
+                match = re.search(r"at ([^\s]+\.claimed-\d+)", error_msg)
+                self.assertIsNotNone(match, f"Error message did not name claimed path: {error_msg}")
+                claimed_path = match.group(1)
+                self.assertTrue(os.path.isfile(claimed_path),
+                                f"Claimed file not found: {claimed_path}")
+                # Original path should not exist
+                self.assertFalse(os.path.isfile(p),
+                                 f"Original path should not exist: {p}")
 
     def test_claim_failure_raises_consent_error(self):
         """The claim rename is the single-use guard. If the claim fails,

@@ -37,10 +37,11 @@ def token_path(tokens_dir, kind):
 def find(tokens_dir, kind):
     """The token's path if one is present and non-empty, else None.
 
-    Note: After consume is called, the token is removed, so find will return
-    None. The path returned by find is not the path consume operates on if
-    consume has claimed the token — consume uses a .claimed-* suffix during
-    processing to ensure single-use semantics.
+    Note: find() checks for <kind>.token only, not .claimed-* files. If
+    consume() failed due to malformed content or read errors, the token
+    remains at .claimed-<pid> and will not be reported by find(). This is
+    correct behavior — a malformed token should not appear as available
+    approval to a subsequent caller.
     """
     p = token_path(tokens_dir, kind)
     try:
@@ -69,43 +70,47 @@ def consume(tokens_dir, kind):
     let the same approving write pass four times in a row, so one human
     decision authorized every later re-scoping of that subject.
 
-    This function uses a read-validate-claim-last pattern: read and fully
-    validate the token at its original path first, then claim it (rename it).
-    This ensures: (1) validation failures never move the file, so evidence
-    preservation is automatic; (2) the claim rename is the single-use guard,
-    with nothing to restore on failure.
+    Claim first and keep the claim: the token is renamed to .claimed-<pid>
+    before being read. This ensures (1) TOCTOU safety — the rename captures
+    the bytes, so nothing can be swapped under us while validating, and
+    (2) no restores — validation failures leave the token claimed but
+    unconsumed, which is fail-closed.
+
+    Known limitation: if os.remove fails after validation succeeds, the token
+    is stranded under .claimed-<pid> and the human must re-approve. This is
+    the fail-closed call — we refuse rather than proceeding with a partially
+    consumed token.
     """
     p = token_path(tokens_dir, kind)
+    claimed = p + ".claimed-%d" % os.getpid()
 
     try:
-        with open(p, encoding="utf-8-sig") as fh:
+        os.rename(p, claimed)
+    except OSError as e:
+        raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
+
+    try:
+        with open(claimed, encoding="utf-8-sig") as fh:
             text = fh.read(1 << 16)
     except (OSError, UnicodeDecodeError) as e:
-        raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
+        raise ConsentError(
+            "approval token for kind %r at %s is unreadable (%s)"
+            % (kind, claimed, e))
 
     fields = _parse(text)
     missing = [k for k in _REQUIRED if not fields.get(k)]
     if missing:
         raise ConsentError(
-            "approval token for kind %r is missing %s; refusing rather than "
-            "guessing what it authorized" % (kind, ", ".join(missing)))
+            "approval token for kind %r at %s is missing %s; refusing rather than "
+            "guessing what it authorized" % (kind, claimed, ", ".join(missing)))
     if fields["kind"] != kind:
         raise ConsentError(
-            "approval token in %s declares kind %r but was read as %r"
-            % (p, fields["kind"], kind))
+            "approval token at %s declares kind %r but was read as %r"
+            % (claimed, fields["kind"], kind))
     if fields["actor"] != "user":
         raise ConsentError(
-            "approval token for kind %r has actor %r; only a human may "
-            "authorize this" % (kind, fields["actor"]))
-
-    claimed = p + ".claimed-%d" % os.getpid()
-    try:
-        os.rename(p, claimed)
-    except OSError as e:
-        raise ConsentError(
-            "no approval token for kind %r could not be claimed (%s); "
-            "refusing rather than leaving a replayable token in place"
-            % (kind, e))
+            "approval token for kind %r at %s has actor %r; only a human may "
+            "authorize this" % (kind, claimed, fields["actor"]))
 
     try:
         os.remove(claimed)
