@@ -27,7 +27,7 @@ class ConsentError(Exception):
 
 
 def token_path(tokens_dir, kind):
-    if not isinstance(kind, str) or not KIND_RE.match(kind) or kind in (".", ".."):
+    if not isinstance(kind, str) or not KIND_RE.fullmatch(kind) or kind in (".", ".."):
         raise ValueError("unsafe token kind: %r" % (kind,))
     if not isinstance(tokens_dir, str) or not tokens_dir:
         raise ValueError("tokens_dir is required")
@@ -35,7 +35,13 @@ def token_path(tokens_dir, kind):
 
 
 def find(tokens_dir, kind):
-    """The token's path if one is present and non-empty, else None."""
+    """The token's path if one is present and non-empty, else None.
+
+    Note: After consume is called, the token is removed, so find will return
+    None. The path returned by find is not the path consume operates on if
+    consume has claimed the token — consume uses a .claimed-* suffix during
+    processing to ensure single-use semantics.
+    """
     p = token_path(tokens_dir, kind)
     try:
         return p if os.path.getsize(p) > 0 else None
@@ -62,31 +68,47 @@ def consume(tokens_dir, kind):
     approval: measured 2026-07-27, a repository that only checked for the file
     let the same approving write pass four times in a row, so one human
     decision authorized every later re-scoping of that subject.
+
+    This function uses a claim-then-read pattern: the token is renamed to a
+    .claimed-* file before parsing. This ensures the single-use guarantee is
+    atomic — the first to successfully rename owns the token, and a second
+    consumer's rename will fail, making the guard local and obvious.
     """
     p = token_path(tokens_dir, kind)
+    claimed = p + ".claimed-%d" % os.getpid()
+
     try:
-        with open(p, encoding="utf-8-sig") as fh:
-            text = fh.read(1 << 16)
+        os.rename(p, claimed)
     except OSError as e:
+        raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
+
+    try:
+        with open(claimed, encoding="utf-8-sig") as fh:
+            text = fh.read(1 << 16)
+    except (OSError, UnicodeDecodeError) as e:
+        os.rename(claimed, p)
         raise ConsentError("no approval token for kind %r (%s)" % (kind, e))
 
     fields = _parse(text)
     missing = [k for k in _REQUIRED if not fields.get(k)]
     if missing:
+        os.rename(claimed, p)
         raise ConsentError(
             "approval token for kind %r is missing %s; refusing rather than "
             "guessing what it authorized" % (kind, ", ".join(missing)))
     if fields["kind"] != kind:
+        os.rename(claimed, p)
         raise ConsentError(
             "approval token in %s declares kind %r but was read as %r"
             % (p, fields["kind"], kind))
     if fields["actor"] != "user":
+        os.rename(claimed, p)
         raise ConsentError(
             "approval token for kind %r has actor %r; only a human may "
             "authorize this" % (kind, fields["actor"]))
 
     try:
-        os.remove(p)
+        os.remove(claimed)
     except OSError as e:
         raise ConsentError(
             "the approval token for kind %r could not be consumed (%s); "

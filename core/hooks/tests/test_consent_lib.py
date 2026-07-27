@@ -41,7 +41,7 @@ class FindTests(unittest.TestCase):
 
     def test_unsafe_kind_raises(self):
         with tempfile.TemporaryDirectory() as td:
-            for bad in ("../escape", "a/b", "", "-lead", "." , ".."):
+            for bad in ("../escape", "a/b", "", "-lead", "." , "..", "foo\n"):
                 with self.assertRaises(ValueError):
                     consent.token_path(td, bad)
 
@@ -83,6 +83,33 @@ class ConsumeTests(unittest.TestCase):
             with self.assertRaises(consent.ConsentError):
                 consent.consume(td, "k")
             self.assertTrue(os.path.isfile(p))
+
+    def test_invalid_utf8_raises_and_leaves_file(self):
+        """UnicodeDecodeError on invalid UTF-8 bytes must raise ConsentError,
+        and the file must survive to preserve evidence."""
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "k.token")
+            # Write a token with an invalid UTF-8 byte sequence
+            with open(p, "wb") as fh:
+                fh.write(b"kind: k\nsubject: a\nactor: user\nphrase: bad-\xff-byte\n")
+            with self.assertRaises(consent.ConsentError):
+                consent.consume(td, "k")
+            self.assertTrue(os.path.isfile(p))
+
+    def test_concurrent_consume_single_use(self):
+        """The claim-then-read pattern ensures single-use semantics.
+        A second consumer's rename will fail, making the guard atomic."""
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k")
+            p = os.path.join(td, "k.token")
+            # Simulate a first consumer claiming the token by renaming it
+            claimed = p + ".claimed-first"
+            os.rename(p, claimed)
+            # Now a second consumer should fail to claim
+            with self.assertRaises(consent.ConsentError):
+                consent.consume(td, "k")
+            # The claimed file must still exist (evidence)
+            self.assertTrue(os.path.isfile(claimed))
 
 
 if __name__ == "__main__":
