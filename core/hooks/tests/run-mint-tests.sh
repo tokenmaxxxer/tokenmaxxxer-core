@@ -105,6 +105,12 @@ print(json.dumps({"prompt": sys.argv[1], "cwd": sys.argv[2]}))' "$LINE" "$td")"
 
 check_env reject kill-switch  CORE_OFF=1
 check_env reject unattended   TOKENMAXXXER_UNATTENDED=1
+# An orchestrator-spawned session's prompt is orchestrator-authored text: the
+# stdin task arrives verbatim as the UserPromptSubmit prompt (measured
+# 2026-07-27), so a spawn task of exactly the challenge line would mint an
+# actor:user token with no human involved. muster stamps every spawn with
+# TOKENMAXXXER_SPAWNED=1; the mint must be inert under it.
+check_env reject spawned      TOKENMAXXXER_SPAWNED=1
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -22,10 +22,16 @@
 # Kill switch: CORE_OFF=1
 # Unattended: mints nothing. There is no human turn to read, and an approval in
 # an unattended run comes from the judge (see lib/judge.py), not from here.
+# Spawned: mints nothing. An orchestrator-spawned session's prompt is
+# orchestrator-authored text delivered on stdin, not a human turn — measured
+# 2026-07-27: the spawn task arrives verbatim as the UserPromptSubmit prompt,
+# so without this guard a task of exactly the challenge line would mint an
+# actor:user token with no human involved. muster stamps every spawn.
 set -euo pipefail
 
 case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
 case "${TOKENMAXXXER_UNATTENDED:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
+case "${TOKENMAXXXER_SPAWNED:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
 
 command -v python3 >/dev/null 2>&1 || exit 0
 
