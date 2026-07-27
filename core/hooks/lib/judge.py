@@ -159,7 +159,7 @@ def maybe_mint(tokens_dir, kind, subject, material, facts,
     # human to audit. Logged for every parsed verdict, after the token lands —
     # a log failure must not undo an approval.
     try:
-        log = os.path.join(tokens_real, os.pardir, "judge-log.md")
+        log = os.path.join(os.path.dirname(tokens_real), "judge-log.md")
         with open(log, "a", encoding="utf-8") as fh:
             fh.write("- %s — %s — %s — %s\n" % (kind, subject, verdict, reasoning))
     except OSError:

@@ -38,7 +38,16 @@ def verdict_json(verdict, reasoning="Write surface is inside docs/."):
 
 class MaybeMint(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        # The tokens directory must be NESTED, mirroring production's
+        # records/<subject>/tokens/. maybe_mint writes its audit line to the
+        # PARENT of tokens_dir, so a bare mkdtemp() put judge-log.md straight
+        # into the shared system temp directory: measured 2026-07-27, 4KB of
+        # verdicts accumulated there across runs, and the log assertion below
+        # was passing on entries from previous runs.
+        self.root = tempfile.mkdtemp()
+        self.dir = os.path.join(self.root, "records", SUB, "tokens")
+        os.makedirs(self.dir)
+        self.log = os.path.join(self.root, "records", SUB, "judge-log.md")
         self.env = dict(os.environ, TOKENMAXXXER_UNATTENDED="1")
         self.env.pop("CORE_OFF", None)
 
@@ -135,14 +144,43 @@ class MaybeMint(unittest.TestCase):
                 cmd=fake(verdict_json("APPROVE")), env=self.env), (k, s))
 
     def test_judge_log_survives_the_verdict(self):
-        # The token is consumed and deleted; the log line is what a human
-        # audits afterwards.
-        self.assertTrue(self.run_it(fake(verdict_json("APPROVE"))))
-        log = os.path.join(self.dir, "..", "judge-log.md")
-        text = open(log, encoding="utf-8").read()
+        """The token is consumed and deleted; the log line is what a human
+        audits afterwards.
+
+        Asserted on the reasoning THIS call carried, not on KIND/SUB — those
+        are constants, so the earlier version of this test passed on a stale
+        log written by any previous run and could not fail.
+        """
+        self.assertFalse(os.path.exists(self.log))
+        mark = "verdict-line-unique-to-this-call"
+        self.assertTrue(self.run_it(fake(verdict_json("APPROVE", reasoning=mark))))
+        text = open(self.log, encoding="utf-8").read()
+        self.assertEqual(text.count("\n"), 1)
+        self.assertIn(mark, text)
         self.assertIn("APPROVE", text)
         self.assertIn(KIND, text)
         self.assertIn(SUB, text)
+
+    def test_refused_verdicts_are_logged_too(self):
+        # The token is what a gate reads; the log is what a human reads. A
+        # REFUSE that leaves no trace is an unattended decision nobody can
+        # audit afterwards.
+        self.assertFalse(self.run_it(fake(verdict_json("REFUSE", reasoning="touches .github"))))
+        self.assertIsNone(self.token())
+        self.assertIn("REFUSE", open(self.log, encoding="utf-8").read())
+
+    def test_nothing_is_written_outside_the_root(self):
+        # maybe_mint writes exactly two paths: the token and the audit line,
+        # both under the caller's tree.
+        self.assertTrue(self.run_it(fake(verdict_json("APPROVE"))))
+        found = set()
+        for base, _dirs, files in os.walk(self.root):
+            for f in files:
+                found.add(os.path.relpath(os.path.join(base, f), self.root))
+        self.assertEqual(found, {
+            os.path.join("records", SUB, "tokens", KIND + ".token"),
+            os.path.join("records", SUB, "judge-log.md"),
+        })
 
 
 if __name__ == "__main__":
