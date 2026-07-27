@@ -58,6 +58,56 @@ class ConsumeTests(unittest.TestCase):
             self.assertEqual(got["phrase"], "item F-1 confirmed defect")
             self.assertIsNone(consent.find(td, "reproduced--handed-off"))
 
+    def test_judge_actor_refused_by_default(self):
+        """actor:judge tokens exist for unattended runs only. A gate that did
+        not opt in must refuse them — otherwise a stale judge token satisfies
+        an attended gate (cross-mode replay)."""
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", actor="judge")
+            with self.assertRaises(consent.ConsentError):
+                consent.consume(td, "k")
+
+    def test_judge_actor_allowed_when_explicit(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", actor="judge")
+            got = consent.consume(td, "k", allowed_actors=("user", "judge"))
+            self.assertEqual(got["actor"], "judge")
+
+    def test_user_allowed_under_extended_actors(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", actor="user")
+            got = consent.consume(td, "k", allowed_actors=("user", "judge"))
+            self.assertEqual(got["actor"], "user")
+
+    def test_empty_allowed_actors_is_misuse(self):
+        """An empty allow-list is a caller bug, not a refusal — ValueError,
+        and the token must stay in place untouched (fail closed, keep
+        evidence)."""
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k")
+            with self.assertRaises(ValueError):
+                consent.consume(td, "k", allowed_actors=())
+            self.assertIsNotNone(consent.find(td, "k"))
+
+    def test_subject_mismatch_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", subject="Alpha")
+            with self.assertRaises(consent.ConsentError):
+                consent.consume(td, "k", subject="alpha")
+
+    def test_subject_match_consumes(self):
+        with tempfile.TemporaryDirectory() as td:
+            write_token(td, "k", subject="alpha")
+            got = consent.consume(td, "k", subject="alpha")
+            self.assertEqual(got["subject"], "alpha")
+
+    def test_directory_at_token_path_is_not_found(self):
+        """getsize() is truthy for a directory, so a directory planted at
+        <kind>.token used to read as an available approval."""
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "k.token"))
+            self.assertIsNone(consent.find(td, "k"))
+
     def test_second_consume_raises(self):
         """A token that survives its use is a standing approval. Measured
         2026-07-27: one repo never removed it, so the same approving write

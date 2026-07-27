@@ -1,239 +1,174 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: mints a single-use approval token from an assertion in
-# the user's OWN turn — never from a file, record, PR comment, or tool result.
-# A role's gate consumes it via hooks/lib/consent.py.
+# UserPromptSubmit: mints a consent token when the user's whole turn is exactly
 #
-# This hook NEVER blocks. Malformed input, no root, no subject, or an absent or
-# ambiguous approval all mean: write nothing, exit 0. The gate — not this hook
-# — is what refuses an unsignaled transition.
+#     APPROVE <kind> <subject>
 #
-# Kill switch: export CORE_OFF=1
-set -uo pipefail
+# and never otherwise. Not a sentence containing that line, not a paraphrase,
+# not an approval written in prose.
+#
+# Three earlier designs read approval out of natural language and all three
+# leaked (see tests/run-mint-tests.sh for the measured cases). Deciding what a
+# sentence means is a language problem and a regex is the wrong tool for it;
+# deciding whether two strings are equal is not a language problem. The model
+# asks the human clearly and prints the exact line to send — that half IS a
+# language problem, and the model is good at it. This hook only checks equality.
+#
+# Why a hook and not the model's own judgment: the model is the thing being
+# gated, and the input is adversarial text. An entity cannot authorize itself,
+# and an LLM reading adversarial text to decide authorization is injectable.
+# String equality is neither.
+#
+# Never blocks: exit 0 on every path. The GATE refuses; this hook only records.
+# Kill switch: CORE_OFF=1
+# Unattended: mints nothing. There is no human turn to read, and an approval in
+# an unattended run comes from the judge (see lib/judge.py), not from here.
+# Spawned: mints nothing. An orchestrator-spawned session's prompt is
+# orchestrator-authored text delivered on stdin, not a human turn — measured
+# 2026-07-27: the spawn task arrives verbatim as the UserPromptSubmit prompt,
+# so without this guard a task of exactly the challenge line would mint an
+# actor:user token with no human involved. muster stamps every spawn.
+set -euo pipefail
 
-case "${CORE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
+case "${TOKENMAXXXER_UNATTENDED:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
+case "${TOKENMAXXXER_SPAWNED:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
 
 command -v python3 >/dev/null 2>&1 || exit 0
 
 payload="$(cat 2>/dev/null || true)"
 [ -n "$payload" ] || exit 0
 
-# The parser is read into a variable at TOP LEVEL and passed to `python3 -c`.
-# Written as `$(python3 <<'PY' … PY)` it would not parse under bash 3.2 — a
-# quoted-delimiter heredoc nested in a command substitution is not literal
-# there, so one apostrophe in a comment ("the gate's own sentinel") breaks the
-# whole file. Measured 2026-07-27: that made a UserPromptSubmit hook fail to
-# parse, and every prompt for that role came back blocked.
-IFS='' read -r -d '' MINT_PY <<'PY' || true
+# Read the program at top level. bash 3.2 tracks quotes and parens inside a
+# heredoc body while scanning for a closing `)`, so a quoted heredoc nested in
+# $( … ) is NOT literal and one apostrophe in a comment breaks the file.
+IFS='' read -r -d '' CORE_MINT <<'PY' || true
 import json, os, posixpath, re, subprocess, sys, tempfile
 
 def bail():
     sys.exit(0)
 
-raw = os.environ.get("CORE_PAYLOAD", "")
 try:
-    event = json.loads(raw)
+    event = json.loads(os.environ.get("CORE_PAYLOAD", ""))
 except ValueError:
     bail()
 if not isinstance(event, dict):
     bail()
 
 prompt = event.get("prompt")
-if not isinstance(prompt, str) or not prompt.strip():
+if not isinstance(prompt, str):
     bail()
 
-# An unattended run receives its prompts from the orchestrator, not from a
-# human. Reading those as human speech is exactly the self-certification the
-# token exists to prevent, so unattended mints nothing at all.
-if os.environ.get("TOKENMAXXXER_UNATTENDED", "") not in ("", "0", "false", "no", "off"):
+# The WHOLE turn, or nothing. `re.match` alone would accept a trailing
+# remainder, and `contains` would accept every quoted, fenced and negated case
+# in the test suite. `\Z` with no `re.M` is what makes this equality.
+ID = r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}"
+m = re.match(r"\AAPPROVE (%s) (%s)\Z" % (ID, ID), prompt.strip())
+if not m:
     bail()
+kind, subject = m.group(1), m.group(2)
 
-# --- the approving sentence, and the subject named inside it -----------
-#
-# Subject and approval come from ONE sentence. Two independent searches over
-# the whole prompt is what leaked on 2026-07-27:
-#
-#   "subject beta is blocked and stays where it is. Separately, I approve the
-#    scope for subject alpha."   -> minted a token for BETA.
-#
-# A fenced code block is quoted material — a pasted transcript, or an example
-# of the phrasing someone should use — never the user's own assertion. Strip
-# it before any analysis. Measured 2026-07-27: approval wording pasted inside
-# a ``` fence minted a token. The close is optional: an opening fence with no
-# matching close strips to the end of the text rather than leaving the whole
-# thing unstripped. A nested four-backtick fence is not specially handled —
-# that is a Markdown parser, not a few characters, so it is left alone.
-#
-# Indented text is NOT stripped: that also blanked an ordinary quoted chat
-# reply (indentation is how most clients mark one), which is a false reject,
-# not a false accept — measured 2026-07-27.
-speech = re.sub(r"```.*?(?:```|\Z)", " ", prompt, flags=re.S)
-
-# The state name is an identifier, never a speech act. Blank it first, or
-# `\bscope\b[^.\n]*\bapproved\b` spans the literal `scope-approved` (the hyphen
-# is a word boundary) and "this subject is not yet scope-approved" reads as an
-# approval.
-speech = re.sub(r"(?i)\bscope[-_ ]?approved\b", " <state> ", speech)
-speech = speech.replace("’", "'")
-
-# A sentence disqualifies itself by being a question, a hedge, a negation, or a
-# report of someone else's words. Verb suffixes are open (`refus\w*`) — the
-# closed form `\brefus\b` shipped once and could not match "refuse" at all.
-#
-# `would`/`could`/`if i`/etc. disqualify hypothetical and subjunctive framing
-# ("If I were QA I would approve..."). This also rejects a genuine "I would
-# like to approve the scope" — that is the safe direction and is accepted;
-# do not narrow it back to "would not" only.
-#
-# Long-form negation ("-지 않다" / "-지 못하다") is matched by the connective
-# -지 immediately before 않/못, not by enumerating what follows: every ending
-# (않는다/않았다/않을 것이다/않습니다/못했다/못한다/못합니다/...) attaches AFTER
-# 않/못, so listing endings is both incomplete (missed 않는다, 못했다) and, for
-# some endings, impossible — Hangul syllables COMPOSE, so "아니" + "ㅂ니다" is
-# not a substring of the real word 아닙니다 at all (닙 is one precomposed
-# codepoint, not 니 followed by ㅂ: `"아니" in "아닙니다"` is False). Measured
-# 2026-07-27: enumerating conjugations minted 아닙니다, 아님, 않는다, 못했다—
-# three of them unambiguous refusals read as consent, which is worse than the
-# false-reject it replaced.
-#
-# 아니다's OWN endings (-다/-고/-라/-야/-에요/-었) do not merge, so "아니" + that
-# suffix is a real substring; but its -ㅂ니다/-ㅁ endings DO merge (아니+ㅂ니다
-# -> 아닙니다, 아니+ㅁ -> 아님), so those are listed as complete precomposed
-# words rather than assembled from a prefix + a separately-typed suffix — that
-# assembly is exactly what breaks under composition, per the note above.
-#
-# "지" must be followed by whitespace before 않/못, not `\s*` (zero-or-more):
-# 못지않게 ("no less than") fuses 지 directly onto 않 with NO space, and is a
-# single idiom, not the auxiliary construction; the auxiliary is always
-# written with a space (...하지 않다/못하다). `\s*` would also disqualify a
-# same-sentence 못지않게, which is a real approval, not a refusal.
-#
-# Known gap, not chased further: a sentence combining the idiom 못지않다 with
-# an approval AND an unrelated real "-지 않다" negation in the same clause is
-# still ambiguous to a substring match. Out of scope here — see the design
-# note in the task report.
-DISQUALIFY = re.compile(
-    r"(?i)\?"
-    r"|\b(not|never|cannot|shall not|will not|would not|should not|must not"
-    r"|can't|won't|wont|shan't|shouldn't|wouldn't|couldn't|didn't|doesn't"
-    r"|don't|isn't|aren't|wasn't|weren't|hasn't|haven't"
-    r"|refus\w*|declin\w*|without|instead of|unsure|maybe|might"
-    r"|would|could|if i|suppose|imagine|hypothetically"
-    r"|i think|i wonder|did anyone|has anyone|do you|should we|shall we)\b"
-    r"|\bfor example\b|\be\.g\."
-    r"|\b(says?|said|according to|comment|quoted?|per the)\b"
-    r"|하지\s*마|하지\s*말|말고|말라|없이|금지"
-    r"|지\s+않|지\s+못"
-    r"|아니(?:다|고|라|야|에요|었)|아닌|아님|아닙니다|아닙니까"
-    r"|확실치|확실하지|모르겠|인가요|일까요|라고\s*(?:한다|했다|합니다)")
-
-APPROVES = re.compile(
-    r"(?i)\b(approve|approved|approving)\b[^.\n]*\bscope\b"
-    r"|\bscope\b[^.\n]*\b(approve|approved)\b"
-    r"|(?:scope|스코프|범위)[^.\n]*승인")
-SUBJECT = re.compile(r"(?i)\bsubject[\s:]+([A-Za-z0-9][A-Za-z0-9_-]{0,127})")
-
-subject = None
-approving_sentence = None
-# Split on [.!?\n] followed by whitespace, same as before the question rule
-# was un-anchored. A zero-width splitter (matching even with no whitespace
-# after the punctuation) was tried and reverted: it also split "I approve the
-# scope, per section 4.2, for subject X." at the decimal point, tearing the
-# subject from its approving clause and rejecting a real approval. It was
-# never load-bearing — the fix that actually closes the missing-space hole is
-# the bare `\?` above, not the splitter: with `\s+`, a missing space after "?"
-# ("...subject X?Let's circle back...") keeps the whole thing ONE sentence,
-# and that sentence still contains a "?" somewhere, which the un-anchored
-# rule now catches regardless of position. Measured 2026-07-27.
-#
-# A sentence containing a "?" anywhere still disqualifies even when it also
-# contains a clean approval elsewhere in the same clause, e.g. "I approve (is
-# that clear?) the scope for subject X." This is accepted, not accidental: a
-# sentence carrying a question is not a clean assertion of approval.
-for sentence in re.split(r"(?<=[.!?\n])\s+", speech):
-    s = sentence.strip()
-    if not s or DISQUALIFY.search(s) or not APPROVES.search(s):
-        continue
-    sub = SUBJECT.search(s)
-    if not sub:
-        # An approval naming no subject in its own sentence names nothing.
-        # Which subject it meant is not this hook's guess to make.
-        continue
-    subject = sub.group(1)
-    approving_sentence = s
-    break
-
-if subject is None:
-    bail()
-
-KIND = "scope-proposed--scope-approved"
-
-# --- resolve the project root ------------------------------------------
+# --- resolve project root (no root -> nothing to do) -------------------
 def git_top(p):
     try:
         out = subprocess.run(["git", "-C", p, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True)
         if out.returncode == 0 and out.stdout.strip():
-            return posixpath.normpath(
-                os.path.realpath(out.stdout.strip()).replace("\\", "/"))
+            return posixpath.normpath(os.path.realpath(out.stdout.strip()).replace("\\", "/"))
     except Exception:
         return None
     return None
 
-root = os.environ.get("CLAUDE_PROJECT_DIR", "") or event.get("cwd", "") or ""
-root = git_top(root) or (posixpath.normpath(os.path.realpath(root).replace("\\", "/"))
-                         if root else "")
-if not root or not os.path.isdir(root):
+def plausible(r):
+    # A repo, or a board: the contract file is the board's opt-in marker, and
+    # requiring .git alone left every non-git project with a permanently
+    # inoperative consent mechanism that signalled nothing.
+    if not r or not os.path.isdir(r):
+        return False
+    return (os.path.exists(os.path.join(r, ".git"))
+            or os.path.isfile(os.path.join(r, "docs", "specs",
+                                           "role-handoff-contract.md")))
+
+def norm(r):
+    return posixpath.normpath(os.path.realpath(r).replace("\\", "/"))
+
+root = None
+for cand in (os.environ.get("CLAUDE_PROJECT_DIR"), event.get("cwd")):
+    if isinstance(cand, str) and plausible(cand):
+        root = norm(cand)
+        break
+if root is None:
+    root = git_top(os.getcwd())
+if not root:
     bail()
 
+# Token dir under the subject's record area. Resolve, then containment-check —
+# KIND_RE already excludes `/` and `..`, and this is the second lock.
 records_root = posixpath.join(root, "docs", "reports", "records")
 tokens_dir = posixpath.join(records_root, subject, "tokens")
+
+# Check containment of what already exists BEFORE creating anything. A
+# symlink at docs/, docs/reports/ or records/ relocates the whole tree, and
+# realpath makes that transparent — so verify records/ itself resolves back
+# under the root, and never makedirs through it first.
+for existing in (records_root, posixpath.dirname(records_root)):
+    if os.path.exists(existing) and not (norm(existing) + "/").startswith(root + "/"):
+        bail()
+
 try:
     os.makedirs(tokens_dir, exist_ok=True)
 except OSError:
     bail()
-
-tokens_real = posixpath.normpath(os.path.realpath(tokens_dir).replace("\\", "/"))
-records_real = posixpath.normpath(os.path.realpath(records_root).replace("\\", "/"))
-if not tokens_real.startswith(records_real + "/"):
+tokens_real = norm(tokens_dir)
+records_real = norm(records_root)
+if not tokens_real.startswith(records_real + "/") or \
+        not (records_real + "/").startswith(root + "/"):
     bail()
 
-token_file = posixpath.join(tokens_real, KIND + ".token")
+token_file = posixpath.join(tokens_real, kind + ".token")
 if posixpath.dirname(token_file) != tokens_real:
     bail()
 
-phrase = approving_sentence[:300]
-# The phrase is the user's own words, kept so a human can audit what minted
-# this. Redact anything credential-SHAPED rather than anything merely spelled
-# like the word "secret" — the previous scan matched English nouns and let
-# ghp_/sk-/AKIA/xoxb- prefixes through untouched.
-if re.search(r"(?i)(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-             r"|sk-[A-Za-z0-9-]{20,}|AKIA[A-Z0-9]{16}|ASIA[A-Z0-9]{16}"
-             r"|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{35}"
-             r"|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\."
-             r"|-----BEGIN |https?://[^ ]*:[^ ]*@"
-             r"|api[_-]?key|secret|password|passwd|bearer |authorization:)",
-             phrase):
-    phrase = "(approval wording redacted: looked credential-shaped)"
-phrase = phrase.replace("\n", " ").replace("\r", " ")
-
-fd, tmp = tempfile.mkstemp(dir=tokens_real, prefix=".mint-")
+# A consumed token must not be restorable. Measured 2026-07-27: the records
+# tree is committed by roles, so `git checkout -- .` after a consume brought
+# the token back and the same approval passed again — exactly the standing-
+# approval bug consume() removes tokens to prevent. A self-ignoring
+# directory keeps tokens out of every commit.
 try:
+    ignore = posixpath.join(tokens_real, ".gitignore")
+    if not os.path.exists(ignore):
+        with open(ignore, "w", encoding="utf-8") as fh:
+            fh.write("*\n")
+except OSError:
+    pass
+
+# `phrase` is the challenge line itself. It cannot carry a secret, so the
+# credential-redaction pass the prose version needed is gone with the prose.
+tmp = None
+try:
+    fd, tmp = tempfile.mkstemp(dir=tokens_real, prefix=".token.")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write("kind: %s\n" % KIND)
+        fh.write("kind: %s\n" % kind)
         fh.write("subject: %s\n" % subject)
         fh.write("actor: user\n")
-        fh.write("phrase: %s\n" % phrase)
+        fh.write("phrase: APPROVE %s %s\n" % (kind, subject))
     os.replace(tmp, token_file)
 except OSError:
-    try:
-        os.unlink(tmp)
-    except OSError:
-        pass
+    # Clean up the temp file: it holds a COMPLETE valid token body with
+    # actor: user. Leaving it behind litters the tokens directory with
+    # durable unconsumed approval evidence, and the model can force this
+    # path by pre-creating a directory at <kind>.token.
+    if tmp is not None:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
     bail()
+
+sys.exit(0)
 PY
 
-CORE_PAYLOAD="$payload" python3 -c "$MINT_PY" >/dev/null 2>&1 || true
+# A UserPromptSubmit hook's stdout is injected into the model's context, and
+# stderr is reachable (a multi-megabyte turn overflows the env var and bash
+# reports E2BIG). This hook speaks to nobody: silence both.
+CORE_PAYLOAD="$payload" python3 -c "$CORE_MINT" >/dev/null 2>&1 || true
 exit 0

@@ -45,7 +45,9 @@ def find(tokens_dir, kind):
     """
     p = token_path(tokens_dir, kind)
     try:
-        return p if os.path.getsize(p) > 0 else None
+        # isfile first: getsize() is truthy for a DIRECTORY, so a directory
+        # planted at <kind>.token used to read as an available approval.
+        return p if os.path.isfile(p) and os.path.getsize(p) > 0 else None
     except OSError:
         return None
 
@@ -62,8 +64,23 @@ def _parse(text):
     return got
 
 
-def consume(tokens_dir, kind):
+def consume(tokens_dir, kind, allowed_actors=("user",), subject=None):
     """Read the token, remove it, return its fields.
+
+    `allowed_actors` defaults to the human alone. A gate opts into
+    ("user", "judge") only when the unattended flag is set for its session —
+    so a stale judge token can never satisfy an attended gate (cross-mode
+    replay stays closed). The four contract §8/§19 human-reserved kinds
+    (scope approval, defect adjudication, metric freeze, round-end) never
+    include "judge"; that rule lives in the contract, and a gate for one of
+    those kinds must not pass "judge" here. An empty allow-list is caller
+    misuse: ValueError before the token is touched, keeping the evidence.
+
+    `subject`, when supplied, must equal the token's own subject field. A
+    gate that knows which subject it is acting on should always pass it: on
+    a case-insensitive filesystem two subjects differing only in case share
+    one tokens directory, so an approval for one satisfied a gate for the
+    other.
 
     Removal is the point. A token that survives its use is a standing
     approval: measured 2026-07-27, a repository that only checked for the file
@@ -88,6 +105,11 @@ def consume(tokens_dir, kind):
     This is the fail-closed call — we refuse rather than proceeding with a
     partially consumed token.
     """
+    if (not isinstance(allowed_actors, (tuple, list)) or not allowed_actors
+            or not all(isinstance(a, str) and a for a in allowed_actors)):
+        raise ValueError("allowed_actors must name at least one actor: %r"
+                         % (allowed_actors,))
+
     p = token_path(tokens_dir, kind)
     claimed = p + ".claimed-%d-%s" % (os.getpid(), os.urandom(8).hex())
 
@@ -114,10 +136,21 @@ def consume(tokens_dir, kind):
         raise ConsentError(
             "approval token at %s declares kind %r but was read as %r"
             % (claimed, fields["kind"], kind))
-    if fields["actor"] != "user":
+    if subject is not None and fields["subject"] != subject:
+        # Case matters even where the filesystem disagrees. On a
+        # case-insensitive filesystem `records/Alpha/tokens/` and
+        # `records/alpha/tokens/` are one directory, so a token minted for
+        # subject `Alpha` was consumable by a gate acting on `alpha` —
+        # authority for one subject satisfying a gate for another. A gate
+        # that knows its subject must pass it.
         raise ConsentError(
-            "approval token for kind %r at %s has actor %r; only a human may "
-            "authorize this" % (kind, claimed, fields["actor"]))
+            "approval token for kind %r at %s names subject %r but this gate "
+            "acts on %r" % (kind, claimed, fields["subject"], subject))
+    if fields["actor"] not in allowed_actors:
+        raise ConsentError(
+            "approval token for kind %r at %s has actor %r; this gate accepts "
+            "only %s" % (kind, claimed, fields["actor"],
+                         ", ".join(allowed_actors)))
 
     try:
         os.remove(claimed)
