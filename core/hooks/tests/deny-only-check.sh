@@ -51,11 +51,19 @@ probe_dir="$dir"
 tokens_rel="docs/reports/records/probe-subject/tokens/scope-proposed--scope-approved.token"
 
 forgery_probe() {
-  gates="$(find "$probe_dir" -maxdepth 1 -name '*.sh' -type f 2>/dev/null \
-           | grep -vE '/(tests|install)' || true)"
+  # Recursive: core keeps gates in hooks/, a rulebook keeps them in
+  # <plugin>/hooks/. Test harnesses and installers are not gates.
+  gates="$(find "$probe_dir" -name '*.sh' -type f 2>/dev/null \
+           | grep -vE '/(tests?|install)' \
+           | grep -vE '/(run-|test-|deny-only-check)' || true)"
   [ -n "$gates" ] || { echo "deny-only-check: no gate scripts under $probe_dir — nothing to probe"; return 0; }
 
-  td="$(mktemp -d)"
+  # pwd -P: on macOS mktemp -d hands back /var/... which realpath resolves to
+  # /private/var/..., and a gate that normalizes its root without realpath but
+  # resolves the target with it then compares two different strings and allows
+  # everything. A real repository has no such asymmetry; the probe must not
+  # invent one, or it reports a pass the session would not give.
+  td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
   mkdir -p "$td/docs/specs" "$td/docs/reports/records/probe-subject"
   canon="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/contract/role-handoff-contract.md"
