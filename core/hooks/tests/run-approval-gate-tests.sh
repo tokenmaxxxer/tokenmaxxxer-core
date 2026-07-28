@@ -94,8 +94,17 @@ run deny  wrong-role-branch      human   src/app.py branch=issue-7/qa
 run deny  bash-redirect-src      nopr    x cmd='echo hi > src/app.py'
 run allow bash-read-src          nopr    x cmd='cat src/app.py'
 
-# --- not this gate's business ---------------------------------------------
-run allow docs-write             nopr    docs/issue-7/proposals/p.md
+# --- the docs execution surface (doc-producing roles) ---------------------
+run deny  record-before-approve  nopr    docs/issue-7/reports/coding.md
+run deny  record-comment-only    comment docs/issue-7/reports/coding.md
+run allow record-after-approve   human   docs/issue-7/reports/coding.md
+run deny  foreign-area-preapprove nopr   docs/issue-7/specs/design.md
+run deny  spikes-before-approve  nopr    docs/issue-7/reports/spikes/probe.md role=feasibility branch=issue-7/feasibility
+
+# --- not this gate's business (phase-1 homes and non-surface paths) -------
+run allow proposal-write         nopr    docs/issue-7/proposals/p.md
+run allow research-write         nopr    docs/issue-7/reports/coding/survey.md
+run allow standing-docs-write    nopr    docs/reports/opportunity-tree.md
 run allow readme-write           nopr    README.md
 
 # non-role session: gate stands aside entirely
