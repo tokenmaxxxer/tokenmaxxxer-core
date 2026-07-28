@@ -13,6 +13,11 @@
       "name": "terse",
       "source": "./terse",
       "description": "Output-token compression for every role session: strips conversational filler, code echoes, formatting scaffolding, and repeated summaries from the session's prose while exempting code, worker prompts, frozen contracts, and safety-critical messages. Levels via /terse."
+    },
+    {
+      "name": "freelunch",
+      "source": "./freelunch",
+      "description": "Width-conditional parallel execution for every role session: freezes the shared contract, counts independent deliverable units, then lean delegated solo or lean fan-out of background Sonnet workers. Optimizes wall-clock only; verification belongs to the review/verify roles and the human's PR review."
     }
   ]
 }
