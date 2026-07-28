@@ -10,9 +10,18 @@ issues, consume output as PRs.
 
 ## The interaction protocol (contract v3)
 
-    issue  = user -> system     the requirement backlog; user-authored only
-    PR     = system -> user     every role output, code and documents alike
-    merge  = approval           comment = feedback     close = refusal
+    issue   = user -> system    the requirement backlog; user-authored only
+    PR      = system -> user    every role output, code and documents alike
+    approve = go ahead          comment = feedback     close = refusal
+    merge   = acceptance of the delivered work
+
+Every PR runs in two phases. Phase 1: the role commits its research, its
+current-state survey (`docs/issue-<n>/reports/<role>/`) and its proposal
+(`docs/issue-<n>/proposals/`), opens the PR, and stops. Phase 2 — the
+actual work, code included — opens only when a **human approver listed in
+`docs/specs/approvers.md`** submits a PR review Approve. A bot's or an
+agent's Approve never opens it: who counts as the human is an allowlist,
+which is also what makes "no role approves its own PR" mechanical.
 
 - A role wakes on an issue, works on branch `issue-<n>/<role>` (one branch
   per issue × role), and returns everything as a PR against `main`. No
@@ -31,6 +40,8 @@ issues, consume output as PRs.
     hooks/directive.sh     SessionStart — tells the role session the protocol
     hooks/board-gate.sh    PreToolUse — deny-only: layout, contract, role,
                            branch, ownership
+    hooks/approval-gate.sh PreToolUse — deny-only: src//test/ writes wait
+                           for the allowlisted human's PR review Approve
     contract/              the canonical role-handoff contract (v3)
     hooks/tests/           run-all.sh runs everything
 
@@ -50,6 +61,16 @@ half. They describe the same five rules:
 - **R5 ownership** — within `docs/issue-<n>/reports/`, a role writes only
   `<role>.md`, `<role>/**`, and its contract-granted extra subtree
   (feasibility: `spikes/**`, ops: `postmortems/**`).
+- **R6 phase** (approval-gate.sh) — a role session's write to the
+  execution surface is refused while its `issue-<n>/<role>` PR lacks an
+  Approve review from a listed human — including while no PR exists, which
+  is what enforces proposal-first. The execution surface is `src/`,
+  `test/`, and the whole issue tree except the two phase-1 homes
+  (`proposals/**` and the role's research subtree `reports/<role>/**`) —
+  so a document-producing role's record waits for the Approve exactly as
+  code does. The check asks GitHub live (`gh pr view --json reviews`) and
+  caches nothing: a cache file would be writable by the model's own tools,
+  i.e. a forgeable approval. gh failing = deny.
 
 ## Why there is no token machinery
 

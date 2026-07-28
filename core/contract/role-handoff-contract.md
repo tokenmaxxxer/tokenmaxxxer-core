@@ -248,9 +248,9 @@ no other role's WAKES-ON check can see it.
 The human's role narrows to judgment points, named explicitly. Everything
 else — which role runs next — is carried by WAKES-ON (section 3), not by a
 human relaying a handoff. Every decision on this list is expressed
-exclusively as a GitHub act per section 10 — a PR merge, a PR comment, or
-an issue/PR close — never as prose a model reads approval out of, and
-never as a token.
+exclusively as a GitHub act per section 10 — a PR review Approve, a PR
+merge, a PR comment, or an issue/PR close — never as prose a model reads
+approval out of, and never as a token.
 
 - Opening or retiring a `subject` — filing the issue, or closing it (a
   closed issue's board is no longer live for any role; see section 9).
@@ -302,11 +302,22 @@ two channels, and the system answers through exactly one:
   pushes to `main` directly, ever. A role wakes, checks out `main`, works
   on its own branch `issue-<n>/<role>` (one branch per issue × role, never
   shared between roles), and opens a PR.
-- **Human decisions are GitHub acts, and only GitHub acts**: merging a PR
-  is approval, commenting on a PR is feedback (the role revises on the
-  same branch and pushes to the same PR), closing an issue or PR unmerged
-  is refusal. These are GitHub-authenticated mechanical acts recorded in
-  history — never textual inference by a model.
+- **Human decisions are GitHub acts, and only GitHub acts**: a PR review
+  Approve is permission to proceed from proposal to execution (section
+  19), merging a PR is acceptance of the delivered work, commenting on a
+  PR is feedback (the role revises on the same branch and pushes to the
+  same PR), closing an issue or PR unmerged is refusal. These are
+  GitHub-authenticated mechanical acts recorded in history — never textual
+  inference by a model. A free-text comment is never an approval, however
+  affirmative it reads: deciding what a sentence means is a language
+  problem, and the review Approve state exists precisely so no one has to.
+- **Who counts as the human.** The target repo names its human approvers
+  in `docs/specs/approvers.md` (one GitHub login per list line). Only an
+  Approve review authored by a listed account satisfies a human seat.
+  System accounts (CI, bots, security scanners) may Approve for their own
+  purposes and may be required by branch protection, but never satisfy a
+  human seat; agent accounts are simply not listed, which is what makes
+  "no role approves its own PR" mechanical.
 
 **The board is what is merged.** An open PR is not yet on the board;
 WAKES-ON (section 3) evaluates against `main` plus the issue backlog. A
@@ -601,59 +612,52 @@ conventions, single-source-of-truth numbering, or any other concrete
 mechanism — is out of scope for this section. Passing the gate is what
 matters; the mechanism is each round's own choice.
 
-## 19. Pre-work approval gate
+## 19. Pre-work approval gate: propose first, execute after Approve
 
-Building work — coding, or any role producing the subject's primary
-deliverable — must not start on a subject until a human has approved a
-recorded scope statement. This section defines the gate; section 3's
-pre-work approval-gate edge and the amended coding row wire it into
-WAKES-ON.
+EVERY role, on EVERY issue, works its PR in two phases. This generalizes
+v2's coding-only scope gate to the whole system.
 
-- **Who records the scope.** Whichever role is first to open the subject
-  (product or feasibility, ordinarily — whichever wakes first on the issue)
-  writes a scope statement into its OWN record: what will be done, the
-  intended write surface, what is explicitly out of scope, and how success
-  will be judged. This is written into the front record's own fields; a
-  role never writes another role's record to satisfy this section.
-- **`loop_state: scope-proposed`.** The front role sets its record's
-  `loop_state` to `scope-proposed` once the scope statement is written.
-  This is the state section 2 adds to `product-record` and, when it is the
-  front record instead, to `feasibility-record`.
-- **`loop_state: scope-approved` — human-owned, never self-certified.** Only
-  the human may move a record from `scope-proposed` to `scope-approved`,
-  per section 3's pre-work approval-gate edge and section 8's human's-seat
-  list. No role approves its own scope statement, and no role approves
-  another role's. An agent reading this contract in isolation has no path
-  to write `scope-approved` itself — the state is reachable only through
-  the human-consulted WAKES-ON edge.
-- **What the gate blocks.** No building role may be woken into a subject's
-  FIRST build until that subject's front record shows
-  `loop_state: scope-approved`. Section 3's coding row is amended
-  accordingly: feasibility's `verdict: go`, a qa-record defect, a `finding`
-  addressed to coding, and a `ux-design-record` reaching `reviewed` all
-  remain valid triggers, but none of them independently wakes coding into a
-  subject's first build without `scope-approved` already set on that
-  subject. This is a precondition added on top of the existing triggers,
-  not a replacement for them — adding scope-approved as a parallel,
-  independently-satisfiable edge would leave the pre-existing triggers free
-  to wake the first build on their own, which defeats the gate; the fix is
-  to amend the existing triggers themselves.
-- **Re-wakes are unaffected.** The precondition binds only a subject's
-  first entry into build. A later wake on a subject already past
-  `scope-approved` — a fix for a finding, a qa regression, a ux-design
-  revision — proceeds under the existing rows in section 3 without
-  re-clearing this gate.
-- **How a human approves, mechanically.** The front role opens a PR that
-  sets its own record's `loop_state: scope-proposed`; the human approving
-  the scope IS merging that PR, after which the front role (or the human)
-  records `scope-approved` on `main`. Two properties carry over from the
-  retired challenge-line design and remain load-bearing. Approval is never
-  read out of prose: a merge is a GitHub-authenticated mechanical act
-  recorded in history, not a sentence a model interprets — deciding what a
-  sentence means is a language problem, and three earlier prose-reading
-  designs all leaked. And approval is never self-served: no role merges
-  its own PR; merge rights on `main` belong to the human. Requesting
-  approval is opening the PR; a role never approves, merges, or relays.
+- **Phase 1 — propose.** The role's FIRST commits on `issue-<n>/<role>`
+  are, before any execution work: its research (what is known about the
+  problem), its current-state survey (what exists today and how this issue
+  meets it), and its proposal (what this role intends to do, the intended
+  write surface, what is out of scope, and how success will be judged).
+  Research and survey live under `docs/issue-<n>/reports/<role>/`; the
+  proposal under `docs/issue-<n>/proposals/`. The role opens the PR at
+  this point and stops.
+- **The human's verdict on the proposal.** A PR review **Approve** from an
+  approver listed in `docs/specs/approvers.md` (section 8) is permission
+  to proceed to phase 2. A comment is feedback on the proposal — revise
+  and push to the same PR. A close is refusal. Nothing else — no comment
+  text, no reaction, no bot Approve — opens phase 2.
+- **Phase 2 — execute.** Only after the Approve does the role perform its
+  actual work (code to `src/`, tests to `test/`, its record and report
+  documents) on the same branch, reported through the same PR. Merge of
+  the PR is acceptance of the delivered work — the Approve authorizes
+  doing the work; the merge accepts its result.
+- **`loop_state: scope-proposed` / `scope-approved`.** The scope states
+  map onto the phases: `scope-proposed` in the proposal's own frontmatter
+  when phase 1 is submitted, `scope-approved` once the allowlisted human's
+  Approve review exists on the PR — recorded then in the role's record,
+  whose first write is itself phase-2 work. The review is the authority;
+  any `loop_state` write is its bookkeeping, never the other way around.
+- **What the gate blocks, mechanically.** The execution surface is `src/`,
+  `test/`, and everything under `docs/issue-<n>/` EXCEPT the two phase-1
+  homes — `proposals/**` and the role's own research subtree
+  `reports/<role>/**`. A role session's writes to that surface are refused
+  while its `issue-<n>/<role>` PR lacks an allowlisted human's Approve
+  review — including while no PR exists at all, which is what makes "open
+  the proposal PR first" enforced rather than customary. The record file
+  `reports/<role>.md` is on the execution surface: a document-producing
+  role's deliverable waits for the Approve exactly as code does.
+- **Re-wakes are unaffected.** The precondition binds a role's first entry
+  into execution on a subject. A later wake on a subject whose PR already
+  carries the Approve — a fix for a finding, a qa regression — proceeds
+  without re-clearing this gate, unless the human has since dismissed the
+  approving review.
+- **Never self-served.** No role approves, merges, or relays an approval.
+  Agent accounts are not listed in `approvers.md`, so their reviews cannot
+  satisfy this gate — the exclusion is mechanical, not behavioral.
 - **Unattended runs.** A run with no human present does not skip this
   gate and does not let the working role decide. The PR waits for the
   human. The v2 judge-session mechanism (an independent no-tools session
