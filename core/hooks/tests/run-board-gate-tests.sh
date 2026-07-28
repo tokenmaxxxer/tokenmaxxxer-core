@@ -14,7 +14,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 GATE="$HERE/../board-gate.sh"
 PLUGIN_ROOT="$(cd "$HERE/../.." && pwd -P)"
-CANON="$PLUGIN_ROOT/contract/role-handoff-contract.md"
+
 pass=0
 fail=0
 
@@ -35,7 +35,7 @@ run() {
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs" "$td/docs/issue-3/reports"
-  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   payload="$(printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td")"
   printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       CLAUDE_ROLE=qa "$@" /bin/bash "$GATE" >/dev/null 2>&1
@@ -53,7 +53,7 @@ runb() {
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
   mkdir -p "$td/docs/specs"
-  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       CLAUDE_ROLE="$brole" /bin/bash "$GATE" >/dev/null 2>&1
@@ -78,7 +78,7 @@ run allow issue-proposal         Write '{"file_path":"'$BOARD'/proposals/2026-07
 run allow write-own-record       Write '{"file_path":"'$BOARD'/reports/qa.md","content":"loop_state: observed"}'
 run allow bash-append-record     Bash  '{"command":"echo note >> '$BOARD'/reports/qa.md"}'
 
-drifted() {  # same harness, but the repo contract drifts or is missing
+drifted() {  # same harness, but approvers.md present/absent varies
   want="$1"; name="$2"; fp="$3"; mode="$4"; roleenv="$5"
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
@@ -86,7 +86,7 @@ drifted() {  # same harness, but the repo contract drifts or is missing
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
   case "$mode" in
-    drift)   { cat "$CANON"; echo "local amendment"; } > "$td/docs/specs/role-handoff-contract.md" ;;
+    drift)   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md" ;;
     missing) : ;;
   esac
   if [ -n "$roleenv" ]; then
@@ -104,9 +104,9 @@ drifted() {  # same harness, but the repo contract drifts or is missing
   report "$want" "$got" "$name"
 }
 
-drifted deny  board-contract-drift    "$BOARD/reports/qa.md" drift   qa
-drifted deny  board-contract-missing  "$BOARD/reports/qa.md" missing qa
-drifted deny  standing-drift-w-role   "docs/specs/x.md"      drift   qa
+drifted allow board-approvers-valid     "$BOARD/reports/qa.md" drift   qa
+drifted deny  board-no-approvers       "$BOARD/reports/qa.md" missing qa
+drifted allow standing-write-w-role    "docs/specs/x.md"      drift   qa
 
 # --- not every repo with a docs/ directory is a board ---------------------
 # No contract and no role means no board: an ordinary repo's docs are none
@@ -120,7 +120,7 @@ noRole() {
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"; git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
-  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$1" "$td" \
     | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
@@ -143,7 +143,7 @@ noremote() {
   git init -q "$td"
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
-  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$BOARD/reports/qa.md" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
