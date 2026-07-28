@@ -18,6 +18,11 @@
       "name": "freelunch",
       "source": "./freelunch",
       "description": "Width-conditional parallel execution for every role session: freezes the shared contract, counts independent deliverable units, then lean delegated solo or lean fan-out of background Sonnet workers. Optimizes wall-clock only; verification belongs to the review/verify roles and the human's PR review."
+    },
+    {
+      "name": "scout",
+      "source": "./scout",
+      "description": "The phase-1 research protocol for every role session: bounded best-in-class reconnaissance with a saturation stop rule, compressed into a scout brief that feeds the role's proposal. Direction only; never a post-build comparison pass."
     }
   ]
 }
