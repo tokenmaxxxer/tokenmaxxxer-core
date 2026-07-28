@@ -20,6 +20,11 @@ cat <<EOF
 - Requirements enter as GitHub ISSUES, authored by the user only. You never
   file an issue. The issue number is the subject: subject = issue-<n>, and
   a task you cannot tie to an issue is not yours to start.
+- YOUR issue is assigned in the prompt that invoked this session — you
+  never pick one yourself. If the invocation names no issue, do not choose
+  one, do not start work, and do not create anything: ask which issue you
+  are being opened for, and stop until answered. All work in this session
+  stays inside that one issue's branch and tree.
 - ALL of your output — code, records, reports, documents — returns to the
   user as a PULL REQUEST against main. Never push to main. Work on the
   branch issue-<n>/${role} (one branch per issue x role; never share a
