@@ -99,13 +99,15 @@ do not get a substitute approver: the PR waits for the human.
     claude plugin marketplace add tokenmaxxxer/tokenmaxxxer-core
     claude plugin install core@tokenmaxxxer-core
     claude plugin install terse@tokenmaxxxer-core
+    claude plugin install freelunch@tokenmaxxxer-core
 
 muster enables them per role; nothing else needs to. This marketplace
-ships two plugins: `core` (the interaction protocol — its gates are not
-meant to be turned off) and [`terse`](terse/) (output-token compression
-for every role session — an economy optimization with its own kill
-switch, `TERSE_OFF=1` or `/terse off`, promoted here from
-coding-agent-rulebook because it is role-agnostic).
+ships three plugins: `core` (the interaction protocol — its gates are not
+meant to be turned off) and two role-agnostic session-economy plugins
+promoted from coding-agent-rulebook, each with its own kill switch:
+[`terse`](terse/) (output-token compression, `TERSE_OFF=1` or
+`/terse off`) and [`freelunch`](freelunch/) (width-conditional parallel
+execution, `FREELUNCH_OFF=1`).
 
 `plugin.json` carries **no `version` field**, deliberately. For a
 git-distributed plugin the commit SHA is the version, so `claude plugin
