@@ -22,5 +22,8 @@ echo; echo "=== terse (sibling plugin) ==="
 echo; echo "=== freelunch (sibling plugin) ==="
 /bin/bash "$here/../../../freelunch/hooks/tests/parse-check.sh" || rc=1
 
+echo; echo "=== scout (sibling plugin) ==="
+/bin/bash "$here/../../../scout/hooks/tests/parse-check.sh" || rc=1
+
 echo; [ "$rc" = 0 ] && echo "ALL OK" || echo "FAILURES ABOVE"
 exit "$rc"
