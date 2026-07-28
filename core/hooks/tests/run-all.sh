@@ -10,15 +10,6 @@ echo "=== bash 3.2 parse ==="
 echo; echo "=== deny-only ==="
 /bin/bash "$here/deny-only-check.sh" || rc=1
 
-echo; echo "=== consent lib ==="
-python3 "$here/test_consent_lib.py" 2>&1 | tail -3 || rc=1
-
-echo; echo "=== judge lib ==="
-python3 "$here/test_judge_lib.py" 2>&1 | tail -3 || rc=1
-
-echo; echo "=== mint ==="
-/bin/bash "$here/run-mint-tests.sh" | tail -2 || rc=1
-
 echo; echo "=== board gate ==="
 /bin/bash "$here/run-board-gate-tests.sh" | tail -2 || rc=1
 

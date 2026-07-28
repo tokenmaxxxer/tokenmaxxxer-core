@@ -40,15 +40,15 @@ else
   echo "deny-only-check: ok — no permissionDecision allow under $dir"
 fi
 
-# --- forgery probe: no role may write the tokens directory ----------------
+# --- forgery probe: no role writes the board off its own branch -----------
 # The rule is not "core has a gate for this" but "THIS rulebook refuses the
-# write". Measured 2026-07-27: coding's path-ownership gate denied a foreign
-# record write only when the tail had no slash or ended in .md, so
-# records/<subject>/tokens/<kind>.token passed both tests and the model could
-# Write its own approval. Every rulebook must refuse it — under its own hooks,
-# with core's board-gate present as it is in a real session.
+# write". Under the issue/PR model, approval is a PR merge on main — so the
+# forgery equivalent of a token write is a role writing a foreign record
+# into an issue tree from a branch that is not issue-<n>/<role>. Every
+# rulebook must refuse it — under its own hooks, with core's board-gate
+# present as it is in a real session.
 probe_dir="$dir"
-tokens_rel="docs/reports/records/probe-subject/tokens/scope-proposed--scope-approved.token"
+tokens_rel="docs/issue-999/reports/product.md"
 
 forgery_probe() {
   # Recursive: core keeps gates in hooks/, a rulebook keeps them in
@@ -65,10 +65,10 @@ forgery_probe() {
   # invent one, or it reports a pass the session would not give.
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
-  mkdir -p "$td/docs/specs" "$td/docs/reports/records/probe-subject"
+  mkdir -p "$td/docs/specs" "$td/docs/issue-999/reports"
   canon="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/contract/role-handoff-contract.md"
   [ -f "$canon" ] && cp "$canon" "$td/docs/specs/role-handoff-contract.md"
-  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"kind: x\\nsubject: probe-subject\\nactor: user\\nphrase: forged\\n"},"cwd":"%s"}' \
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"loop_state: scope-approved\\n"},"cwd":"%s"}' \
              "$tokens_rel" "$td")"
 
   refused=0
@@ -76,15 +76,15 @@ forgery_probe() {
     printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" \
         CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)" \
         CLAUDE_ROLE=probe /bin/bash "$g" >/dev/null 2>&1
-    [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the token write"; }
+    [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the forged board write"; }
   done
   rm -rf "$td"
 
   if [ "$refused" = 0 ]; then
     echo "deny-only-check: FAIL — no gate under $probe_dir refuses a write to" >&2
     echo "  $tokens_rel" >&2
-    echo "  A token written by a tool is a forged human approval. Deny every" >&2
-    echo "  write under records/<subject>/tokens/, for every role." >&2
+    echo "  A foreign record written off the role's own issue branch is a" >&2
+    echo "  forged approval path. Deny it for every role. (contract v3 s10/s11)" >&2
     return 1
   fi
   return 0

@@ -2,7 +2,7 @@
 status: final
 ---
 
-# Role handoff contract (v2: blackboard/event model)
+# Role handoff contract (v3: issue/PR interaction model)
 
 Authority document for how the nine role rulebooks — coding, qa,
 feasibility, product, ux-design, ops, review, verify, reflect — coordinate inside the
@@ -36,7 +36,7 @@ loop_state: <this role's own state-machine position; see section 2's
   `sha` (the commit that introduced the record itself) at write time; there
   is nothing to compare it against, so section 4's staleness rule is
   trivially satisfied for it and never fires against itself.
-- `subject` is minted per section 5 and copied verbatim by every role
+- `subject` is the issue number (`issue-<n>`, section 9), copied verbatim by every role
   touching the same piece of work.
 - `loop_state` is this contract's field for that role's internal
   state-machine position (section 2 lists each role's vocabulary). A role's
@@ -49,28 +49,28 @@ loop_state: <this role's own state-machine position; see section 2's
 ## 2. Artifact kind table (the blackboard's rows)
 
 Every role writes exactly one status record onto the blackboard,
-`docs/reports/records/<subject>/<role>.md`, plus zero or more per-item
+`docs/issue-<n>/reports/<role>.md`, plus zero or more per-item
 sub-artifacts. All nine roles are sanctioned here, including product's and
 coding's records, closing the trial's two unsanctioned-kind gaps.
 
 | kind | produced by | path | `loop_state` vocabulary | required fields beyond common header |
 |---|---|---|---|---|
-| `hypothesis` | product | `docs/proposals/<date>-<slug>.md` | `idle,scoping,researching,hypothesis-registered,measuring,decided` | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |
-| `product-record` | product | `docs/reports/records/<subject>/product.md` | same as `hypothesis`, plus `scope-proposed,scope-approved` — see section 19 | pointer to the governing `hypothesis`; running acceptance-criteria notes; scope statement per section 19 once `loop_state` reaches `scope-proposed` |
-| `one-pager` | product | `product/one-pager.md` | n/a (standing doc, not per-subject) | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |
-| `opportunity-tree` | product | `product/opportunity-tree.md` | n/a (continuous interview log) | — |
-| `build-proposal` | coding | `docs/proposals/<date>-build-<slug>.md` | `proposed,approved,landed` | `files:` (write-set freeze list), `## Request`, `## Constraints`, `## What will be done`, `## Out of scope` |
-| `coding-record` | coding | `docs/reports/records/<subject>/coding.md` | same as `build-proposal`, plus `finding-response` sub-entries per item 4, plus `findings-resolved` per section 15 | pointer to active `build-proposal`; commit shas landed; `resolved_findings:` list (when applicable) — see section 15 |
-| `qa-record` | qa | `docs/reports/records/<subject>/qa.md` (fully in-repo; see section 6) | `observed,reproducing,reproduced,handed-off,re-verifying,verified-fixed,not-a-defect,wont-fix` | intake profile, bug reports, regression records, run stats — all in-repo under this record's area |
-| `feasibility-record` | feasibility | `docs/reports/records/<subject>/feasibility.md` | `idle,scoped,probing,verdict`, plus `scope-proposed,scope-approved` when this record is the subject's front record — see section 19 | `market_argument_supplied: false`, `technical`/`prior_art`/`legal_regulatory`/`threat_model` (each `unresolved\|pass:<evidence>\|fail:<evidence>\|blocked:<evidence>`), `verdict: go\|no-go\|conditional` (required once `loop_state` reaches `verdict`), `measurement_design: <description or pointer>`; `technical` enumerates the deploy/runtime config surface (env var names the build must honor) whenever it is foreseeable at feasibility time — see section 17 |
-| `spike-report` | feasibility | `docs/reports/records/<subject>/spikes/<spike-slug>.md` | n/a (closed report) | Spike Title, Description/Goal, Type, Timebox, Acceptance Criteria, Tasks, Outcomes, Recommendation, Open questions, Reversibility tag; fixture-N notation if fixtures are involved (records the fixture count it was authored against, so a downstream re-run can detect additions/removals) |
-| `ux-design-record` | ux-design | `docs/reports/records/<subject>/ux-design.md` | `idle,drafting,reviewed` | pointer to the governing `hypothesis`/`product-record`; screen/flow/wireframe specs or pointers to them |
-| `review-record` | review | `docs/reports/records/<subject>/review.md` | `idle,scoped,auditing,draft-reported,reported` | `closed_checks:` list keyed to the reviewed code sha — see section 16 |
-| `verify-record` | verify | `docs/reports/records/<subject>/verify.md` | `idle,reproducing,reproduced,cleared` | what was attempted, what reproduced (if anything), reproduction evidence (repro steps, commit sha, run output); `closed_checks:` list keyed to the reviewed code sha — see section 16 |
+| `hypothesis` | product | `docs/issue-<n>/proposals/<date>-<slug>.md` | `idle,scoping,researching,hypothesis-registered,measuring,decided` | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |
+| `product-record` | product | `docs/issue-<n>/reports/product.md` | same as `hypothesis`, plus `scope-proposed,scope-approved` — see section 19 | pointer to the governing `hypothesis`; running acceptance-criteria notes; scope statement per section 19 once `loop_state` reaches `scope-proposed` |
+| `one-pager` | product | `docs/specs/one-pager.md` | n/a (standing doc, not per-subject) | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |
+| `opportunity-tree` | product | `docs/reports/opportunity-tree.md` | n/a (continuous interview log) | — |
+| `build-proposal` | coding | `docs/issue-<n>/proposals/<date>-build-<slug>.md` | `proposed,approved,landed` | `files:` (write-set freeze list), `## Request`, `## Constraints`, `## What will be done`, `## Out of scope` |
+| `coding-record` | coding | `docs/issue-<n>/reports/coding.md` | same as `build-proposal`, plus `finding-response` sub-entries per item 4, plus `findings-resolved` per section 15 | pointer to active `build-proposal`; commit shas landed; `resolved_findings:` list (when applicable) — see section 15 |
+| `qa-record` | qa | `docs/issue-<n>/reports/qa.md` (fully in-repo; see section 6) | `observed,reproducing,reproduced,handed-off,re-verifying,verified-fixed,not-a-defect,wont-fix` | intake profile, bug reports, regression records, run stats — all in-repo under this record's area |
+| `feasibility-record` | feasibility | `docs/issue-<n>/reports/feasibility.md` | `idle,scoped,probing,verdict`, plus `scope-proposed,scope-approved` when this record is the subject's front record — see section 19 | `market_argument_supplied: false`, `technical`/`prior_art`/`legal_regulatory`/`threat_model` (each `unresolved\|pass:<evidence>\|fail:<evidence>\|blocked:<evidence>`), `verdict: go\|no-go\|conditional` (required once `loop_state` reaches `verdict`), `measurement_design: <description or pointer>`; `technical` enumerates the deploy/runtime config surface (env var names the build must honor) whenever it is foreseeable at feasibility time — see section 17 |
+| `spike-report` | feasibility | `docs/issue-<n>/reports/spikes/<spike-slug>.md` | n/a (closed report) | Spike Title, Description/Goal, Type, Timebox, Acceptance Criteria, Tasks, Outcomes, Recommendation, Open questions, Reversibility tag; fixture-N notation if fixtures are involved (records the fixture count it was authored against, so a downstream re-run can detect additions/removals) |
+| `ux-design-record` | ux-design | `docs/issue-<n>/reports/ux-design.md` | `idle,drafting,reviewed` | pointer to the governing `hypothesis`/`product-record`; screen/flow/wireframe specs or pointers to them |
+| `review-record` | review | `docs/issue-<n>/reports/review.md` | `idle,scoped,auditing,draft-reported,reported` | `closed_checks:` list keyed to the reviewed code sha — see section 16 |
+| `verify-record` | verify | `docs/issue-<n>/reports/verify.md` | `idle,reproducing,reproduced,cleared` | what was attempted, what reproduced (if anything), reproduction evidence (repro steps, commit sha, run output); `closed_checks:` list keyed to the reviewed code sha — see section 16 |
 | `finding` | any role | inline block within the addressing role's own record | n/a | `requirement`, `verdict` (`Present\|Surface\|Absent\|Incorrect\|Unverifiable`), `evidence`, `rationale`, `spec_vs_built` (required only when `verdict: Incorrect`), `addressed_to: <role>`, `severity: blocking\|advisory` — see item 4 |
-| `ops-record` | ops | `docs/reports/records/<subject>/ops.md` | `idle,readiness,rollout,steady,incident` | `error_budget: ok\|exhausted`, `postmortem: <pointer>`, `## Checklist` (`- item: <desc> \| status: yes\|no \| artifact: <url/path/config key>`); `## Deploy-config` REQUIRED whenever `feasibility-record` did not enumerate the deploy/runtime config surface — see section 17 |
-| `postmortem` | ops | `docs/reports/records/<subject>/postmortems/<incident-slug>.md` | n/a (closed report) | Impact, Actions taken during response, Root cause(s), Prevention follow-up (owner+tracking+closing-condition), Review (named human reviewer) |
-| `reflect-record` | reflect | `docs/reports/records/<subject>/reflect.md` | `idle,reflecting,candidate-round-done,round-done` | pointer to the subject's other role records read; what went well, what failed, what pattern should change next time |
+| `ops-record` | ops | `docs/issue-<n>/reports/ops.md` | `idle,readiness,rollout,steady,incident` | `error_budget: ok\|exhausted`, `postmortem: <pointer>`, `## Checklist` (`- item: <desc> \| status: yes\|no \| artifact: <url/path/config key>`); `## Deploy-config` REQUIRED whenever `feasibility-record` did not enumerate the deploy/runtime config surface — see section 17 |
+| `postmortem` | ops | `docs/issue-<n>/reports/postmortems/<incident-slug>.md` | n/a (closed report) | Impact, Actions taken during response, Root cause(s), Prevention follow-up (owner+tracking+closing-condition), Review (named human reviewer) |
+| `reflect-record` | reflect | `docs/issue-<n>/reports/reflect.md` | `idle,reflecting,candidate-round-done,round-done` | pointer to the subject's other role records read; what went well, what failed, what pattern should change next time |
 
 `kind` parsing by any gate must tolerate a trailing comment on the line
 (`kind: build-proposal  # re-scoped`); a regex anchored to end-of-line with
@@ -89,7 +89,7 @@ the model's parallelism comes from, not an edge case.
 |---|---|
 | feasibility | a new or changed `hypothesis` record appears on the board |
 | coding | a feasibility `verdict: go`; a `qa-record` defect carrying a human is-this-a-defect verdict; a `finding` with `addressed_to: coding`; a `ux-design-record` reaching `loop_state: reviewed` — **all four triggers are gated by section 19's approval gate on a subject's FIRST build wake: none of them may wake coding into a subject's first build unless that subject's front record already shows `loop_state: scope-approved`.** Re-wakes on a subject already past its first build (e.g. a fix for a later finding) are unaffected — the precondition binds only the first entry into build for the subject. |
-| qa | any commit touching `src/`/`tests/` in the running system |
+| qa | any commit touching `src/`/`test/` in the running system |
 | review | any commit landed by coding |
 | ux-design | a new or changed `product-record` (or `hypothesis`, for a chain-root case) appears on the board |
 | product | a qa or review outcome whose content questions the standing acceptance criteria |
@@ -247,13 +247,16 @@ no other role's WAKES-ON check can see it.
 
 The human's role narrows to judgment points, named explicitly. Everything
 else — which role runs next — is carried by WAKES-ON (section 3), not by a
-human relaying a handoff.
+human relaying a handoff. Every decision on this list is expressed
+exclusively as a GitHub act per section 10 — a PR merge, a PR comment, or
+an issue/PR close — never as prose a model reads approval out of, and
+never as a token.
 
-- Minting or retiring a `subject` (see section 9's minting rule; retirement
-  is the same act in reverse — no further role treats a retired subject's
-  board as live).
-- Verdict tokens this contract reserves for a human (e.g. qa's
-  is-this-a-defect call).
+- Opening or retiring a `subject` — filing the issue, or closing it (a
+  closed issue's board is no longer live for any role; see section 9).
+- Verdicts this contract reserves for a human (e.g. qa's is-this-a-defect
+  call — expressed by merging or closing qa's PR, and by filing the
+  resulting issue when the defect is judged valid).
 - Resolving cross-role disputes that DEPENDS-ON rules (section 4) do not
   settle.
 - Approving scope changes, including the pre-work approval gate that moves
@@ -263,33 +266,61 @@ human relaying a handoff.
   `round-done` state — required before `round-done` may be set, never
   automated.
 
-## 9. Minting `subject`
+## 9. `subject` is the issue
 
-Any role may open a chain — not only product. Whichever role is first to
-write an artifact for a piece of work mints `subject` as `<date>-<slug>`,
-taken from the artifact it is itself about to write, and records it in its
-own header. Minting is deterministic regardless of which role does it:
-"derive it from the artifact you're writing," not "ask product."
+A `subject` is never minted by a role. The user files an issue on the
+target repository — issues are the user's requirement backlog, and only
+the user authors them; no role ever files an issue — and the issue number
+IS the subject: `subject: issue-<n>`. `docs/issue-<n>/` is that subject's
+entire document tree.
 
-Before minting, a role must search `docs/reports/records/*/` and
-`docs/proposals/*` for an existing `subject` whose artifacts touch the same
-files or describe the same named request, and adopt it verbatim if found.
-Skipping this search is what splits one piece of work into two subject
-directories.
+A role that cannot point to an issue has no subject to work on. v2's
+derive-and-search minting rule (`<date>-<slug>` taken from the first
+artifact, plus a dedup search over existing records) is deleted: the issue
+backlog is the canonical registry of subjects, so there is nothing to
+derive and nothing to search.
 
-**Remoteless-repo identifier fallback.** v1's `<owner>-<repo>` slug existed
-only for the now-abolished `$QA_WORKSPACE` cross-repo path (section 10) and
-is deleted along with it — no external workspace needs a per-repo
-identifier anymore. Where any per-repo derived identifier is still needed
-elsewhere in a rulebook (e.g. a local cache key), the naming rule is: use
-the repo's directory name. This holds regardless of whether the repo has a
-remote configured, so a remoteless repo never breaks the convention.
+**Remoteless-repo identifier fallback.** Where any per-repo derived
+identifier is needed in a rulebook (e.g. a local cache key), the naming
+rule is: use the repo's directory name. This holds regardless of whether
+the repo has a remote configured.
 
-## 10. Where records live: the blackboard is fully in-repo
+## 10. Where records live: the board is the target repo's `main`
 
-All role records live inside the target repository, at
-`docs/reports/records/<subject>/<role>.md`, inside doctrine's `reports`
-bucket. Every `path` entry in every `upstream` list is repo-root-relative.
+All role output lives inside the target repository — the repository the
+issue was filed on. No separate org records repo participates. Role
+records live at `docs/issue-<n>/reports/<role>.md`. Every `path` entry in
+every `upstream` list is repo-root-relative.
+
+**The interaction channels.** The user talks to the system through exactly
+two channels, and the system answers through exactly one:
+
+- **Issue = user → system.** Requirements enter as issues, authored by the
+  user only (section 9).
+- **PR = system → user.** Every role returns ALL of its output — code,
+  records, reports, documents — as a pull request against `main`. No role
+  pushes to `main` directly, ever. A role wakes, checks out `main`, works
+  on its own branch `issue-<n>/<role>` (one branch per issue × role, never
+  shared between roles), and opens a PR.
+- **Human decisions are GitHub acts, and only GitHub acts**: merging a PR
+  is approval, commenting on a PR is feedback (the role revises on the
+  same branch and pushes to the same PR), closing an issue or PR unmerged
+  is refusal. These are GitHub-authenticated mechanical acts recorded in
+  history — never textual inference by a model.
+
+**The board is what is merged.** An open PR is not yet on the board;
+WAKES-ON (section 3) evaluates against `main` plus the issue backlog. A
+role's output is invisible to other roles until the human merges it — the
+human pacing the pipeline is the intended structuring of "human-consulted,
+never automated", not a defect.
+
+**Fixed output layout.** Enforced for every PR: code under `src/` only;
+test code under `test/` only; documents under `docs/` only, with a single
+exception for `README.md` at any level. Directly under `docs/` exist only
+the six standing-document directories — `_assets`, `decisions`,
+`handbooks`, `proposals`, `reports`, `specs`, for documents tied to no
+single issue — and the `issue-<n>/` trees, each containing only those same
+six subdirectories.
 
 **qa's evidence moves in-repo.** v1 kept qa's bulk evidence (intake
 profile, run logs, regression history) in `$QA_WORKSPACE`, an external,
@@ -297,7 +328,7 @@ host-local, uncommitted tree, with only a thin pointer record left inside
 the repo. That exception is abolished. qa's evidence — intake profile, bug
 reports, regression records, run stats — now lives entirely inside the work
 repo, under qa's own record area
-(`docs/reports/records/<subject>/qa/**`, alongside `qa.md` itself). No
+(`docs/issue-<n>/reports/qa/**`, alongside `qa.md` itself). No
 role's cross-role-visible status escapes the repo; there is no external
 workspace path left for a future hunter to find qa's status having leaked
 out of.
@@ -312,21 +343,21 @@ seventh bucket to fit it.
 
 | role | writes |
 |---|---|
-| product | `docs/proposals/<date>-<slug>.md` (`kind: hypothesis`), `docs/reports/records/<subject>/product.md`, `product/one-pager.md`, `product/opportunity-tree.md` |
-| coding | `docs/proposals/<date>-build-<slug>.md` (`kind: build-proposal`), `docs/reports/records/<subject>/coding.md` |
-| qa | `docs/reports/records/<subject>/qa.md`, `docs/reports/records/<subject>/qa/**` (all in-repo, section 10) |
-| feasibility | `docs/reports/records/<subject>/feasibility.md`, `docs/reports/records/<subject>/spikes/<spike-slug>.md` |
-| ux-design | `docs/reports/records/<subject>/ux-design.md` |
-| review | `docs/reports/records/<subject>/review.md` (including inline `finding` blocks) |
-| ops | `docs/reports/records/<subject>/ops.md`, `docs/reports/records/<subject>/postmortems/<incident-slug>.md` |
-| verify | `docs/reports/records/<subject>/verify.md` (including inline `finding` blocks) |
-| reflect | `docs/reports/records/<subject>/reflect.md` (including inline `finding` blocks) |
+| product | `docs/issue-<n>/proposals/<date>-<slug>.md` (`kind: hypothesis`), `docs/issue-<n>/reports/product.md`, `docs/specs/one-pager.md`, `docs/reports/opportunity-tree.md` |
+| coding | `docs/issue-<n>/proposals/<date>-build-<slug>.md` (`kind: build-proposal`), `docs/issue-<n>/reports/coding.md` |
+| qa | `docs/issue-<n>/reports/qa.md`, `docs/issue-<n>/reports/qa/**` (all in-repo, section 10) |
+| feasibility | `docs/issue-<n>/reports/feasibility.md`, `docs/issue-<n>/reports/spikes/<spike-slug>.md` |
+| ux-design | `docs/issue-<n>/reports/ux-design.md` |
+| review | `docs/issue-<n>/reports/review.md` (including inline `finding` blocks) |
+| ops | `docs/issue-<n>/reports/ops.md`, `docs/issue-<n>/reports/postmortems/<incident-slug>.md` |
+| verify | `docs/issue-<n>/reports/verify.md` (including inline `finding` blocks) |
+| reflect | `docs/issue-<n>/reports/reflect.md` (including inline `finding` blocks) |
 
 A role finding an existing record already present at a path section 11
 assigns to a different role must refuse to write there and report the
 conflict to the user, rather than overwriting or merging into it silently.
 
-`docs/proposals/` stays shared between product and coding, disambiguated by
+`docs/issue-<n>/proposals/` stays shared between product and coding, disambiguated by
 filename tag: coding's `build-proposal` filenames carry `-build-`
 (`<date>-build-<slug>.md`), distinct on its face from product's
 `<date>-<slug>.md`.
@@ -335,7 +366,7 @@ filename tag: coding's `build-proposal` filenames carry `-build-`
 the specific `docs/decisions/<date>-<slug>.md`, `docs/reports/<date>-<slug>.md`,
 and `docs/specs/` entries that role itself authors under section 21's
 trigger — never the directory as a whole, only the file(s) it writes there.
-This mirrors this table's existing `records/<subject>/<role>.md` grain: a
+This mirrors this table's existing `docs/issue-<n>/reports/<role>.md` grain: a
 role that makes a hard-to-reverse choice owns its own
 `docs/decisions/<date>-<slug>.md`; a role that produces a measurement,
 benchmark, test run, or investigation owns its own
@@ -418,7 +449,9 @@ rather than being discoverable only via a hook rejection at commit time.
 The exact trailer keys are each rulebook's own concern; this contract only
 requires that some machine-checkable trailer identifying `subject` and
 `kind` be present, and that it be stated in the rulebook's own docs, not
-left implicit.
+left implicit. Wherever a trailer names the subject, its value is the
+issue-keyed form (`Subject: issue-<n>`, per section 9) — the branch name
+`issue-<n>/<role>` and the trailer therefore agree on their face.
 
 ## 14. Mechanical checks are not substantive checks
 
@@ -577,7 +610,7 @@ pre-work approval-gate edge and the amended coding row wire it into
 WAKES-ON.
 
 - **Who records the scope.** Whichever role is first to open the subject
-  (per section 9's minting rule — product or feasibility, ordinarily)
+  (product or feasibility, ordinarily — whichever wakes first on the issue)
   writes a scope statement into its OWN record: what will be done, the
   intended write surface, what is explicitly out of scope, and how success
   will be judged. This is written into the front record's own fields; a
@@ -610,34 +643,30 @@ WAKES-ON.
   `scope-approved` — a fix for a finding, a qa regression, a ux-design
   revision — proceeds under the existing rows in section 3 without
   re-clearing this gate.
-- **How a human approves, mechanically.** The approval is an exact line the
-  human types in their own session — `APPROVE <kind> <subject>` — which
-  mints a single-use token a gate then consumes. Two properties are
-  load-bearing and neither may be relaxed. The whole turn must equal that
-  line: three earlier designs read approval out of prose and all three
-  leaked, because deciding what a sentence means is a language problem and
-  a regex is the wrong tool for it. And the turn must be the human's own: a
-  session spawned by an orchestrator receives its task as a prompt, so an
-  orchestrator-authored turn is never an approval and the mint refuses
-  under the orchestrator's stamp. A role asks by printing the exact line;
-  it never relays one.
-- **Unattended runs.** A run with no human present does not skip this gate
-  and does not let the working role decide. Either it stops for a human, or
-  an independent session — spawned by the orchestrator between role
-  sessions, given no task context, no tools, and the mechanical git facts
-  alongside the recorded material — returns `APPROVE`, `REFUSE`, or `HOLD`,
-  and only a clean `APPROVE` mints a token marked `actor: judge`. `HOLD` is
-  the correct answer whenever it cannot tell, and is not a failure. A gate
-  accepts a judge's token only while its own session is unattended, so an
-  approval minted in an unattended run can never satisfy an attended gate
-  later. **The four decisions section 8 reserves for the human's seat —
-  scope approval among them — are never delegated to a judge.** Unattended
-  mode is set by the human or by the orchestrator on the human's behalf; an
-  agent cannot set it from inside its own session.
+- **How a human approves, mechanically.** The front role opens a PR that
+  sets its own record's `loop_state: scope-proposed`; the human approving
+  the scope IS merging that PR, after which the front role (or the human)
+  records `scope-approved` on `main`. Two properties carry over from the
+  retired challenge-line design and remain load-bearing. Approval is never
+  read out of prose: a merge is a GitHub-authenticated mechanical act
+  recorded in history, not a sentence a model interprets — deciding what a
+  sentence means is a language problem, and three earlier prose-reading
+  designs all leaked. And approval is never self-served: no role merges
+  its own PR; merge rights on `main` belong to the human. Requesting
+  approval is opening the PR; a role never approves, merges, or relays.
+- **Unattended runs.** A run with no human present does not skip this
+  gate and does not let the working role decide. The PR waits for the
+  human. The v2 judge-session mechanism (an independent no-tools session
+  returning APPROVE/REFUSE/HOLD) is retired along with the token layer;
+  if a future unattended mode needs a substitute approver, it must be
+  specified as its own proposal — until then, unattended means the
+  pipeline pauses at every human seat. **The four decisions section 8
+  reserves for the human's seat — scope approval among them — are never
+  delegated.**
 
 ## 20. Per-role record minimum content
 
-Every role record (`docs/reports/records/<subject>/<role>.md`, per section
+Every role record (`docs/issue-<n>/reports/<role>.md`, per section
 11) must, at every point it is read by another role or a human, contain
 enough for a next reader to pick the work up cold. This section makes that
 requirement explicit rather than leaving it implicit in section 18 gate B's

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# SessionStart: tell the role session how it talks to the user and where its
+# output goes. This is the informing half of core — board-gate.sh is the
+# enforcing half; the two must describe the same rules (contract v3 s10).
+#
+# Injected only when CLAUDE_ROLE is set: a session muster did not spawn is
+# not a role session, and the orchestrator's or user's own session needs no
+# behavioral directive. Kill switch: CORE_OFF=1.
+trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
+set -uo pipefail
+
+case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
+
+role="${CLAUDE_ROLE:-}"
+[ -n "$role" ] || { trap - EXIT; exit 0; }
+
+cat <<EOF
+[core] Interaction protocol for role '${role}' (role-handoff contract v3):
+
+- Requirements enter as GitHub ISSUES, authored by the user only. You never
+  file an issue. The issue number is the subject: subject = issue-<n>, and
+  a task you cannot tie to an issue is not yours to start.
+- ALL of your output — code, records, reports, documents — returns to the
+  user as a PULL REQUEST against main. Never push to main. Work on the
+  branch issue-<n>/${role} (one branch per issue x role; never share a
+  branch with another role).
+- Human decisions are GitHub acts only: PR merge = approval, PR comment =
+  feedback (revise on the same branch, push to the same PR), issue/PR
+  closed unmerged = refusal. Never read approval out of prose, and never
+  approve or merge anything yourself.
+- Output layout, enforced: code under src/, tests under test/, documents
+  under docs/ (README.md excepted). Under docs/ exist only the six standing
+  buckets (_assets, decisions, handbooks, proposals, reports, specs) and
+  per-issue trees docs/issue-<n>/ holding those same six buckets. Your
+  record for a subject is docs/issue-<n>/reports/${role}.md; you write only
+  your own record area, never another role's.
+- The board is what is MERGED to main. An open PR is not yet on the board;
+  read other roles' state from main, not from open PRs.
+EOF
+
+trap - EXIT
+exit 0
