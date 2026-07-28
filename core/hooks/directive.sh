@@ -14,6 +14,46 @@ case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
 role="${CLAUDE_ROLE:-}"
 [ -n "$role" ] || { trap - EXIT; exit 0; }
 
+# Precondition probe (contract v3 s10): the target must be a git repo with
+# a GitHub-reachable remote, and gh must be authenticated — issues, PRs,
+# and reviews are GitHub objects, and this protocol cannot run without
+# them. The probe only informs; the gates deny. Best-effort and cheap:
+# each check degrades to a report line, never an error.
+missing=""
+root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+if [ -z "$root" ] || ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+  missing="${missing}
+- Not a git repository. The human must init and publish it before any role can work."
+else
+  if ! git -C "$root" remote get-url origin >/dev/null 2>&1; then
+    missing="${missing}
+- No git remote 'origin'. The human must publish this repository first, e.g.:
+    gh repo create <owner>/<name> --private --source \"$root\" --push"
+  fi
+fi
+if command -v gh >/dev/null 2>&1; then
+  gh auth status >/dev/null 2>&1 || missing="${missing}
+- gh is not authenticated. The human must run: gh auth login"
+else
+  missing="${missing}
+- gh CLI is not installed. The human must install it (https://cli.github.com) and run gh auth login."
+fi
+
+if [ -n "$missing" ]; then
+  cat <<EOF
+[core] PRECONDITIONS NOT MET for role '${role}' (contract v3 s10):
+${missing}
+
+Until every item above is resolved: do NOT start work, do NOT improvise a
+local substitute for issues, PRs, or approvals (a local approval artifact
+is forgeable by definition), and do NOT create files. State plainly to the
+user what is missing and how to fix it (the commands above), then stop.
+The gates will refuse board and execution writes regardless.
+EOF
+  trap - EXIT
+  exit 0
+fi
+
 cat <<EOF
 [core] Interaction protocol for role '${role}' (role-handoff contract v3):
 
