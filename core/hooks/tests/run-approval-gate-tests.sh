@@ -54,6 +54,7 @@ run() {
   done
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
   mkdir -p "$td/docs/specs" "$td/stub"
   cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
@@ -87,6 +88,25 @@ run deny  comment-not-approve    comment src/app.py
 run deny  approve-then-changes   revoked src/app.py
 run deny  no-approvers-file      human   src/app.py noapprovers
 run deny  empty-approvers-file   human   src/app.py emptyapprovers
+
+# --- precondition: no remote, no approvals --------------------------------
+noremote() {
+  td="$(cd "$(mktemp -d)" && pwd -P)"
+  git init -q "$td"
+  git -C "$td" checkout -q -b issue-7/coding
+  mkdir -p "$td/docs/specs" "$td/stub"
+  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  stub_gh "$td/stub" human
+  printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report deny "$got" "execute-without-remote"
+}
+noremote
 
 # --- branch and role preconditions ----------------------------------------
 run deny  execute-from-main      human   src/app.py branch=main
