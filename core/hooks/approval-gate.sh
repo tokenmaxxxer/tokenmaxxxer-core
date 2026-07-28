@@ -3,12 +3,17 @@
 # (research, current-state survey, proposal — documents, phase 1) and
 # executes only after an allowlisted human's PR review Approve (phase 2).
 #
-# Deny-only rule: a role session's write under src/ or test/ is refused
-# while the role's issue-<n>/<role> PR lacks an Approve review authored by
-# an account listed in docs/specs/approvers.md — including while no PR
-# exists at all, which is what makes "open the proposal PR first" enforced
-# rather than customary. Document writes (phase 1 material) are not this
-# gate's business; board-gate.sh governs those.
+# Deny-only rule: a role session's write to the EXECUTION SURFACE is
+# refused while the role's issue-<n>/<role> PR lacks an Approve review
+# authored by an account listed in docs/specs/approvers.md — including
+# while no PR exists at all, which is what makes "open the proposal PR
+# first" enforced rather than customary.
+#
+# The execution surface is src/**, test/**, and everything under the issue
+# tree docs/issue-<n>/ EXCEPT the two phase-1 homes: proposals/** (the
+# proposal) and reports/<role>/** (research and current-state material).
+# The record file reports/<role>.md is execution output — a doc-producing
+# role's deliverable — and waits for the Approve exactly like code does.
 #
 # Who counts as the human is an allowlist, not a heuristic: bot and agent
 # accounts are simply not listed, so a CI Approve or a role approving its
@@ -31,9 +36,9 @@ case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
 
 payload="$(cat 2>/dev/null || true)"
 
-# Fast path before python3: only src//test/ writes are adjudicated.
+# Fast path before python3: only execution-surface writes are adjudicated.
 case "$payload" in
-  *src/*|*test/*) ;;
+  *src/*|*test/*|*issue-*) ;;
   *) trap - EXIT; exit 0 ;;
 esac
 
@@ -69,7 +74,28 @@ if not isinstance(ti, dict):
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
                    "diff", "stat", "file", "git")
 WRITEISH = re.compile(r"[>|`]|\$\(")
-EXEC_RE = re.compile(r"(^|/)(src|test)/")
+CODE_RE = re.compile(r"(^|/)(src|test)/")
+ISSUE_RE = re.compile(r"(^|/)docs/(issue-[0-9]+)/(.*)$")
+
+role = os.environ["CLAUDE_ROLE"].strip()
+
+def norm(p):
+    return posixpath.normpath(p.replace("\\", "/"))
+
+def execution_surface(path):
+    """True when writing `path` is phase-2 work (contract v3 s19)."""
+    n = norm(path)
+    im = ISSUE_RE.search(n)
+    if im:
+        tail = im.group(3)
+        # phase-1 homes stay open: the proposal, and the role's own
+        # research/current-state subtree (NOT the record file itself)
+        if tail.startswith("proposals/") or tail == "proposals":
+            return False
+        if tail.startswith("reports/%s/" % role):
+            return False
+        return True
+    return bool(CODE_RE.search(n))
 
 candidates = []
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -84,17 +110,14 @@ elif tool == "Bash":
     if head in READ_ONLY_HEADS and not WRITEISH.search(cmdline):
         allow()              # reading the tree is phase-agnostic
     for tok in re.findall(r"[\w./~$-]+", cmdline):
-        if EXEC_RE.search(tok):
+        if CODE_RE.search(tok) or ISSUE_RE.search(tok):
             candidates.append(tok)
 else:
     allow()
 
-def norm(p):
-    return posixpath.normpath(p.replace("\\", "/"))
-
-hits = [c for c in candidates if EXEC_RE.search(norm(c))]
+hits = [c for c in candidates if execution_surface(c)]
 if not hits:
-    allow()                  # no execution-surface write: not this gate's business
+    allow()                  # phase-1 material or unrelated: not this gate's business
 
 # --- where are we, and is it a board? -----------------------------------
 def root_of():
@@ -111,7 +134,6 @@ def root_of():
         pass
     return None
 
-role = os.environ["CLAUDE_ROLE"].strip()
 root = root_of()
 if not root:
     deny("cannot resolve the project root for an execution-surface write")

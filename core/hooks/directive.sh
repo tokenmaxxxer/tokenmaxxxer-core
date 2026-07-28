@@ -30,7 +30,10 @@ cat <<EOF
   (docs/issue-<n>/proposals/), open the PR, and stop. Phase 2 opens ONLY
   when a human approver listed in docs/specs/approvers.md submits a PR
   review Approve; then do your actual work on the same branch, reported
-  through the same PR.
+  through the same PR. Your record file
+  (docs/issue-<n>/reports/${role}.md) is phase-2 output like code: it
+  waits for the Approve too. Before the Approve you write only the two
+  phase-1 homes.
 - Human decisions are GitHub acts only: review Approve = permission to
   execute, PR merge = acceptance of the delivered work, PR comment =
   feedback (revise on the same branch, push to the same PR), issue/PR

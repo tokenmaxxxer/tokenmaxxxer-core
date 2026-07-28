@@ -61,12 +61,16 @@ half. They describe the same five rules:
 - **R5 ownership** — within `docs/issue-<n>/reports/`, a role writes only
   `<role>.md`, `<role>/**`, and its contract-granted extra subtree
   (feasibility: `spikes/**`, ops: `postmortems/**`).
-- **R6 phase** (approval-gate.sh) — a role session's write under `src/` or
-  `test/` is refused while its `issue-<n>/<role>` PR lacks an Approve
-  review from a listed human — including while no PR exists, which is what
-  enforces proposal-first. The check asks GitHub live (`gh pr view --json
-  reviews`) and caches nothing: a cache file would be writable by the
-  model's own tools, i.e. a forgeable approval. gh failing = deny.
+- **R6 phase** (approval-gate.sh) — a role session's write to the
+  execution surface is refused while its `issue-<n>/<role>` PR lacks an
+  Approve review from a listed human — including while no PR exists, which
+  is what enforces proposal-first. The execution surface is `src/`,
+  `test/`, and the whole issue tree except the two phase-1 homes
+  (`proposals/**` and the role's research subtree `reports/<role>/**`) —
+  so a document-producing role's record waits for the Approve exactly as
+  code does. The check asks GitHub live (`gh pr view --json reviews`) and
+  caches nothing: a cache file would be writable by the model's own tools,
+  i.e. a forgeable approval. gh failing = deny.
 
 ## Why there is no token machinery
 

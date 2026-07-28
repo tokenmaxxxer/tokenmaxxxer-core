@@ -635,16 +635,21 @@ v2's coding-only scope gate to the whole system.
   documents) on the same branch, reported through the same PR. Merge of
   the PR is acceptance of the delivered work — the Approve authorizes
   doing the work; the merge accepts its result.
-- **`loop_state: scope-proposed` / `scope-approved`.** The front record's
-  scope states map onto the phases: `scope-proposed` when phase 1 is
-  submitted, `scope-approved` once the allowlisted human's Approve review
-  exists on the PR. The review is the authority; the `loop_state` write is
-  its bookkeeping, never the other way around.
-- **What the gate blocks, mechanically.** A role session's writes to
-  `src/` or `test/` are refused while its `issue-<n>/<role>` PR lacks an
-  allowlisted human's Approve review — including while no PR exists at
-  all, which is what makes "open the proposal PR first" enforced rather
-  than customary. Document writes for phase 1 remain open.
+- **`loop_state: scope-proposed` / `scope-approved`.** The scope states
+  map onto the phases: `scope-proposed` in the proposal's own frontmatter
+  when phase 1 is submitted, `scope-approved` once the allowlisted human's
+  Approve review exists on the PR — recorded then in the role's record,
+  whose first write is itself phase-2 work. The review is the authority;
+  any `loop_state` write is its bookkeeping, never the other way around.
+- **What the gate blocks, mechanically.** The execution surface is `src/`,
+  `test/`, and everything under `docs/issue-<n>/` EXCEPT the two phase-1
+  homes — `proposals/**` and the role's own research subtree
+  `reports/<role>/**`. A role session's writes to that surface are refused
+  while its `issue-<n>/<role>` PR lacks an allowlisted human's Approve
+  review — including while no PR exists at all, which is what makes "open
+  the proposal PR first" enforced rather than customary. The record file
+  `reports/<role>.md` is on the execution surface: a document-producing
+  role's deliverable waits for the Approve exactly as code does.
 - **Re-wakes are unaffected.** The precondition binds a role's first entry
   into execution on a subject. A later wake on a subject whose PR already
   carries the Approve — a fix for a finding, a qa regression — proceeds
