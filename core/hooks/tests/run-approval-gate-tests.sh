@@ -25,15 +25,19 @@ report() {
 
 # stub_gh <dir> <mode>: modes are the review states the stub serves
 stub_gh() {
+  comments='[]'
   case "$2" in
     human)    reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
+    comment-challenge) reviews='[]'; comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
+    comment-challenge-agent) reviews='[]'; comments='[{"author":{"login":"agent-bot"},"body":"APPROVE issue-7/coding"}]' ;;
+    comment-prose) reviews='[]'; comments='[{"author":{"login":"jw-human"},"body":"looks good, approve!"}]' ;;
     bot)      reviews='[{"author":{"login":"security-bot"},"state":"APPROVED"}]' ;;
     agent)    reviews='[{"author":{"login":"tokenmaxxxer-agent"},"state":"APPROVED"}]' ;;
     comment)  reviews='[{"author":{"login":"jw-human"},"state":"COMMENTED"}]' ;;
     revoked)  reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"},{"author":{"login":"jw-human"},"state":"CHANGES_REQUESTED"}]' ;;
     nopr)     printf '#!/bin/sh\necho "no pull requests found" >&2\nexit 1\n' > "$1/gh"; chmod +x "$1/gh"; return ;;
   esac
-  printf '#!/bin/sh\nprintf %%s '"'"'{"reviews":%s}'"'"'\n' "$reviews" > "$1/gh"
+  printf '#!/bin/sh\nprintf %%s '"'"'{"reviews":%s,"comments":%s}'"'"'\n' "$reviews" "$comments" > "$1/gh"
   chmod +x "$1/gh"
 }
 
@@ -86,6 +90,9 @@ run deny  bot-approve            bot     src/app.py
 run deny  agent-approve          agent   src/app.py
 run deny  comment-not-approve    comment src/app.py
 run deny  approve-then-changes   revoked src/app.py
+run allow comment-challenge       comment-challenge src/app.py
+run deny  comment-challenge-agent comment-challenge-agent src/app.py
+run deny  comment-prose           comment-prose src/app.py
 run deny  no-approvers-file      human   src/app.py noapprovers
 run deny  empty-approvers-file   human   src/app.py emptyapprovers
 
