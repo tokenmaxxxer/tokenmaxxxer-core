@@ -184,6 +184,8 @@ run allow write-src              Write '{"file_path":"src/app.py","content":"x"}
 run allow write-test             Write '{"file_path":"test/test_app.py","content":"x"}'
 run allow bash-elsewhere         Bash  '{"command":"echo hi"}'
 run allow bash-read-board        Bash  '{"command":"cat '$BOARD'/reports/qa.md"}'
+run allow bash-sed-read-foreign  Bash  '{"command":"sed -n 1,40p '$BOARD'/reports/review.md"}'
+run deny  bash-sed-inplace       Bash  '{"command":"sed -i s/a/b/ '$BOARD'/reports/review.md"}'
 
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
