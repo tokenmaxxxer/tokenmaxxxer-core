@@ -34,6 +34,13 @@ which is also what makes "no role approves its own PR" mechanical.
   `specs`) plus `docs/issue-<n>/` trees holding those same six buckets.
   A role's record lives at `docs/issue-<n>/reports/<role>.md`.
 - The board is what is merged to `main`. An open PR is not on the board.
+- **Precondition: the target is a git repository with a GitHub remote, and
+  `gh` is authenticated.** Issues, PRs, and reviews are GitHub objects, and
+  approval's forgery resistance comes from being a GitHub-authenticated
+  act — no local substitute exists by design. `directive.sh` probes this
+  at session start and tells the role what to have the human fix
+  (`gh repo create … --private --source . --push`, `gh auth login`);
+  the gates refuse board and execution writes until it is met.
 
 ## What is here
 

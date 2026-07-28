@@ -32,6 +32,7 @@ run() {
   want="$1"; name="$2"; tool="$3"; tinput="$4"; shift 4
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs" "$td/docs/issue-3/reports"
   cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
@@ -49,6 +50,7 @@ runb() {
   want="$1"; name="$2"; branch="$3"; brole="$4"; fp="$5"
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
   mkdir -p "$td/docs/specs"
   cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
@@ -80,6 +82,7 @@ drifted() {  # same harness, but the repo contract drifts or is missing
   want="$1"; name="$2"; fp="$3"; mode="$4"; roleenv="$5"
   td="$(cd "$(mktemp -d)" && pwd -P)"
   git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
   case "$mode" in
@@ -133,6 +136,23 @@ runb deny  board-from-main       main       qa "$BOARD/reports/qa.md"
 runb deny  board-wrong-issue     issue-4/qa qa "$BOARD/reports/qa.md"
 runb deny  board-wrong-role      issue-3/coding qa "$BOARD/reports/qa.md"
 runb allow board-right-branch    issue-3/qa qa "$BOARD/reports/qa.md"
+
+# --- precondition: no remote, no board ------------------------------------
+noremote() {
+  td="$(cd "$(mktemp -d)" && pwd -P)"
+  git init -q "$td"
+  git -C "$td" checkout -q -b issue-3/qa
+  mkdir -p "$td/docs/specs"
+  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$BOARD/reports/qa.md" "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report deny "$got" "board-without-remote"
+}
+noremote
 
 # --- R5: reports/ ownership -----------------------------------------------
 runb deny  foreign-record        issue-3/qa qa "$BOARD/reports/review.md"

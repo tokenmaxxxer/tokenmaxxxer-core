@@ -235,6 +235,23 @@ if not role:
          "The board belongs to role sessions; this one carries no rulebook "
          "gates. (contract v3 s8/s10)")
 
+# --- precondition: a board lives on GitHub ------------------------------
+# Issues, PRs, and reviews are GitHub objects; a local-only repository has
+# no issue to anchor this tree to and no PR to return it through
+# (contract v3 s10).
+try:
+    out = subprocess.run(["git", "-C", root, "remote", "get-url", "origin"],
+                         capture_output=True, text=True)
+    has_remote = out.returncode == 0 and out.stdout.strip()
+except Exception:
+    has_remote = False
+if not has_remote:
+    deny("this repository has no git remote 'origin', so issue-<n> can "
+         "reference no real issue and no PR can return this work. Ask the "
+         "human to publish the repo first (gh repo create <owner>/<name> "
+         "--private --source . --push), then retry. Do not improvise a "
+         "local substitute. (contract v3 s10)")
+
 # --- R4: the role's own issue branch ------------------------------------
 # symbolic-ref rather than rev-parse --abbrev-ref: it answers on a branch
 # with no commits yet, and fails on detached HEAD — which is exactly the

@@ -144,6 +144,20 @@ if not os.path.isfile(os.path.join(root, "docs", "specs",
          "carries CLAUDE_ROLE=%s. A role session works only on a board; "
          "plant the contract first" % role)
 
+# --- precondition: approvals live on GitHub -----------------------------
+try:
+    out = subprocess.run(["git", "-C", root, "remote", "get-url", "origin"],
+                         capture_output=True, text=True)
+    has_remote = out.returncode == 0 and out.stdout.strip()
+except Exception:
+    has_remote = False
+if not has_remote:
+    deny("this repository has no git remote 'origin' — there is no PR to "
+         "carry a human's Approve, so execution work cannot be authorized "
+         "at all. Ask the human to publish the repo first (gh repo create "
+         "<owner>/<name> --private --source . --push), then retry. Do not "
+         "improvise a local approval. (contract v3 s10)")
+
 # --- the role's issue branch --------------------------------------------
 try:
     out = subprocess.run(["git", "-C", root, "symbolic-ref", "--short",
