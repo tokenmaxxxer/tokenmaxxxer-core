@@ -94,7 +94,13 @@ if not isinstance(ti, dict):
 DOCS = "docs/"
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
                    "diff", "stat", "file", "git")
+# sed/awk read by default and only write with -i / redirection. Reading a
+# FOREIGN record is sanctioned (s4 READ-broad; s15/s16 require reading the
+# finder's record) — measured: a role resolving findings could not open
+# review.md via `sed -n` and had to work from a prompt summary.
+READ_UNLESS_INPLACE = ("sed", "awk", "gawk")
 WRITEISH = re.compile(r"[>|`]|\$\(")
+INPLACE = re.compile(r"(^|\s)-i\b|--in-place")
 
 candidates = []
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -109,6 +115,9 @@ elif tool == "Bash":
         head = cmdline.strip().split()[0].rsplit("/", 1)[-1] if cmdline.strip() else ""
         if head in READ_ONLY_HEADS and not WRITEISH.search(cmdline):
             allow()          # a plain read of the board is not a write
+        if head in READ_UNLESS_INPLACE and not WRITEISH.search(cmdline) \
+                and not INPLACE.search(cmdline):
+            allow()          # sed/awk without -i or redirection only read
         # every docs-path-shaped token becomes a candidate target; this is
         # a superset scan, and over-blocking is the safe direction here
         for tok in re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), cmdline):
