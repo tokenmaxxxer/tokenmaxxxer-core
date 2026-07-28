@@ -98,8 +98,14 @@ do not get a substitute approver: the PR waits for the human.
 
     claude plugin marketplace add tokenmaxxxer/tokenmaxxxer-core
     claude plugin install core@tokenmaxxxer-core
+    claude plugin install terse@tokenmaxxxer-core
 
-muster enables it per role; nothing else needs to.
+muster enables them per role; nothing else needs to. This marketplace
+ships two plugins: `core` (the interaction protocol — its gates are not
+meant to be turned off) and [`terse`](terse/) (output-token compression
+for every role session — an economy optimization with its own kill
+switch, `TERSE_OFF=1` or `/terse off`, promoted here from
+coding-agent-rulebook because it is role-agnostic).
 
 `plugin.json` carries **no `version` field**, deliberately. For a
 git-distributed plugin the commit SHA is the version, so `claude plugin

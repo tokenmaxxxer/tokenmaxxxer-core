@@ -1,0 +1,7 @@
+{
+  "name": "terse",
+  "description": "Output-token compression for every tokenmaxxxer role session: strips conversational filler, code echoes, formatting scaffolding, and repeated summaries from the session's prose while exempting code, worker prompts, frozen contracts, and safety-critical messages. Composes with freelunch where present. Levels via /terse.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}
