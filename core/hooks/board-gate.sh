@@ -9,12 +9,12 @@
 #       docs/issue-<n>/<bucket>/... using those same six buckets. Nothing
 #       else exists under docs/.
 #
-#   R2  A board write requires the target repo's contract
-#       (docs/specs/role-handoff-contract.md) to hash-match the canonical at
-#       ${CLAUDE_PLUGIN_ROOT}/contract/role-handoff-contract.md. The
-#       contract has no version field; content hash is the only
-#       discriminator. A missing contract denies too: a board without its
-#       contract is not a board.
+#   R2  A board write requires the target repo's docs/specs/approvers.md —
+#       the user-authored opt-in that this repository IS a board, and the
+#       allowlist the whole approval model rests on. The canonical contract
+#       lives only in this plugin (v3): planting per-repo copies carried
+#       zero information (the hash check forced them identical) and made
+#       every contract revision an atomic N-repo re-sync.
 #
 #   R3  A write under docs/issue-<n>/ requires CLAUDE_ROLE in the
 #       environment. Role sessions get it from muster; the orchestrator's
@@ -62,7 +62,7 @@ command -v python3 >/dev/null 2>&1 || exit 2
 # bash 3.2: a quoted heredoc nested inside $( … ) is NOT literal — read the
 # program at top level.
 IFS='' read -r -d '' CORE_BOARD_GATE <<'PY' || true
-import hashlib, json, os, posixpath, re, subprocess, sys
+import json, os, posixpath, re, subprocess, sys
 
 DENY = 2
 BUCKETS = ("_assets", "decisions", "handbooks", "proposals", "reports",
@@ -153,22 +153,14 @@ def root_of():
         pass
     return None
 
-def sha(p):
-    try:
-        with open(p, "rb") as fh:
-            return hashlib.sha256(fh.read()).hexdigest()
-    except OSError:
-        return None
-
 role = os.environ.get("CLAUDE_ROLE", "").strip()
 root = root_of()
 if not root:
     deny("cannot resolve the project root for a docs/ write")
 
-repo_contract = os.path.join(root, "docs", "specs",
-                             "role-handoff-contract.md")
-repo_sha = sha(repo_contract)
-if repo_sha is None and not role:
+marker = os.path.join(root, "docs", "specs", "approvers.md")
+is_board = os.path.isfile(marker)
+if not is_board and not role:
     allow()
 
 # --- R1: docs/ layout ---------------------------------------------------
@@ -209,22 +201,12 @@ if not issue_hits:
     if not role:
         allow()
 
-# --- R2: the board requires the canonical contract ----------------------
-plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
-canon = os.path.join(plugin_root, "contract", "role-handoff-contract.md")
-canon_sha = sha(canon)
-if canon_sha is None:
-    deny("the plugin's canonical contract is unreadable at %s — refusing "
-         "docs writes rather than enforcing an unknown contract" % canon)
-if repo_sha is None:
-    deny("this repository has no docs/specs/role-handoff-contract.md. A "
-         "board without its contract is not a board; plant it first")
-if repo_sha != canon_sha:
-    deny("this repository's role-handoff-contract.md differs from the "
-         "canonical shipped in core (repo %s… vs canonical %s…). The "
-         "contract has no version field — the hash is the only "
-         "discriminator. Reconcile before writing the board."
-         % (repo_sha[:12], canon_sha[:12]))
+# --- R2: the board requires the user's approvers.md ----------------------
+if not is_board:
+    deny("this repository has no docs/specs/approvers.md. That file is the "
+         "user's opt-in that this repo is a board AND the human-approver "
+         "allowlist; without it no approval can ever be verified. Ask the "
+         "human to add it (one line per GitHub login) before board work")
 
 if not issue_hits:
     allow()                      # standing-doc write by a role: layout + contract suffice
