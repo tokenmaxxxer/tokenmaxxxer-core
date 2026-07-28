@@ -1,0 +1,7 @@
+{
+  "name": "scout",
+  "description": "The phase-1 research protocol for every tokenmaxxxer role: a bounded, judgment-gated reconnaissance (Camp benchmarking + Kano expectations + saturation stop rule) that identifies best-in-class exemplars and the expectation baseline, compresses them into a scout brief under docs/issue-<n>/reports/<role>/, and feeds it into the proposal. Pure steering — never post-build comparison.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}
