@@ -77,6 +77,12 @@ RULES = [
      "(contract v3 s9) — no role touches them"),
     (r"\bgh\s+api\b.*(pulls?/\d+/(reviews|merge)|/merge\b)",
      "the raw-API spelling of a review/merge is still a review/merge"),
+    (r"\bgh\s+pr\s+comment\b.*\bAPPROVE\b",
+     "an APPROVE-shaped comment is the single-account approval signal — "
+     "posting it from a role session is a forged approval"),
+    (r"\bgh\s+api\b.*(issues|pulls?)/\d+/comments.*\bAPPROVE\b",
+     "the raw-API spelling of an APPROVE comment is still a forged "
+     "approval"),
     (r"\bgit\s+push\b[^\n;|&]*\s(origin\s+)?(main|master)\b",
      "nothing reaches main except a PR the human merges (contract v3 s10) "
      "— push your issue-<n>/<role> branch instead"),

@@ -34,18 +34,25 @@ which is also what makes "no role approves its own PR" mechanical.
   `specs`) plus `docs/issue-<n>/` trees holding those same six buckets.
   A role's record lives at `docs/issue-<n>/reports/<role>.md`.
 - The board is what is merged to `main`. An open PR is not on the board.
-- **Two accounts, by default.** The orchestrator's conversational session
-  (muster) authenticates as the USER's account — listed in
-  `docs/specs/approvers.md` — and relays the human's decisions from
-  conversation: filing issues the user dictated, posting feedback
-  comments, approving and merging when the user says so. Every spawned
-  ROLE session authenticates as a separate AGENT account — never listed
-  in approvers.md, so its reviews can satisfy no human seat, and its PRs
-  (agent-authored) can receive the user account's Approve without
-  tripping GitHub's no-self-approval rule. `gh-guard.sh` adds the
-  session-layer half: role sessions are refused review verdicts, merges,
-  closes, issue authorship, raw-API spellings of those, and pushes to
-  main, whatever their token's permissions.
+- **One account, by default.** Everything — the orchestrator's
+  conversational session AND the spawned role sessions — runs on the
+  user's own GitHub account. Identity separation is the session layer's
+  job: `gh-guard.sh` refuses role sessions the human's acts (review
+  verdicts, merge/close, issue authorship, APPROVE-shaped comments, their
+  raw-API spellings, pushes to main), whatever the token could do.
+  Because GitHub forbids approving your own PR, the single-account
+  approval signal is a PR comment that is EXACTLY `APPROVE
+  issue-<n>/<role>`, posted by an approvers.md login — the orchestrator
+  posts it after the human says so in conversation; string equality,
+  never prose interpretation. Merging your own PR is allowed by GitHub,
+  so merge relays unchanged.
+- **Hardening options (optional).** A separate agent identity — a machine
+  account with a PAT, or a GitHub App (`<app>[bot]`) — moves the split
+  from the session layer to the account layer: agent-authored PRs can
+  then receive a real review Approve, and self-approval becomes
+  impossible at the platform, not just the hook. Recommended where policy
+  allows; the protocol works identically either way since approval-gate
+  accepts both signals.
 - **Precondition: the target is a git repository with a GitHub remote, and
   `gh` is authenticated.** Issues, PRs, and reviews are GitHub objects, and
   approval's forgery resistance comes from being a GitHub-authenticated

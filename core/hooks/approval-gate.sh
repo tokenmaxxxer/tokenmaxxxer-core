@@ -189,10 +189,20 @@ if not approvers:
     deny("docs/specs/approvers.md lists no approvers (expected '- <github "
          "login>' lines). An empty allowlist can approve nothing")
 
-# --- the Approve review -------------------------------------------------
+# --- the Approve signal -------------------------------------------------
+# Two spellings, both GitHub acts by an allowlisted human:
+#   (a) a PR review with state APPROVED — the multi-account path;
+#   (b) a PR comment whose body is EXACTLY "APPROVE <branch>" — the
+#       single-account path, because GitHub forbids approving your own PR
+#       and with one account the role's PRs are authored by the same
+#       login. Exact string equality, never prose interpretation: the
+#       measured lesson from the retired mint design. The orchestrator
+#       posts it after the human said so in conversation; gh-guard denies
+#       role sessions the comment spelling.
 gh = os.environ.get("CORE_GH") or "gh"
 try:
-    out = subprocess.run([gh, "pr", "view", branch, "--json", "reviews"],
+    out = subprocess.run([gh, "pr", "view", branch, "--json",
+                          "reviews,comments"],
                          capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check the PR's reviews — refusing execution "
@@ -203,7 +213,9 @@ if out.returncode != 0:
          "and wait for an Approve review. (contract v3 s19)"
          % (branch, (out.stderr or "").strip()[:200]))
 try:
-    reviews = json.loads(out.stdout).get("reviews") or []
+    parsed = json.loads(out.stdout)
+    reviews = parsed.get("reviews") or []
+    comments = parsed.get("comments") or []
 except (ValueError, AttributeError):
     deny("unreadable reviews JSON from gh; refusing rather than assuming "
          "approval")
@@ -219,12 +231,26 @@ for r in reviews:
     if login and state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
         last[login] = state
 
-if not any(login in approvers and state == "APPROVED"
-           for login, state in last.items()):
-    deny("the PR for %s carries no Approve review from a listed human "
-         "approver (%s). A comment is feedback, a bot's Approve is not a "
-         "human's, and phase 2 waits for the human. (contract v3 s19)"
-         % (branch, ", ".join(approvers)))
+approved = any(login in approvers and state == "APPROVED"
+               for login, state in last.items())
+
+if not approved:
+    challenge = "APPROVE %s" % branch
+    for c in comments:
+        if not isinstance(c, dict):
+            continue
+        login = ((c.get("author") or {}).get("login") or "").lower()
+        body = (c.get("body") or "").strip()
+        if login in approvers and body == challenge:
+            approved = True
+            break
+
+if not approved:
+    deny("the PR for %s carries no approval from a listed human approver "
+         "(%s): neither an Approve review nor a comment that is exactly "
+         "'APPROVE %s'. Free-text comments are feedback, a bot's Approve "
+         "is not a human's, and phase 2 waits for the human. "
+         "(contract v3 s19)" % (branch, ", ".join(approvers), branch))
 
 allow()
 PY
