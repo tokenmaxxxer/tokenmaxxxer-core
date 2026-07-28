@@ -34,6 +34,18 @@ which is also what makes "no role approves its own PR" mechanical.
   `specs`) plus `docs/issue-<n>/` trees holding those same six buckets.
   A role's record lives at `docs/issue-<n>/reports/<role>.md`.
 - The board is what is merged to `main`. An open PR is not on the board.
+- **Two accounts, by default.** The orchestrator's conversational session
+  (muster) authenticates as the USER's account — listed in
+  `docs/specs/approvers.md` — and relays the human's decisions from
+  conversation: filing issues the user dictated, posting feedback
+  comments, approving and merging when the user says so. Every spawned
+  ROLE session authenticates as a separate AGENT account — never listed
+  in approvers.md, so its reviews can satisfy no human seat, and its PRs
+  (agent-authored) can receive the user account's Approve without
+  tripping GitHub's no-self-approval rule. `gh-guard.sh` adds the
+  session-layer half: role sessions are refused review verdicts, merges,
+  closes, issue authorship, raw-API spellings of those, and pushes to
+  main, whatever their token's permissions.
 - **Precondition: the target is a git repository with a GitHub remote, and
   `gh` is authenticated.** Issues, PRs, and reviews are GitHub objects, and
   approval's forgery resistance comes from being a GitHub-authenticated
@@ -49,6 +61,9 @@ which is also what makes "no role approves its own PR" mechanical.
                            branch, ownership
     hooks/approval-gate.sh PreToolUse — deny-only: src//test/ writes wait
                            for the allowlisted human's PR review Approve
+    hooks/gh-guard.sh      PreToolUse — deny-only: role sessions never
+                           approve, merge, close, author issues, or push
+                           main (two-account model)
     contract/              the canonical role-handoff contract (v3)
     hooks/tests/           run-all.sh runs everything
 
