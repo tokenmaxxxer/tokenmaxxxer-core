@@ -296,6 +296,19 @@ issue was filed on. No separate org records repo participates. Role
 records live at `docs/issue-<n>/reports/<role>.md`. Every `path` entry in
 every `upstream` list is repo-root-relative.
 
+**Precondition: the target is a git repository with a GitHub remote.**
+Issues, PRs, and reviews are GitHub objects, and approval's forgery
+resistance comes precisely from being a GitHub-authenticated act — a
+local-only repository has no issue to start from, no PR to return through,
+and no review to approve with, so this model cannot run on one. A role
+session finding the precondition unmet does not improvise a local
+substitute (a local approval artifact is writable by the model's own
+tools, i.e. forgeable); it states what is missing and stops. Remediation
+belongs to the human: publish the repository
+(`gh repo create <owner>/<name> --private --source . --push` or
+`git remote add origin <url>`), and authenticate `gh` (`gh auth login`).
+GitHub Enterprise hosts work wherever `gh` does.
+
 **The interaction channels.** The user talks to the system through exactly
 two channels, and the system answers through exactly one:
 
