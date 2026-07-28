@@ -16,5 +16,8 @@ echo; echo "=== board gate ==="
 echo; echo "=== approval gate ==="
 /bin/bash "$here/run-approval-gate-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== terse (sibling plugin) ==="
+/bin/bash "$here/../../../terse/hooks/tests/parse-check.sh" || rc=1
+
 echo; [ "$rc" = 0 ] && echo "ALL OK" || echo "FAILURES ABOVE"
 exit "$rc"
