@@ -13,5 +13,8 @@ echo; echo "=== deny-only ==="
 echo; echo "=== board gate ==="
 /bin/bash "$here/run-board-gate-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== approval gate ==="
+/bin/bash "$here/run-approval-gate-tests.sh" | tail -2 || rc=1
+
 echo; [ "$rc" = 0 ] && echo "ALL OK" || echo "FAILURES ABOVE"
 exit "$rc"
