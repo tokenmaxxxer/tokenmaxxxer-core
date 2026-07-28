@@ -138,11 +138,11 @@ root = root_of()
 if not root:
     deny("cannot resolve the project root for an execution-surface write")
 
-if not os.path.isfile(os.path.join(root, "docs", "specs",
-                                   "role-handoff-contract.md")):
-    deny("this repository carries no role-handoff contract, but the session "
-         "carries CLAUDE_ROLE=%s. A role session works only on a board; "
-         "plant the contract first" % role)
+if not os.path.isfile(os.path.join(root, "docs", "specs", "approvers.md")):
+    deny("this repository has no docs/specs/approvers.md, but the session "
+         "carries CLAUDE_ROLE=%s. A role session works only on a board, and "
+         "that file is both the board opt-in and the approver allowlist — "
+         "ask the human to add it" % role)
 
 # --- precondition: approvals live on GitHub -----------------------------
 try:

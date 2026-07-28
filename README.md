@@ -57,8 +57,8 @@ which is also what makes "no role approves its own PR" mechanical.
 ## What is here
 
     hooks/directive.sh     SessionStart — tells the role session the protocol
-    hooks/board-gate.sh    PreToolUse — deny-only: layout, contract, role,
-                           branch, ownership
+    hooks/board-gate.sh    PreToolUse — deny-only: layout, board opt-in,
+                           role, branch, ownership
     hooks/approval-gate.sh PreToolUse — deny-only: src//test/ writes wait
                            for the allowlisted human's PR review Approve
     hooks/gh-guard.sh      PreToolUse — deny-only: role sessions never
@@ -72,9 +72,12 @@ half. They describe the same five rules:
 
 - **R1 layout** — a `docs/` write lands at `docs/README.md`, in a standing
   bucket, or in `docs/issue-<n>/<bucket>/`. Nothing else exists.
-- **R2 contract** — a board write requires the repo's
-  `docs/specs/role-handoff-contract.md` to hash-match the canonical here.
-  The contract has no version field; the hash is the only discriminator.
+- **R2 board opt-in** — a board write requires the repo's
+  `docs/specs/approvers.md`: the user-authored file that both declares
+  "this repository is a board" and lists the human approvers. The
+  canonical contract lives ONLY in this plugin — per-repo copies are
+  gone; they carried zero information (the old hash check forced them
+  identical) and made every contract revision an N-repo re-sync.
 - **R3 role** — a write under `docs/issue-<n>/` requires `CLAUDE_ROLE`.
   The orchestrator's own session has no business writing the board.
 - **R4 branch** — writing `docs/issue-<n>/...` requires being on branch
