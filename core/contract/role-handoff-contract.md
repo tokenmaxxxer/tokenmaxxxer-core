@@ -274,7 +274,11 @@ the user authors them; no role ever files an issue — and the issue number
 IS the subject: `subject: issue-<n>`. `docs/issue-<n>/` is that subject's
 entire document tree.
 
-A role that cannot point to an issue has no subject to work on. v2's
+A role receives its issue in the prompt that invokes its session — the
+human, or the orchestrator on the human's behalf, names it; a role never
+selects an issue for itself. Invoked without one, the role asks and stops
+rather than choosing. A role that cannot point to an issue has no subject
+to work on. v2's
 derive-and-search minting rule (`<date>-<slug>` taken from the first
 artifact, plus a dedup search over existing records) is deleted: the issue
 backlog is the canonical registry of subjects, so there is nothing to
