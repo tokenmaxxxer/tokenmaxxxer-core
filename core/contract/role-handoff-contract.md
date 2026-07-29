@@ -77,7 +77,7 @@ coding's records, closing the trial's two unsanctioned-kind gaps.
 no comment tolerance is a gate defect, not a contract violation by the
 record's author.
 
-## 3. WAKES-ON: who wakes when the board changes
+## 3. Record states; routing lives at the host
 
 Each role's loop wakes when the board reaches one of its trigger
 conditions, replacing v1's single accept/refuse-at-handoff moment.
@@ -85,43 +85,31 @@ Concurrent wakes are the normal case: a board change may satisfy more than
 one role's row at once, and all of them proceed in parallel — this is where
 the model's parallelism comes from, not an edge case.
 
-| role | wakes on |
-|---|---|
-| feasibility | a new or changed `hypothesis` record appears on the board |
-| coding | a feasibility `verdict: go`; a `qa-record` defect carrying a human is-this-a-defect verdict; a `finding` with `addressed_to: coding`; a `ux-design-record` reaching `loop_state: reviewed` — **all four triggers are gated by section 19's approval gate on a subject's FIRST build wake: none of them may wake coding into a subject's first build unless that subject's front record already shows `loop_state: scope-approved`.** Re-wakes on a subject already past its first build (e.g. a fix for a later finding) are unaffected — the precondition binds only the first entry into build for the subject. |
-| qa | any commit touching `src/`/`test/` in the running system |
-| review | any commit landed by coding |
-| ux-design | a new or changed `product-record` (or `hypothesis`, for a chain-root case) appears on the board |
-| product | a qa or review outcome whose content questions the standing acceptance criteria |
-| ops | a change landed (merged) that is ready to roll out |
-| verify | coding and qa have both produced artifacts for a subject (first wake); again before landing, as a pre-land gate (second wake) |
-| reflect | a subject's work has landed and verify and/or review have concluded (a `verify-record` reaching `cleared`, or a `review-record` reaching `reported`) |
+Records carry the `loop_state` values defined in this contract (the states
+enumerated per section — `scope-proposed`, `scope-approved`,
+`findings-resolved`, `cleared`, `round-done`, and the others named
+throughout). Which role a given state summons — the by-role WAKES-ON
+routing table — is the host's (on-the-record's) concern, documented and
+enforced at `docs/specs/wake-routing.md`. This contract stays
+self-sufficient about record FORMAT and STATES; it defers only the "who
+gets woken" question to the host doc.
 
-**Resolved-finding re-verify edge.** A role that raised a blocking `finding`
-also wakes when the addressed role's own record reaches
-`loop_state: findings-resolved` with a `resolved_findings` entry naming the
-finder's record path and the finder-record sha it addresses: finding-raised
--> (fix) -> findings-resolved -> re-verify. Like every WAKES-ON row, this
-edge is human-consulted, never automated — see section 15.
-
-**Who evaluates these rows.** No automated watcher exists yet in this
-operating model. The human's session opens a role's rulebook when the board
-shows that role's trigger satisfied — a human reads the board, matches it
-against the table above, and opens the matching role. WAKES-ON tells the
-human (or a future automated watcher, if one is built) *whom* to open; it is
-not a claim that opening happens automatically today. This is the intended
-narrowing of the human's job: carrying the table's judgment of "does the
-board match this row," not carrying memory of what should happen next.
+**Who evaluates state changes.** No automated watcher exists yet in this
+operating model. A human (or a future automated watcher, if one is built)
+reads the board against the host's routing rules and opens the role that
+rule names — this is the intended narrowing of the human's job: judging
+"does the board match this state," not carrying memory of what should
+happen next.
 
 **Round-end value-gates edge.** A subject reaching candidate round-done wakes
 the human to run section 18's two value gates before round-done may be set:
 candidate-round-done -> (gates A and B run) -> round-done. Like every wake in
-this table, this edge is human-consulted, never automated — see section 18.
+this contract, this edge is human-consulted, never automated — see section 18.
 
 **Pre-work approval-gate edge.** A subject's front record reaching
 `loop_state: scope-proposed` wakes the human to review it and, on approval,
 set `loop_state: scope-approved`: scope-proposed -> (human review) ->
-scope-approved. Like every wake in this table, this edge is human-consulted,
+scope-approved. Like every wake in this contract, this edge is human-consulted,
 never automated, and it is the ONLY path to `scope-approved` — no role may
 set that state on its own or any other role's record. See section 19.
 
@@ -246,8 +234,9 @@ no other role's WAKES-ON check can see it.
 ## 8. The human's seat
 
 The human's role narrows to judgment points, named explicitly. Everything
-else — which role runs next — is carried by WAKES-ON (section 3), not by a
-human relaying a handoff. Every decision on this list is expressed
+else — which role runs next — is carried by the host's routing rules (see
+section 3), not by a human relaying a handoff. Every decision on this list
+is expressed
 exclusively as a GitHub act per section 10 — a PR review Approve, a PR
 merge, a PR comment, or an issue/PR close — never as prose a model reads
 approval out of, and never as a token.
@@ -526,11 +515,11 @@ Section 5 defines how a `finding` is raised and how the addressed role's
 - The fixer sets `loop_state: findings-resolved` on its own record when it
   writes a `resolved_findings` entry. This is in addition to, not instead
   of, the `finding-response` entry section 5 already requires.
-- **Wake edge.** finding-raised -> (fix) -> `findings-resolved` -> re-verify.
-  The finder is re-woken to re-verify, per section 3's resolved-finding
-  edge. Like all wakes in this contract, this edge is human-consulted, not
-  automated: the human sees `loop_state: findings-resolved` on the board and
-  opens the finder's role to re-check.
+- **State transition.** finding-raised -> (fix) -> `findings-resolved` ->
+  re-verify. Who gets woken by `findings-resolved` is the host's
+  (on-the-record's) concern — see `docs/specs/wake-routing.md`. Like all
+  state transitions in this contract, resolving it is human-consulted, not
+  automated.
 - Re-verification itself is the finder's own judgment (per section 4's
   per-role DEPENDS-ON rules for that role); reaching `findings-resolved`
   clears the fixer's side of the handshake, it does not itself close the
