@@ -134,7 +134,7 @@ do not get a substitute approver: the PR waits for the human.
     claude plugin install freelunch@tokenmaxxxer-core
     claude plugin install scout@tokenmaxxxer-core
 
-muster enables them per role; nothing else needs to. This marketplace
+on-the-record enables them per role; nothing else needs to. This marketplace
 ships four plugins: `core` (the interaction protocol — its gates are not
 meant to be turned off) and three role-agnostic session plugins promoted
 from coding-agent-rulebook, each with its own kill switch:

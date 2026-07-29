@@ -74,7 +74,7 @@ fields may still need live search.
     claude plugin marketplace add tokenmaxxxer/tokenmaxxxer-core
     claude plugin install scout@tokenmaxxxer-core
 
-muster enables it per role; nothing else needs to.
+on-the-record enables it per role; nothing else needs to.
 
 ## Temporarily disable
 

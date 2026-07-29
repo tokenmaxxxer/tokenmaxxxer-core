@@ -93,7 +93,7 @@ the Sonnet pin there rests on the scripts' own `model: 'sonnet'` default.
     claude plugin marketplace add tokenmaxxxer/tokenmaxxxer-core
     claude plugin install freelunch@tokenmaxxxer-core
 
-muster enables it per role; nothing else needs to.
+on-the-record enables it per role; nothing else needs to.
 
 ## Temporarily disable
 
