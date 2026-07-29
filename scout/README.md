@@ -30,18 +30,29 @@ recorded reason isn't a proper skip.
 
 ## The protocol
 
+Survey-first order: the current-state survey (contract v3 s19's rigor
+floor) runs BEFORE scout's sweep, never after and never in parallel with
+it. The survey names the write surfaces and their unknowns; scout then
+aims its sweep angles at those gaps instead of guessing angles from the
+issue text alone. A scout pass that fires before the survey exists has
+nothing to aim at and must wait.
+
 Two stages, budgeted (hard cap: 5 stages total and 3min wall-clock total,
 self-measured via `date` at each judge point), then propose:
 
-1. **Sweep** (stage 1, parallel fan-out, no judgment interleaved) — up
-   to 4 search angles (by-category, by-content, by-citation, by-time,
+1. **Sweep** (stage 1, parallel fan-out, no judgment interleaved) —
+   derive the search angles from the current-state survey's gaps and
+   unknowns first (which surfaces the survey found thin, unknown, or
+   contested), then round those out with the issue text itself. Up
+   to 4 such angles (by-category, by-content, by-citation, by-time,
    ...) run genuinely concurrently in one turn, as parallel subagents or
    parallel tool calls. Breadth only, no exemplar judging yet. If
    parallel dispatch isn't available, fall back to batched-sequential
    and say so explicitly — never silently serialize.
 2. **Observe and deepen** (stages 2-5, judgment lives here) — judge the
    combined sweep results together (actually top-tier? same segment?
-   swap mismatches), then run focused deepening only on
+   judged against the surveyed current state, not just the issue's
+   wording — swap mismatches), then run focused deepening only on
    decision-relevant hits (snowballing from promising sources, not fresh
    top-level searches), one stage per round: extract must-bes, the 2-3
    performance axes, one pattern to adopt and one to skip, and
@@ -54,7 +65,10 @@ self-measured via `date` at each judge point), then propose:
    produces no file counts as not having scouted, regardless of how much
    searching happened. Size guide (soft): roughly within a page (~30
    lines including the Sources list) that feed the proposal and any
-   worker contracts, plus which stage count and mode (parallel or
+   worker contracts, plus a gap line (which of the field's must-bes the
+   current state already meets, and which are missing — this is what
+   makes adopt/skip decisions target the gap instead of the whole
+   field), plus which stage count and mode (parallel or
    batched-sequential fallback) the pass actually used. It remains a
    steering input — findings and decisions, not narrative: no
    battlecards, no SWOT, no matrix, not a research report. Every
