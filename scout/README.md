@@ -52,13 +52,16 @@ self-measured via `date` at each judge point), then propose:
 3. **Scout brief** — mandatory whenever scouting ran: write
    `docs/issue-<n>/reports/<role>/scout-brief.md`. A scout pass that
    produces no file counts as not having scouted, regardless of how much
-   searching happened. Content: ≤10 lines that feed the proposal and any
+   searching happened. Size guide (soft): roughly within a page (~30
+   lines including the Sources list) that feed the proposal and any
    worker contracts, plus which stage count and mode (parallel or
-   batched-sequential fallback) the pass actually used. No battlecards,
-   no SWOT, no matrix. Every web-sourced claim (exemplar names, must-bes,
-   praised/complained patterns) needs a source: append a `Sources:` list
-   of the URLs actually consulted — exempt from the 10-line cap. No
-   source, no claim: state it as an assumption instead.
+   batched-sequential fallback) the pass actually used. It remains a
+   steering input — findings and decisions, not narrative: no
+   battlecards, no SWOT, no matrix, not a research report. Every
+   web-sourced claim (exemplar names, must-bes, praised/complained
+   patterns) needs a source: append a `Sources:` list of the URLs
+   actually consulted, counted within the ~30-line guide. No source, no
+   claim: state it as an assumption instead.
 
 Scouting is not a one-shot: whenever a new decision surfaces mid-work that
 the brief doesn't cover, one micro-round re-aims that decision and extends
