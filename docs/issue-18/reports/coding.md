@@ -2,7 +2,7 @@
 subject: issue-18
 role: coding
 loop_state: landed
-code_under_review: PENDING
+code_under_review: f4cc6ab0814730ed9b791beb48783dc375100d4c
 ---
 
 # Coding record — issue-18
