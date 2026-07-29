@@ -147,9 +147,9 @@ different concerns (see qa row below).
   - ux-design depends on `hypothesis` and `product-record` (the accepted
     problem framing its screens/flows answer). `ux-design`'s contract entry
     enforces structure only — that a `ux-design-record` exists per subject,
-    its WAKES-ON edge after product, and that it feeds coding on reaching
-    `loop_state: reviewed` — and does not dictate what counts as good
-    design; that judgment is ux-design's own.
+    and its WAKES-ON edge, routed per `docs/specs/wake-routing.md` — and
+    does not dictate what counts as good design; that judgment is
+    ux-design's own.
   - verify depends on `coding-record`, `qa-record`, and `review-record` — it
     reads what was built, what qa already tried, and what review concluded,
     then goes looking for what none of them caught. It emits `finding`
@@ -159,17 +159,18 @@ different concerns (see qa row below).
     verdict — review's and verify's verdicts are independent, and verify's
     blocking findings gate landing on their own terms, per this section's
     unchanged NEVER-OVERWRITE / ownership rule. `verify`'s contract entry
-    enforces structure only — that a verify record exists, its WAKES-ON
-    edges, and a blocking-finding channel back to coding — and does not
-    dictate what counts as a defect; deciding what is a real defect is
-    verify's own judgment.
+    enforces structure only — that a verify record exists, carries its own
+    WAKES-ON edges, and emits its blocking-finding channel per section 5,
+    routed per `docs/specs/wake-routing.md` — and does not dictate what
+    counts as a defect; deciding what is a real defect is verify's own
+    judgment.
   - reflect depends on the subject's other role records (`coding-record`,
     `qa-record`, `review-record`, `verify-record`, and any others present)
     and any `finding` blocks addressed to or from them — the retrospective
     material it reads to produce its retro. `reflect`'s contract entry
     enforces structure only — that a `reflect-record` exists per subject,
-    its WAKES-ON edge after verify/review conclude, and that it may emit
-    `finding` back-edges at `severity: advisory` — and does not dictate
+    and its WAKES-ON edge, routed per `docs/specs/wake-routing.md`, and
+    that it may emit `finding` back-edges at `severity: advisory` — and does not dictate
     what the retro concludes; that judgment is reflect's own.
 - **NEVER OVERWRITE (unchanged from v1 §7).** Per-role write ownership
   (section 7 below) carries over without change. READ/DEPENDS-ON add
@@ -184,8 +185,8 @@ generalized from v1, where only review produced findings, to all nine roles.
 - `severity: blocking | advisory`. `blocking` means loops that DEPEND ON the
   addressed role's output pause until the finding is resolved. `advisory`
   means downstream loops continue; the finding is context, not a gate.
-- The addressed role's WAKES-ON list covers findings addressed to it (each
-  row in section 3 already includes its role's finding trigger).
+- Findings addressed to a role are part of that role's WAKES-ON triggers,
+  routed per `docs/specs/wake-routing.md`.
 - **Response schema.** When the addressed role closes out a `finding`, its
   own record must carry a `finding-response` entry containing: the finding
   it responds to (a stable reference — record path plus finding
