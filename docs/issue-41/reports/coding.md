@@ -55,4 +55,4 @@ None.
 - The verify↔coding termination bullet.
 - `docs/specs/wake-routing.md` itself.
 
-commit shas landed: (recorded in the follow-up commit that adds this record alongside the edit)
+commit shas landed: cdae842
