@@ -644,6 +644,15 @@ v2's coding-only scope gate to the whole system.
   problem), its current-state survey (what exists today and how this issue
   meets it), and its proposal (what this role intends to do, the intended
   write surface, what is out of scope, and how success will be judged).
+  Proposal commitments are expressed as an enumerable clause checklist
+  (one line per commitment), not prose alone; phase 2 marks, per clause,
+  the commit or hunk that fulfilled it, or states the clause was dropped
+  and requires re-approval before the drop stands. The proposal also
+  names 1-2 alternatives it considered, one line each stating why it was
+  not chosen, and one line stating the failure signal — a check that
+  would fail, a behavior that would regress, or a complaint that would
+  recur — if this proposal turns out wrong. A proposal missing any of the
+  three is incomplete and not ready for the human's Approve.
   Research and survey live under `docs/issue-<n>/reports/<role>/`; the
   proposal under `docs/issue-<n>/proposals/`. The role opens the PR at
   this point and stops.
