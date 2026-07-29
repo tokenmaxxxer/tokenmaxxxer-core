@@ -205,7 +205,8 @@ generalized from v1, where only review produced findings, to all nine roles.
   fires from it.
 - **qa↔coding cycle termination.** A `finding` from qa produces a
   `finding-response` from coding; coding's fix produces a new commit, which
-  wakes qa again per section 3. This cycle terminates when a wake produces
+  is a board change that may wake the next role per
+  `docs/specs/wake-routing.md`. This cycle terminates when a wake produces
   no new board change — i.e., qa observes the fix, and either verifies it
   (`loop_state: verified-fixed`, no new `finding`) or re-opens it with a new
   `finding` that itself constitutes a board change. A qa wake that results
