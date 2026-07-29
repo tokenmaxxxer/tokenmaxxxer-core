@@ -275,7 +275,7 @@ for parts in issue_hits:
     extra = EXTRA_SUBTREE.get(role)
     if tail[0] == owner_file and len(tail) == 1:
         continue
-    if tail[0] == role and len(tail) > 1:
+    if tail[0] == role:
         continue
     if extra and tail[0] == extra:
         continue
