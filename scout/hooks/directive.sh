@@ -30,7 +30,7 @@ This is the protocol for your PHASE-1 RESEARCH (role-handoff contract v3 s19): b
 
 WHEN IT APPLIES: whenever the issue's deliverable has a field to look at. Product-shaped work scouts the category's best-in-class products; non-product roles scout the best of their own deliverable's kind — a feasibility probe scouts prior art and how the best comparable systems solved it, a review plan scouts what strong audits of this change-class check, an ops plan scouts how comparable systems roll out and fail. Skip scouting when the work is a fully-specified implementation (the spec already encodes the bar), a pure bugfix, or the user says skip. When in doubt, one identification round costs little — do it.
 
-THE PROTOCOL, two stages, budgeted (hard: sweep + deepening <= 5 stages total; soft: ~2min wall-clock, cut deepening short when spent — measure elapsed time, e.g. via `date`, at stage boundaries):
+THE PROTOCOL, two stages, budgeted (hard: sweep + deepening <= 5 stages total AND <= 12 total search/fetch calls across all stages; soft: ~2min wall-clock, cut deepening short when spent — measure elapsed time, e.g. via `date`, at stage boundaries):
 
 STAGE 1 — SWEEP (parallel fan-out, no judgment interleaved): run several search angles concurrently in one turn — e.g. by-category, by-content, by-citation/links, by-time — as parallel subagents (Agent tool, one message with multiple calls) or parallel tool calls (e.g. multiple WebSearch calls in one message). This is the core requirement: the sweep must actually run its angles concurrently, not as a serialized loop dressed up as fan-out. If parallel dispatch is unavailable in the current session, fall back to batched-sequential in one session and SAY SO explicitly (which mode was used) — do not silently serialize. Cap: up to 4 angles, one round, breadth only — no exemplar judging yet.
 
@@ -47,7 +47,7 @@ RE-SCOUT TRIGGER (scouting is not a one-shot): the brief covers the direction de
 NEVER:
 - Post-build comparison against the exemplars — scout steers before generation; it is not a review pass.
 - Cloning the exemplar: the reference sets the BAR, the user's intent sets the DIRECTION. Copy the expectation level, not the product.
-- Exceeding 5 total stages or blowing well past the ~2min soft budget without cutting deepening short — the budgets exist so scouting stays a steering input, not a deep-research fan-out. If the user wants an actual research report, that is a different task — say so.
+- Exceeding 5 total stages, exceeding 12 total search/fetch calls, or blowing well past the ~2min soft budget without cutting deepening short — the budgets exist so scouting stays a steering input, not a deep-research fan-out. If the user wants an actual research report, that is a different task — say so.
 - Serializing the sweep and calling it fan-out — stage 1 must be genuinely concurrent (parallel subagents or parallel tool calls in one turn) or the role must state plainly that it fell back to batched-sequential and why.
 - Fabricating exemplars or expectations when search is unavailable: state that scouting was skipped and why, then build on stated assumptions.
 

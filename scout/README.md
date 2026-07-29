@@ -22,8 +22,8 @@ disables it.
 
 ## The protocol
 
-Two stages, budgeted (hard cap: 5 stages total; soft cap: ~2min
-wall-clock), then propose:
+Two stages, budgeted (hard cap: 5 stages total and 12 total search/fetch
+calls across all stages; soft cap: ~2min wall-clock), then propose:
 
 1. **Sweep** (stage 1, parallel fan-out, no judgment interleaved) — up
    to 4 search angles (by-category, by-content, by-citation, by-time,
@@ -39,8 +39,8 @@ wall-clock), then propose:
    performance axes, one pattern to adopt and one to skip, and
    praise/complaints where reachable. Stop rule (checked after every
    round): would another round change a decision? If no, stop even with
-   budget left; hitting the 5-stage cap or the ~2min soft budget also
-   stops deepening regardless.
+   budget left; hitting the 5-stage cap, the 12-call cap, or the ~2min
+   soft budget also stops deepening regardless.
 3. **Scout brief** — ≤10 lines that feed the proposal and any worker
    contracts, plus which stage count and mode (parallel or
    batched-sequential fallback) the pass actually used. No battlecards,
