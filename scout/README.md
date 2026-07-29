@@ -22,18 +22,29 @@ disables it.
 
 ## The protocol
 
-Three moves, at most two judgment gates, then propose:
+Two stages, budgeted (hard cap: 5 stages total; soft cap: ~2min
+wall-clock), then propose:
 
-1. **Identify best-in-class** — one search round for who sets the quality
-   bar (2-3 exemplars). Judge: actually top-tier? same segment? Swap
-   mismatches.
-2. **Extract the bar** — one round on the chosen exemplars: the field's
-   must-bes, the 2-3 performance axes they compete on, one pattern to
-   adopt and one to deliberately skip, and praise/complaints where
-   reachable. Judge (stop rule): would another source change a decision?
-   If no, stop — digging further is deep research, out of scope.
+1. **Sweep** (stage 1, parallel fan-out, no judgment interleaved) — up
+   to 4 search angles (by-category, by-content, by-citation, by-time,
+   ...) run genuinely concurrently in one turn, as parallel subagents or
+   parallel tool calls. Breadth only, no exemplar judging yet. If
+   parallel dispatch isn't available, fall back to batched-sequential
+   and say so explicitly — never silently serialize.
+2. **Observe and deepen** (stages 2-5, judgment lives here) — judge the
+   combined sweep results together (actually top-tier? same segment?
+   swap mismatches), then run focused deepening only on
+   decision-relevant hits (snowballing from promising sources, not fresh
+   top-level searches), one stage per round: extract must-bes, the 2-3
+   performance axes, one pattern to adopt and one to skip, and
+   praise/complaints where reachable. Stop rule (checked after every
+   round): would another round change a decision? If no, stop even with
+   budget left; hitting the 5-stage cap or the ~2min soft budget also
+   stops deepening regardless.
 3. **Scout brief** — ≤10 lines that feed the proposal and any worker
-   contracts. No battlecards, no SWOT, no matrix.
+   contracts, plus which stage count and mode (parallel or
+   batched-sequential fallback) the pass actually used. No battlecards,
+   no SWOT, no matrix.
 
 Scouting is not a one-shot: whenever a new decision surfaces mid-work that
 the brief doesn't cover, one micro-round re-aims that decision and extends
