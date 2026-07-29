@@ -162,6 +162,14 @@ runb allow feasibility-spikes    issue-3/feasibility feasibility "$BOARD/reports
 runb allow ops-postmortems       issue-3/ops ops "$BOARD/reports/postmortems/outage.md"
 runb deny  qa-not-spikes         issue-3/qa qa "$BOARD/reports/spikes/probe.md"
 
+# regression: mkdir/rm on the role's OWN bare record dir must be allowed,
+# not fall through to the foreign-role denial (issue #12)
+run allow bash-mkdir-own-dir     Bash  '{"command":"mkdir -p '$BOARD'/reports/qa"}'
+run allow bash-rm-own-dir        Bash  '{"command":"rm -rf '$BOARD'/reports/qa"}'
+# a foreign role's bare record dir must stay denied (fail-closed)
+run deny  bash-mkdir-foreign-dir Bash  '{"command":"mkdir -p '$BOARD'/reports/review"}'
+run deny  bash-rm-foreign-dir    Bash  '{"command":"rm -rf '$BOARD'/reports/review"}'
+
 # --- the shell fast path must not change any verdict ----------------------
 fastpath() {
   td="$(cd "$(mktemp -d)" && pwd -P)"
