@@ -647,6 +647,15 @@ v2's coding-only scope gate to the whole system.
   Research and survey live under `docs/issue-<n>/reports/<role>/`; the
   proposal under `docs/issue-<n>/proposals/`. The role opens the PR at
   this point and stops.
+- **Current-state survey rigor floor.** The survey's quality depended
+  entirely on which rulebook happened to bring its own discipline, absent
+  any floor here — this closes that gap with a minimum, not a template:
+  every factual claim in the survey carries a pointer to its evidence
+  (a file path/line, a board record, a PR/issue number — something the
+  next reader can open and check); the survey MUST cover the current
+  state of every surface the proposal intends to write to, not a subset
+  chosen for convenience; and unknowns are listed as unknowns, stated
+  plainly, never silently omitted because no evidence was found for them.
 - **The human's verdict on the proposal.** Two paths open phase 2:
   - **Two-account mode (stricter, preferred where available).** A PR
     review **Approve** from an approver listed in
