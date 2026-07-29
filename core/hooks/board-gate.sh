@@ -17,7 +17,7 @@
 #       every contract revision an atomic N-repo re-sync.
 #
 #   R3  A write under docs/issue-<n>/ requires CLAUDE_ROLE in the
-#       environment. Role sessions get it from muster; the orchestrator's
+#       environment. Role sessions get it from on-the-record; the orchestrator's
 #       own interactive session carries no rulebook gates and has no
 #       business writing the board.
 #
