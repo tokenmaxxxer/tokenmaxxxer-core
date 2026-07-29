@@ -3,7 +3,7 @@
 # output goes. This is the informing half of core — board-gate.sh is the
 # enforcing half; the two must describe the same rules (contract v3 s10).
 #
-# Injected only when CLAUDE_ROLE is set: a session muster did not spawn is
+# Injected only when CLAUDE_ROLE is set: a session on-the-record did not spawn is
 # not a role session, and the orchestrator's or user's own session needs no
 # behavioral directive. Kill switch: CORE_OFF=1.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
