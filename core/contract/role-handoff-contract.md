@@ -328,6 +328,11 @@ two channels, and the system answers through exactly one:
   inference by a model. A free-text comment is never an approval, however
   affirmative it reads: deciding what a sentence means is a language
   problem, and the review Approve state exists precisely so no one has to.
+  The one structural exception is section 19's single-account path: an
+  issue-level comment whose entire body is the exact string `APPROVE
+  issue-<n>/<role>`, posted by an `approvers.md` account, is a mechanical
+  string match, not textual inference — free-text approval commentary of
+  any other shape remains categorically rejected.
 - **Who counts as the human.** The target repo names its human approvers
   in `docs/specs/approvers.md` (one GitHub login per list line). Only an
   Approve review authored by a listed account satisfies a human seat.
@@ -642,11 +647,28 @@ v2's coding-only scope gate to the whole system.
   Research and survey live under `docs/issue-<n>/reports/<role>/`; the
   proposal under `docs/issue-<n>/proposals/`. The role opens the PR at
   this point and stops.
-- **The human's verdict on the proposal.** A PR review **Approve** from an
-  approver listed in `docs/specs/approvers.md` (section 8) is permission
-  to proceed to phase 2. A comment is feedback on the proposal — revise
-  and push to the same PR. A close is refusal. Nothing else — no comment
-  text, no reaction, no bot Approve — opens phase 2.
+- **The human's verdict on the proposal.** Two paths open phase 2:
+  - **Two-account mode (stricter, preferred where available).** A PR
+    review **Approve** from an approver listed in
+    `docs/specs/approvers.md` (section 8), authored by an account
+    different from the PR's author.
+  - **Single-account mode.** When the PR author and the approver are
+    the same GitHub account (the default setup — section 10 — under
+    which GitHub structurally forbids a review Approve on your own
+    PR), an issue-level comment whose entire body is the exact string
+    `APPROVE issue-<n>/<role>` — this role's own subject and role name,
+    verbatim, nothing else in the comment — posted by an account
+    listed in `docs/specs/approvers.md`, is a valid phase-2 approval.
+    String equality, never prose interpretation; an agent account's
+    comment never counts, listed or not, since agent accounts are
+    never in `approvers.md` (section 8). This closes the
+    comment-vs-review discrepancy recorded in the muster issue-31 and
+    issue-38 rounds: verify's strict review-only reading and
+    coding/qa/review's comment-accepting reading now converge on this
+    text.
+  - Any other comment is feedback on the proposal — revise and push to
+    the same PR. A close is refusal. Nothing else — no free-text
+    comment, no reaction, no bot Approve — opens phase 2.
 - **Phase 2 — execute.** Only after the Approve does the role perform its
   actual work (code to `src/`, tests to `test/`, its record and report
   documents) on the same branch, reported through the same PR. Merge of
@@ -654,16 +676,17 @@ v2's coding-only scope gate to the whole system.
   doing the work; the merge accepts its result.
 - **`loop_state: scope-proposed` / `scope-approved`.** The scope states
   map onto the phases: `scope-proposed` in the proposal's own frontmatter
-  when phase 1 is submitted, `scope-approved` once the allowlisted human's
-  Approve review exists on the PR — recorded then in the role's record,
-  whose first write is itself phase-2 work. The review is the authority;
-  any `loop_state` write is its bookkeeping, never the other way around.
+  when phase 1 is submitted, `scope-approved` once one of the two Approve
+  signals above exists on the PR — recorded then in the role's record,
+  whose first write is itself phase-2 work. The Approve signal is the
+  authority; any `loop_state` write is its bookkeeping, never the other
+  way around.
 - **What the gate blocks, mechanically.** The execution surface is `src/`,
   `test/`, and everything under `docs/issue-<n>/` EXCEPT the two phase-1
   homes — `proposals/**` and the role's own research subtree
   `reports/<role>/**`. A role session's writes to that surface are refused
-  while its `issue-<n>/<role>` PR lacks an allowlisted human's Approve
-  review — including while no PR exists at all, which is what makes "open
+  while its `issue-<n>/<role>` PR lacks one of the two Approve signals
+  above — including while no PR exists at all, which is what makes "open
   the proposal PR first" enforced rather than customary. The record file
   `reports/<role>.md` is on the execution surface: a document-producing
   role's deliverable waits for the Approve exactly as code does.
@@ -671,10 +694,11 @@ v2's coding-only scope gate to the whole system.
   into execution on a subject. A later wake on a subject whose PR already
   carries the Approve — a fix for a finding, a qa regression — proceeds
   without re-clearing this gate, unless the human has since dismissed the
-  approving review.
+  approving review or deleted/edited away the approving comment.
 - **Never self-served.** No role approves, merges, or relays an approval.
-  Agent accounts are not listed in `approvers.md`, so their reviews cannot
-  satisfy this gate — the exclusion is mechanical, not behavioral.
+  Agent accounts are not listed in `approvers.md`, so neither their
+  reviews nor their `APPROVE issue-<n>/<role>` comments can satisfy this
+  gate — the exclusion is mechanical, not behavioral.
 - **Unattended runs.** A run with no human present does not skip this
   gate and does not let the working role decide. The PR waits for the
   human. The v2 judge-session mechanism (an independent no-tools session
