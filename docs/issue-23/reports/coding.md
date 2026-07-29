@@ -16,6 +16,21 @@ batched-sequential fallback if parallelism unavailable), then stages
 snowball-deepen only on decision-relevant hits, saturation stop rule).
 Hard budget 5 stages total, soft budget ~2min wall-clock.
 
+## Resolved findings
+
+- review.md requirement 4b (verdict Incorrect, commit c5b37cf): the
+  phase-1 proposal's total search/fetch call cap of 12
+  (docs/issue-23/proposals/coding.md:54) was never transcribed into
+  `scout/hooks/directive.sh` or `scout/README.md` — only the 5-stage
+  cap shipped. Fixed: added "<= 12 total search/fetch calls across all
+  stages" to `scout/hooks/directive.sh:33`'s hard-budget line and to
+  its NEVER-list line 50; added the same 12-call cap to
+  `scout/README.md`'s "## The protocol" intro line and its stop-rule
+  bullet. `scout/hooks/tests/parse-check.sh` re-run, still passes
+  (`ok directive.sh`, `ok tests/parse-check.sh`).
+- review.md requirement 7b: process-historical, no code change — real
+  wall-clock data lives on PR #25's comments.
+
 ## Why
 
 Issue #23 + approved proposal docs/issue-23/proposals/coding.md (PR #24,
