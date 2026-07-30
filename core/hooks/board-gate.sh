@@ -93,14 +93,66 @@ if not isinstance(ti, dict):
 # --- what is this call about to touch? ---------------------------------
 DOCS = "docs/"
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
-                   "diff", "stat", "file", "git")
+                   "diff", "stat", "file", "git", "sort", "uniq", "cut",
+                   "tr", "echo", "printf", "basename", "dirname", "realpath",
+                   "column", "nl", "comm", "jq", "true", "test", "[")
 # sed/awk read by default and only write with -i / redirection. Reading a
 # FOREIGN record is sanctioned (s4 READ-broad; s15/s16 require reading the
 # finder's record) — measured: a role resolving findings could not open
 # review.md via `sed -n` and had to work from a prompt summary.
 READ_UNLESS_INPLACE = ("sed", "awk", "gawk")
-WRITEISH = re.compile(r"[>|`]|\$\(")
+# A file is written by `> f`, `>> f`, `2> f`, `&> f`. It is NOT written by
+# `2>&1` or `>&2`, which duplicate a file descriptor and create nothing —
+# hence the (?!&). The previous catch-all `[>|`]` counted both those and
+# every pipe as a write, so `ls docs/issue-16/… 2>&1` and
+# `git log … -- docs/issue-49 | head` were refused as board writes.
+# Measured 2026-07-30: five such refusals in one issue-53 session, every
+# one of them a read the contract guarantees (s4 READ-broad).
+FILE_REDIR = re.compile(r">>?(?!&)")
+# `2>/dev/null` is a redirection that creates nothing; the idiom is in most
+# read commands a session writes, so it is stripped before the write scan
+# rather than counted. A redirect to any OTHER path still counts — the
+# measured deny `git log 2>docs/issue-3/log.txt` must stay a deny.
+DEVNULL_REDIR = re.compile(r"[0-9&]?>>?\s*/dev/null")
+SUBSHELL = re.compile(r"[`]|\$\(")
+# Pipeline/list separators. Every stage is checked, because the head of the
+# first stage says nothing about what `| tee docs/x` does downstream.
+SEGMENT = re.compile(r"\|\||&&|[|;\n]")
 INPLACE = re.compile(r"(^|\s)-i\b|--in-place")
+# `xargs` runs whatever follows it, so it is transparent rather than safe:
+# resolve to the command it will actually run and judge that instead.
+TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin")
+
+
+def _head_of(segment):
+    """The command a pipeline stage will actually run, or "" if unknowable."""
+    words = segment.split()
+    while words:
+        w = words[0].rsplit("/", 1)[-1]
+        if w not in TRANSPARENT:
+            return w
+        # skip xargs/env's own flags (and env's VAR=value assignments)
+        words = [x for x in words[1:]
+                 if not x.startswith("-") and "=" not in x.split("/")[0]]
+    return ""
+
+
+def _reads_only(cmdline):
+    """True when no stage of this command line can write a file."""
+    probe = DEVNULL_REDIR.sub(" ", cmdline)
+    if SUBSHELL.search(probe) or FILE_REDIR.search(probe):
+        return False
+    for seg in SEGMENT.split(probe):
+        seg = seg.strip()
+        if not seg:
+            continue
+        head = _head_of(seg)
+        if head in READ_ONLY_HEADS:
+            continue
+        if head in READ_UNLESS_INPLACE and not INPLACE.search(seg):
+            continue
+        return False
+    return True
 
 candidates = []
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -112,12 +164,8 @@ elif tool == "Bash":
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
     if DOCS in cmdline:
-        head = cmdline.strip().split()[0].rsplit("/", 1)[-1] if cmdline.strip() else ""
-        if head in READ_ONLY_HEADS and not WRITEISH.search(cmdline):
-            allow()          # a plain read of the board is not a write
-        if head in READ_UNLESS_INPLACE and not WRITEISH.search(cmdline) \
-                and not INPLACE.search(cmdline):
-            allow()          # sed/awk without -i or redirection only read
+        if _reads_only(cmdline):
+            allow()          # a plain read of the board is not a write (s4)
         # every docs-path-shaped token becomes a candidate target; this is
         # a superset scan, and over-blocking is the safe direction here
         for tok in re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), cmdline):
