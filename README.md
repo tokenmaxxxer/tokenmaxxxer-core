@@ -23,7 +23,7 @@ actual work, code included — opens only when a **human approver listed in
 agent's Approve never opens it: who counts as the human is an allowlist,
 which is also what makes "no role approves its own PR" mechanical.
 
-- A role wakes on an issue, works on branch `issue-<n>/<role>` (one branch
+- A role is opened for an issue, works on branch `issue-<n>/<role>` (one branch
   per issue × role), and returns everything as a PR against `main`. No
   role pushes to `main`, files an issue, or merges anything.
 - `subject` IS the issue: `issue-<n>`. `docs/issue-<n>/` is the subject's
