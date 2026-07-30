@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # PreToolUse: the phase gate of contract v3 s19. Every role proposes first
 # (research, current-state survey, proposal — documents, phase 1) and
-# executes only after an allowlisted human's PR review Approve (phase 2).
+# executes only after an allowlisted human's Approve — a PR review, or an
+# issue-level `APPROVE issue-<n>/<role>` comment (phase 2).
 #
 # Deny-only rule: a role session's write to the EXECUTION SURFACE is
-# refused while the role's issue-<n>/<role> PR lacks an Approve review
-# authored by an account listed in docs/specs/approvers.md — including
-# while no PR exists at all, which is what makes "open the proposal PR
-# first" enforced rather than customary.
+# refused while the role's issue-<n>/<role> subject lacks an Approve
+# signal authored by an account listed in docs/specs/approvers.md —
+# including while no PR exists at all, which is what makes "open the
+# proposal PR first" enforced rather than customary.
 #
 # The execution surface is src/**, test/**, and everything under the issue
 # tree docs/issue-<n>/ EXCEPT the two phase-1 homes: proposals/** (the
@@ -19,12 +20,20 @@
 # accounts are simply not listed, so a CI Approve or a role approving its
 # own PR cannot open phase 2 (contract v3 s8).
 #
-# The verdict needs GitHub (gh pr view --json reviews) — a network call.
-# It runs only for src//test/ writes in role sessions, and the result is
-# NOT cached: a cache file would be writable by the model's own tools,
-# i.e. a forgeable approval. gh unavailable or failing = deny (fail
-# closed). Kill switch: CORE_OFF=1. Test seam: CORE_GH overrides the gh
-# executable.
+# The verdict needs GitHub, checked in this order (each a network call).
+# First, the issue's own state and comments together (gh issue view
+# --json state,comments) — the issue is the one anchor stable across the
+# subject's two PRs (phase 1's, then phase 2's), so a closed issue denies
+# unconditionally before either approval path is even considered. Then,
+# if a PR is currently open on this branch, its reviews (gh pr view
+# --json reviews) decide the two-account path; the single-account path
+# scans the issue comments already fetched for an exact `APPROVE
+# issue-<n>/<role>` string from a listed approver — no PR open is an
+# expected gap between the subject's two PRs, not itself a denial.
+# Neither result is cached: a cache file would be writable by the model's
+# own tools, i.e. a forgeable approval. gh unavailable or failing on
+# either call = deny (fail closed). Kill switch: CORE_OFF=1. Test seam:
+# CORE_GH overrides the gh executable.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 set -uo pipefail
 
@@ -165,12 +174,13 @@ try:
     branch = out.stdout.strip() if out.returncode == 0 else ""
 except Exception:
     branch = ""
-m = re.match(r"^issue-[0-9]+/(.+)$", branch)
-if not m or m.group(1) != role:
+m = re.match(r"^issue-([0-9]+)/(.+)$", branch)
+if not m or m.group(2) != role:
     deny("execution-surface writes happen only on this role's own issue "
          "branch (issue-<n>/%s; current: %s). Check out the branch, submit "
          "phase 1, and get the Approve first. (contract v3 s19)"
          % (role, branch or "<none>"))
+issue_num = m.group(1)
 
 # --- the human allowlist ------------------------------------------------
 approvers = []
@@ -189,68 +199,106 @@ if not approvers:
     deny("docs/specs/approvers.md lists no approvers (expected '- <github "
          "login>' lines). An empty allowlist can approve nothing")
 
-# --- the Approve signal -------------------------------------------------
-# Two spellings, both GitHub acts by an allowlisted human:
-#   (a) a PR review with state APPROVED — the multi-account path;
-#   (b) a PR comment whose body is EXACTLY "APPROVE <branch>" — the
-#       single-account path, because GitHub forbids approving your own PR
-#       and with one account the role's PRs are authored by the same
-#       login. Exact string equality, never prose interpretation: the
-#       measured lesson from the retired mint design. The orchestrator
-#       posts it after the human said so in conversation; gh-guard denies
-#       role sessions the comment spelling.
+# --- the issue-state precondition ---------------------------------------
+# The issue is the canonical approval anchor (contract v3 s10/s19): it is
+# the one location stable across the subject's two PRs (phase 1's, then
+# phase 2's, opened after phase 1's has already merged and closed). Its
+# open/closed state gates BOTH approval paths below, checked before
+# either one, so a closed issue denies unconditionally regardless of any
+# standing PR review or issue comment — this is what makes the contract's
+# revocation-by-closing guarantee mechanical rather than prose.
 gh = os.environ.get("CORE_GH") or "gh"
 try:
-    out = subprocess.run([gh, "pr", "view", branch, "--json",
-                          "reviews,comments"],
-                         capture_output=True, text=True, cwd=root)
+    issue_out = subprocess.run([gh, "issue", "view", issue_num, "--json",
+                                "state,comments"],
+                               capture_output=True, text=True, cwd=root)
+except OSError:
+    deny("cannot run %r to check issue #%s's state — refusing execution "
+         "writes rather than assuming approval (fail closed)"
+         % (gh, issue_num))
+if issue_out.returncode != 0:
+    deny("cannot read issue #%s (or gh failed: %s). The issue is the "
+         "canonical approval anchor; its own unavailability cannot be "
+         "waved through. (contract v3 s19)"
+         % (issue_num, (issue_out.stderr or "").strip()[:200]))
+try:
+    issue_parsed = json.loads(issue_out.stdout)
+    issue_state = issue_parsed.get("state") or ""
+    issue_comments = issue_parsed.get("comments") or []
+except (ValueError, AttributeError):
+    deny("unreadable issue JSON from gh; refusing rather than assuming "
+         "approval")
+if issue_state != "OPEN":
+    deny("issue #%s is not open (state: %s) — a closed issue's board is "
+         "not live for any role, regardless of any standing PR review or "
+         "APPROVE comment. (contract v3 s19)"
+         % (issue_num, issue_state or "unknown"))
+
+# --- the Approve signal -------------------------------------------------
+# Two spellings, both GitHub acts by an allowlisted human:
+#   (a) a PR review with state APPROVED — the two-account path, read from
+#       whichever PR is currently open on this branch. No PR open right
+#       now is an expected gap in the subject's two-PR practice (phase 1
+#       merged, phase 2 not yet opened), not itself a denial;
+#   (b) an issue-level comment whose body is EXACTLY
+#       "APPROVE issue-<n>/<role>" — the single-account path, because
+#       GitHub forbids approving your own PR and with one account the
+#       role's PRs are authored by the same login. Exact string equality,
+#       never prose interpretation: the measured lesson from the retired
+#       mint design. The orchestrator posts it after the human said so in
+#       conversation; gh-guard denies role sessions the comment spelling.
+challenge = "APPROVE issue-%s/%s" % (issue_num, role)
+
+pr_approved = False
+try:
+    pr_out = subprocess.run([gh, "pr", "view", branch, "--json", "reviews"],
+                            capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check the PR's reviews — refusing execution "
          "writes rather than assuming approval (fail closed)" % gh)
-if out.returncode != 0:
-    deny("no open PR found for branch %s (or gh failed: %s). Phase 1 comes "
-         "first: commit research, current-state and proposal, open the PR, "
-         "and wait for an Approve review. (contract v3 s19)"
-         % (branch, (out.stderr or "").strip()[:200]))
-try:
-    parsed = json.loads(out.stdout)
-    reviews = parsed.get("reviews") or []
-    comments = parsed.get("comments") or []
-except (ValueError, AttributeError):
-    deny("unreadable reviews JSON from gh; refusing rather than assuming "
-         "approval")
-
-# Last review per author wins: an author who approved and later requested
-# changes has not approved.
-last = {}
-for r in reviews:
-    if not isinstance(r, dict):
-        continue
-    login = ((r.get("author") or {}).get("login") or "").lower()
-    state = r.get("state") or ""
-    if login and state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
-        last[login] = state
-
-approved = any(login in approvers and state == "APPROVED"
-               for login, state in last.items())
-
-if not approved:
-    challenge = "APPROVE %s" % branch
-    for c in comments:
-        if not isinstance(c, dict):
+if pr_out.returncode == 0:
+    try:
+        reviews = (json.loads(pr_out.stdout) or {}).get("reviews") or []
+    except (ValueError, AttributeError):
+        deny("unreadable reviews JSON from gh; refusing rather than "
+             "assuming approval")
+    # Last review per author wins: an author who approved and later
+    # requested changes has not approved.
+    last = {}
+    for r in reviews:
+        if not isinstance(r, dict):
             continue
-        login = ((c.get("author") or {}).get("login") or "").lower()
-        body = (c.get("body") or "").strip()
-        if login in approvers and body == challenge:
-            approved = True
-            break
+        login = ((r.get("author") or {}).get("login") or "").lower()
+        state = r.get("state") or ""
+        if login and state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            last[login] = state
+    pr_approved = any(login in approvers and state == "APPROVED"
+                      for login, state in last.items())
+# pr_out.returncode != 0: no PR open right now — the two-account path is
+# simply unavailable, not a denial by itself.
+
+comment_approved = False
+for c in issue_comments:
+    if not isinstance(c, dict):
+        continue
+    if c.get("isMinimized"):
+        continue  # hidden/minimized is GitHub's own way to retract a
+                   # comment without deleting or editing it
+    login = ((c.get("author") or {}).get("login") or "").lower()
+    body = (c.get("body") or "").strip()
+    if login in approvers and body == challenge:
+        comment_approved = True
+        break
+
+approved = pr_approved or comment_approved
 
 if not approved:
-    deny("the PR for %s carries no approval from a listed human approver "
-         "(%s): neither an Approve review nor a comment that is exactly "
-         "'APPROVE %s'. Free-text comments are feedback, a bot's Approve "
-         "is not a human's, and phase 2 waits for the human. "
-         "(contract v3 s19)" % (branch, ", ".join(approvers), branch))
+    deny("neither the PR for %s nor issue #%s carries an approval from a "
+         "listed human approver (%s): no Approve review on an open PR, "
+         "and no issue comment that is exactly '%s'. Free-text comments "
+         "are feedback, a bot's or agent's Approve is not a human's, and "
+         "phase 2 waits for the human. (contract v3 s19)"
+         % (branch, issue_num, ", ".join(approvers), challenge))
 
 allow()
 PY

@@ -321,14 +321,19 @@ two channels, and the system answers through exactly one:
   inference by a model. A free-text comment is never an approval, however
   affirmative it reads: deciding what a sentence means is a language
   problem, and the review Approve state exists precisely so no one has to.
-  The one structural exception is section 19's single-account path: a
-  PR-level comment, attached to the PR under review, whose entire body is
-  the exact string `APPROVE issue-<n>/<role>`, posted by an
-  `approvers.md` account, is a mechanical string match, not textual
-  inference — free-text approval commentary of any other shape remains
-  categorically rejected. Approval, acceptance, and refusal comments are
-  always attached to the PR under review, never the issue; an issue
-  comment is never approval provenance.
+  The one structural exception is section 19's single-account path: an
+  issue-level comment — posted on the subject's issue (`issue-<n>`), not
+  on any PR — whose entire body is the exact string `APPROVE
+  issue-<n>/<role>`, posted by an `approvers.md` account, is a mechanical
+  string match, not textual inference — free-text approval commentary of
+  any other shape remains categorically rejected. This is the one signal
+  that lives on the issue rather than the PR: contract v3's own practice
+  produces two PRs per subject/role (phase 1's proposal PR, then phase
+  2's build PR, opened after phase 1's PR has already merged and closed —
+  section 19), and the issue is the one anchor stable across both.
+  Feedback, acceptance, and refusal comments stay attached to the PR
+  under review, exactly as before; only this one Approve signal is
+  issue-attached.
 - **Who counts as the human.** The target repo names its human approvers
   in `docs/specs/approvers.md` (one GitHub login per list line). Only an
   Approve review authored by a listed account satisfies a human seat.
@@ -670,19 +675,68 @@ v2's coding-only scope gate to the whole system.
   - **Single-account mode.** When the PR author and the approver are
     the same GitHub account (the default setup — section 10 — under
     which GitHub structurally forbids a review Approve on your own
-    PR), a PR-level comment, attached to the PR under review, whose
-    entire body is the exact string `APPROVE issue-<n>/<role>` — this
-    role's own subject and role name, verbatim, nothing else in the
-    comment — posted by an account listed in `docs/specs/approvers.md`,
-    is a valid phase-2 approval. String equality, never prose
-    interpretation; an agent account's comment never counts, listed or
-    not, since agent accounts are never in `approvers.md` (section 8).
-    This closes the comment-vs-review discrepancy recorded in the muster
-    issue-31 and issue-38 rounds: verify's strict review-only reading and
-    coding/qa/review's comment-accepting reading now converge on this
-    text. A role recording provenance for this signal must cite the PR
-    comment (its URL or PR-comment id), never the issue — an issue
-    comment is never approval provenance.
+    PR), an issue-level comment — posted on issue `<n>` itself, never
+    on a PR — whose entire body is the exact string `APPROVE
+    issue-<n>/<role>` — this role's own subject and role name,
+    verbatim, nothing else in the comment — posted by an account
+    listed in `docs/specs/approvers.md`, is a valid phase-2 approval.
+    The issue, not the PR, is the anchor: this role's own
+    two-PR-per-subject practice (phase 1's proposal PR merges and
+    closes before phase 2's build PR opens) means a PR-scoped comment
+    on PR A is invisible to a gate resolving PR B once A is closed;
+    the issue survives both PRs, so it is the only location one
+    comment can authorize both phases from. String equality, never
+    prose interpretation; an agent account's comment never counts,
+    listed or not, since agent accounts are never in `approvers.md`
+    (section 8). This closes the comment-vs-review discrepancy
+    recorded in the muster issue-31 and issue-38 rounds, and the
+    PR-vs-issue location discrepancy recorded in issue-53: verify's
+    strict review-only reading, coding/qa/review's comment-accepting
+    reading, and on-the-record's issue-canonical reading now converge
+    on this text.
+
+    **Scope.** One `APPROVE issue-<n>/<role>` comment authorizes every
+    PR opened on the `issue-<n>/<role>` branch, past and future, for as
+    long as the comment stands — not only the PR open at the moment the
+    comment was posted (phase 2's PR typically does not exist yet when
+    phase 1 is approved), and not a separate approval per phase (this
+    section defines one gate transition, `scope-proposed` ->
+    `scope-approved`; a per-phase split would add a second human
+    judgment point this contract does not otherwise require). This is
+    deliberately branch-wide rather than PR-specific: `issue-<n>/<role>`
+    already names exactly one role working exactly one issue (section
+    10, never shared), so "every PR on the branch" is the same unit of
+    work the human already approved, not a wider one.
+
+    **What this does and does not authorize.** A role opening a later
+    PR on an already-approved branch does not need a human to have seen
+    that PR's specific diff before starting the work — unchanged from
+    the PR-scoped model's own "later entries are unaffected" rule
+    (below); moving the signal to the issue does not create this, it
+    only lets it survive the branch's second PR. What still bounds the
+    work is (i) the approved proposal's own stated scope (`files:`,
+    "What will be done" / "Out of scope") — a role exceeding it is a
+    violation of its own rulebook's scope discipline, not something this
+    gate checks mechanically — and (ii) the merge decision on every PR,
+    unconditional and separate from the Approve, where the human reviews
+    the actual diff before accepting it. The Approve authorizes doing
+    the work; the merge accepts its result — that division, not a second
+    approval, is this contract's answer to a changed artifact needing a
+    fresh look.
+
+    **Revocation.** Deleting or editing the `APPROVE issue-<n>/<role>`
+    comment away ends the authorization for any gate check after that
+    point (unchanged from the PR-comment model, re-anchored to the
+    issue). Closing the issue ends it unconditionally and independently
+    of the comment — mechanically, not just as a stated norm: the gate
+    checks the issue's open/closed state before either approval path
+    (see `core/hooks/approval-gate.sh`), so a closed issue denies
+    phase-2 work of any kind regardless of any standing comment or PR
+    review.
+
+    A role recording provenance for this signal must cite the issue
+    comment (its URL or comment id), never a PR — a PR comment is never
+    approval provenance for the single-account path.
   - Any other comment is feedback on the proposal — revise and push to
     the same PR. A close is refusal. Nothing else — no free-text
     comment, no reaction, no bot Approve — opens phase 2.

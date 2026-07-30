@@ -2,8 +2,10 @@
 # approval-gate.sh, exercised as a real subprocess with a stubbed gh.
 #
 # The rule (contract v3 s19): a role session's src//test/ write is refused
-# until the role's issue-<n>/<role> PR carries an Approve review from an
-# account listed in docs/specs/approvers.md. CORE_GH is the test seam.
+# until the role's issue-<n>/<role> subject carries an Approve from an
+# account listed in docs/specs/approvers.md — a PR review, or an
+# issue-level `APPROVE issue-<n>/<role>` comment, gated first by the
+# issue's own open/closed state. CORE_GH is the test seam.
 #
 # want: "allow" (exit 0) | "deny" (exit 2)
 set -uo pipefail
@@ -23,21 +25,43 @@ report() {
   fi
 }
 
-# stub_gh <dir> <mode>: modes are the review states the stub serves
+# stub_gh <dir> <mode>: modes set the issue's state/comments and the PR's
+# reviews independently. The generated gh stub is argument-aware — it
+# branches on $1 ("issue" vs "pr") so the two gh calls approval-gate.sh
+# makes (issue view --json state,comments; pr view --json reviews) get
+# independent, mode-controlled responses.
 stub_gh() {
-  comments='[]'
+  issue_state='OPEN'; issue_comments='[]'
+  pr_ok=1; reviews='[]'
   case "$2" in
     human)    reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
-    comment-challenge) reviews='[]'; comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
-    comment-challenge-agent) reviews='[]'; comments='[{"author":{"login":"agent-bot"},"body":"APPROVE issue-7/coding"}]' ;;
-    comment-prose) reviews='[]'; comments='[{"author":{"login":"jw-human"},"body":"looks good, approve!"}]' ;;
+    comment-challenge) issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
+    comment-challenge-agent) issue_comments='[{"author":{"login":"agent-bot"},"body":"APPROVE issue-7/coding"}]' ;;
+    comment-prose) issue_comments='[{"author":{"login":"jw-human"},"body":"looks good, approve!"}]' ;;
     bot)      reviews='[{"author":{"login":"security-bot"},"state":"APPROVED"}]' ;;
     agent)    reviews='[{"author":{"login":"tokenmaxxxer-agent"},"state":"APPROVED"}]' ;;
     comment)  reviews='[{"author":{"login":"jw-human"},"state":"COMMENTED"}]' ;;
     revoked)  reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"},{"author":{"login":"jw-human"},"state":"CHANGES_REQUESTED"}]' ;;
-    nopr)     printf '#!/bin/sh\necho "no pull requests found" >&2\nexit 1\n' > "$1/gh"; chmod +x "$1/gh"; return ;;
+    nopr)     pr_ok=0 ;;
+    issue-comment-no-pr) pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
+    closed-with-comment) issue_state='CLOSED'; pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
+    closed-with-pr-review) issue_state='CLOSED'; reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
+    comment-minimized) pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding","isMinimized":true,"minimizedReason":"OUTDATED"}]' ;;
   esac
-  printf '#!/bin/sh\nprintf %%s '"'"'{"reviews":%s,"comments":%s}'"'"'\n' "$reviews" "$comments" > "$1/gh"
+  cat > "$1/gh" <<SCRIPT
+#!/bin/sh
+case "\$1" in
+  issue) printf '%s' '{"state":"$issue_state","comments":$issue_comments}' ;;
+  pr)
+    if [ "$pr_ok" = 1 ]; then
+      printf '%s' '{"reviews":$reviews}'
+    else
+      echo "no pull requests found" >&2
+      exit 1
+    fi
+    ;;
+esac
+SCRIPT
   chmod +x "$1/gh"
 }
 
@@ -56,7 +80,7 @@ run() {
       cmd=*) tool="Bash"; cmd="${o#cmd=}" ;;
     esac
   done
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
@@ -96,9 +120,19 @@ run deny  comment-prose           comment-prose src/app.py
 run deny  no-approvers-file      human   src/app.py noapprovers
 run deny  empty-approvers-file   human   src/app.py emptyapprovers
 
+# --- issue-comment canonical location (issue #53) --------------------------
+run allow issue-comment-approved-no-pr        issue-comment-no-pr     src/app.py
+run allow pr-review-approved-no-issue-comment human                  src/app.py
+run deny  issue-comment-agent                 comment-challenge-agent src/app.py
+run deny  issue-comment-prose                 comment-prose           src/app.py
+run deny  neither-surface                     nopr                    src/app.py
+run deny  closed-issue-with-comment           closed-with-comment     src/app.py
+run deny  closed-issue-with-pr-review         closed-with-pr-review   src/app.py
+run deny  issue-comment-minimized             comment-minimized       src/app.py
+
 # --- precondition: no remote, no approvals --------------------------------
 noremote() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
   git init -q "$td"
   git -C "$td" checkout -q -b issue-7/coding
   mkdir -p "$td/docs/specs" "$td/stub"
@@ -136,7 +170,7 @@ run allow readme-write           nopr    README.md
 
 # non-role session: gate stands aside entirely
 norole() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
     | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
@@ -150,7 +184,7 @@ norole
 
 # kill switch
 kill_switch() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
     | env CLAUDE_ROLE=coding CORE_OFF=1 CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
