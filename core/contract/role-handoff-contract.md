@@ -8,7 +8,7 @@ Authority document for how the nine role rulebooks — coding, qa,
 feasibility, product, ux-design, ops, review, verify, reflect — coordinate inside the
 target repository each is working on. v1 modeled coordination as one-shot
 parcel handoffs between adjacent roles; v2 replaces that with a shared
-blackboard each role reads, writes its own record onto, and wakes from. This
+blackboard each role reads, writes its own record onto, and enters from. This
 document defines the shared record format; it does not itself change any of
 the nine rulebooks. Landing this contract in each rulebook is separate,
 one proposal per repo.
@@ -77,41 +77,42 @@ coding's records, closing the trial's two unsanctioned-kind gaps.
 no comment tolerance is a gate defect, not a contract violation by the
 record's author.
 
-## 3. Record states; routing lives at the host
+## 3. Record states; routing is the orchestrator's judgment
 
-Each role's loop wakes when the board reaches one of its trigger
+Each role's loop enters when the board reaches one of its trigger
 conditions, replacing v1's single accept/refuse-at-handoff moment.
-Concurrent wakes are the normal case: a board change may satisfy more than
+Concurrent entries are the normal case: a board change may satisfy more than
 one role's row at once, and all of them proceed in parallel — this is where
 the model's parallelism comes from, not an edge case.
 
 Records carry the `loop_state` values defined in this contract (the states
 enumerated per section — `scope-proposed`, `scope-approved`,
 `findings-resolved`, `cleared`, `round-done`, and the others named
-throughout). Which role a given state summons — the by-role WAKES-ON
-routing table — is the host's (on-the-record's) concern, documented and
-enforced at `docs/specs/wake-routing.md`. This contract stays
-self-sufficient about record FORMAT and STATES; it defers only the "who
-gets woken" question to the host doc.
+throughout). Which role a given state summons is the orchestrating
+session's judgment, made by reading the board directly — no routing
+table, no host-doc pointer. This contract stays self-sufficient about
+record FORMAT and STATES; it says nothing about, and defers nothing to a
+document about, "who gets opened next."
 
 **Who evaluates state changes.** No automated watcher exists yet in this
 operating model. A human (or a future automated watcher, if one is built)
-reads the board against the host's routing rules and opens the role that
-rule names — this is the intended narrowing of the human's job: judging
-"does the board match this state," not carrying memory of what should
-happen next.
+reads the board and opens the role its judgment names — this is the
+intended narrowing of the human's job: judging "does the board match this
+state," not carrying memory of what should happen next.
 
-**Round-end value-gates edge.** A subject reaching candidate round-done wakes
-the human to run section 18's two value gates before round-done may be set:
-candidate-round-done -> (gates A and B run) -> round-done. Like every wake in
-this contract, this edge is human-consulted, never automated — see section 18.
+**Round-end value-gates edge.** A subject reaching candidate round-done
+prompts the human to run section 18's two value gates before round-done may
+be set: candidate-round-done -> (gates A and B run) -> round-done. Like
+every role-entry in this contract, this edge is human-consulted, never
+automated — see section 18.
 
 **Pre-work approval-gate edge.** A subject's front record reaching
-`loop_state: scope-proposed` wakes the human to review it and, on approval,
-set `loop_state: scope-approved`: scope-proposed -> (human review) ->
-scope-approved. Like every wake in this contract, this edge is human-consulted,
-never automated, and it is the ONLY path to `scope-approved` — no role may
-set that state on its own or any other role's record. See section 19.
+`loop_state: scope-proposed` prompts the human to review it and, on
+approval, set `loop_state: scope-approved`: scope-proposed -> (human
+review) -> scope-approved. Like every role-entry in this contract, this
+edge is human-consulted, never automated, and it is the ONLY path to
+`scope-approved` — no role may set that state on its own or any other
+role's record. See section 19.
 
 ## 4. Consumption semantics
 
@@ -146,10 +147,10 @@ different concerns (see qa row below).
     `feasibility-record` (the measurement design).
   - ux-design depends on `hypothesis` and `product-record` (the accepted
     problem framing its screens/flows answer). `ux-design`'s contract entry
-    enforces structure only — that a `ux-design-record` exists per subject,
-    and its WAKES-ON edge, routed per `docs/specs/wake-routing.md` — and
-    does not dictate what counts as good design; that judgment is
-    ux-design's own.
+    enforces structure only — that a `ux-design-record` exists per subject
+    — and does not dictate what counts as good design, or when it acts
+    (that is the orchestrator's call, not this contract's); that judgment
+    is ux-design's own.
   - verify depends on `coding-record`, `qa-record`, and `review-record` — it
     reads what was built, what qa already tried, and what review concluded,
     then goes looking for what none of them caught. It emits `finding`
@@ -159,19 +160,20 @@ different concerns (see qa row below).
     verdict — review's and verify's verdicts are independent, and verify's
     blocking findings gate landing on their own terms, per this section's
     unchanged NEVER-OVERWRITE / ownership rule. `verify`'s contract entry
-    enforces structure only — that a verify record exists, carries its own
-    WAKES-ON edges, and emits its blocking-finding channel per section 5,
-    routed per `docs/specs/wake-routing.md` — and does not dictate what
-    counts as a defect; deciding what is a real defect is verify's own
+    enforces structure only — that a verify record exists and emits its
+    blocking-finding channel per section 5 — and does not dictate what
+    counts as a defect, or when it acts (that is the orchestrator's call,
+    not this contract's); deciding what is a real defect is verify's own
     judgment.
   - reflect depends on the subject's other role records (`coding-record`,
     `qa-record`, `review-record`, `verify-record`, and any others present)
     and any `finding` blocks addressed to or from them — the retrospective
     material it reads to produce its retro. `reflect`'s contract entry
-    enforces structure only — that a `reflect-record` exists per subject,
-    and its WAKES-ON edge, routed per `docs/specs/wake-routing.md`, and
-    that it may emit `finding` back-edges at `severity: advisory` — and does not dictate
-    what the retro concludes; that judgment is reflect's own.
+    enforces structure only — that a `reflect-record` exists per subject
+    and that it may emit `finding` back-edges at `severity: advisory` —
+    and does not dictate what the retro concludes, or when it acts (that
+    is the orchestrator's call, not this contract's); that judgment is
+    reflect's own.
 - **NEVER OVERWRITE (unchanged from v1 §7).** Per-role write ownership
   (section 7 below) carries over without change. READ/DEPENDS-ON add
   semantics on top of an unchanged ownership rule; they do not loosen it.
@@ -185,8 +187,8 @@ generalized from v1, where only review produced findings, to all nine roles.
 - `severity: blocking | advisory`. `blocking` means loops that DEPEND ON the
   addressed role's output pause until the finding is resolved. `advisory`
   means downstream loops continue; the finding is context, not a gate.
-- Findings addressed to a role are part of that role's WAKES-ON triggers,
-  routed per `docs/specs/wake-routing.md`.
+- Findings addressed to a role are visible on the board for the
+  orchestrator to act on.
 - **Response schema.** When the addressed role closes out a `finding`, its
   own record must carry a `finding-response` entry containing: the finding
   it responds to (a stable reference — record path plus finding
@@ -197,26 +199,26 @@ generalized from v1, where only review produced findings, to all nine roles.
 
 ## 6. Loop termination
 
-- A wake is consumed by writing the resulting record entry (a `loop_state`
-  change, a new `finding`, a `finding-response`, or equivalent). Writing
-  nothing means the wake was not consumed.
-- An unchanged board wakes no one. If a role's write leaves the board
-  byte-identical to what a waking role already observed, no further wake
-  fires from it.
+- A role-entry is consumed by writing the resulting record entry (a
+  `loop_state` change, a new `finding`, a `finding-response`, or
+  equivalent). Writing nothing means the entry was not consumed.
+- An unchanged board prompts no further entry. If a role's write leaves
+  the board byte-identical to what the entering role already observed, no
+  further entry is prompted from it.
 - **qa↔coding cycle termination.** A `finding` from qa produces a
   `finding-response` from coding; coding's fix produces a new commit, which
-  is a board change that may wake the next role per
-  `docs/specs/wake-routing.md`. This cycle terminates when a wake produces
-  no new board change — i.e., qa observes the fix, and either verifies it
-  (`loop_state: verified-fixed`, no new `finding`) or re-opens it with a new
-  `finding` that itself constitutes a board change. A qa wake that results
-  in neither a `verified-fixed` write nor a new `finding` is not a valid
-  consumption of the wake and must not be treated as cycle-closing; but a
-  wake that reproduces an *already-filed, unresolved* finding without
+  is a board change that may prompt the orchestrator to open the next
+  role. This cycle terminates when an entry produces no new board change
+  — i.e., qa observes the fix, and either verifies it (`loop_state:
+  verified-fixed`, no new `finding`) or re-opens it with a new `finding`
+  that itself constitutes a board change. A qa entry that results in
+  neither a `verified-fixed` write nor a new `finding` is not a valid
+  consumption of the entry and must not be treated as cycle-closing; but
+  an entry that reproduces an *already-filed, unresolved* finding without
   adding new information is not a new board change either, and does not
   re-open the cycle. This is the rule that keeps qa↔coding ping-pong finite.
 - **verify↔coding cycle termination.** Extends the above to verify: a
-  `verify` wake is not a valid consumption unless it produces either a
+  `verify` entry is not a valid consumption unless it produces either a
   `cleared` `loop_state` (no unresolved reproduced findings) or a
   new/re-affirmed `finding`. A blocking finding resolves only when coding's
   `finding-response` supplies fix evidence that verify re-observes, or the
@@ -231,7 +233,7 @@ to other roles unless reflected onto `loop_state`. A role must update
 `loop_state` on the board at each transition it completes — a role that
 completes a transition internally but leaves the board's `loop_state` stale
 has not, for the purposes of this contract, completed the transition, since
-no other role's WAKES-ON check can see it.
+no other role, or the orchestrator reading the board, can see it.
 
 ## 8. The human's seat
 
@@ -252,7 +254,7 @@ approval out of, and never as a token.
   settle.
 - Approving scope changes, including the pre-work approval gate that moves
   a subject's front record from `scope-proposed` to `scope-approved`
-  before any building role's first wake on that subject — see section 19.
+  before any building role's first entry on that subject — see section 19.
 - Running section 18's two round-end value gates and setting a subject's
   `round-done` state — required before `round-done` may be set, never
   automated.
@@ -307,7 +309,7 @@ two channels, and the system answers through exactly one:
   user only (section 9).
 - **PR = system → user.** Every role returns ALL of its output — code,
   records, reports, documents — as a pull request against `main`. No role
-  pushes to `main` directly, ever. A role wakes, checks out `main`, works
+  pushes to `main` directly, ever. A role enters, checks out `main`, works
   on its own branch `issue-<n>/<role>` (one branch per issue × role, never
   shared between roles), and opens a PR.
 - **Human decisions are GitHub acts, and only GitHub acts**: a PR review
@@ -336,7 +338,7 @@ two channels, and the system answers through exactly one:
   "no role approves its own PR" mechanical.
 
 **The board is what is merged.** An open PR is not yet on the board;
-WAKES-ON (section 3) evaluates against `main` plus the issue backlog. A
+Routing judgment (section 3) is made against `main` plus the issue backlog. A
 role's output is invisible to other roles until the human merges it — the
 human pacing the pipeline is the intended structuring of "human-consulted,
 never automated", not a defect.
@@ -484,7 +486,8 @@ issue-keyed form (`Subject: issue-<n>`, per section 9) — the branch name
 
 - **`kind` is self-declared and unverified.** No rulebook adopting this
   contract checks that a declared `kind` matches the artifact's actual
-  content. WAKES-ON and DEPENDS-ON filter on the declared value only.
+  content. Routing judgment and DEPENDS-ON both read the declared value
+  only.
 - **Sha equality (section 12) proves a file did not move — nothing more.**
   A matching sha means the bytes at `path` are byte-identical to what was
   read; it says nothing about whether the conclusion drawn from it still
@@ -494,7 +497,7 @@ issue-keyed form (`Subject: issue-<n>`, per section 9) — the branch name
   a structural guarantee this contract's prose implies but that no hook
   actually provides unless the role's own rulebook adds one.
 
-A passing structural check (kind matched, sha matched, wake fired) clears a
+A passing structural check (kind matched, sha matched, the role entered) clears a
 role to proceed under this contract; it is not evidence the artifact is
 sound. That judgment stays with the role reading it.
 
@@ -521,9 +524,9 @@ Section 5 defines how a `finding` is raised and how the addressed role's
   writes a `resolved_findings` entry. This is in addition to, not instead
   of, the `finding-response` entry section 5 already requires.
 - **State transition.** finding-raised -> (fix) -> `findings-resolved` ->
-  re-verify. Who gets woken by `findings-resolved` is the host's
-  (on-the-record's) concern — see `docs/specs/wake-routing.md`. Like all
-  state transitions in this contract, resolving it is human-consulted, not
+  re-verify. Which role opens next on `findings-resolved` is the
+  orchestrator's judgment call, same as section 3. Like all state
+  transitions in this contract, resolving it is human-consulted, not
   automated.
 - Re-verification itself is the finder's own judgment (per section 4's
   per-role DEPENDS-ON rules for that role); reaching `findings-resolved`
@@ -704,9 +707,10 @@ v2's coding-only scope gate to the whole system.
   the proposal PR first" enforced rather than customary. The record file
   `reports/<role>.md` is on the execution surface: a document-producing
   role's deliverable waits for the Approve exactly as code does.
-- **Re-wakes are unaffected.** The precondition binds a role's first entry
-  into execution on a subject. A later wake on a subject whose PR already
-  carries the Approve — a fix for a finding, a qa regression — proceeds
+- **Later entries are unaffected.** The precondition binds a role's first
+  entry into execution on a subject. A later role-entry on a subject whose
+  PR already carries the Approve — a fix for a finding, a qa regression —
+  proceeds
   without re-clearing this gate, unless the human has since dismissed the
   approving review or deleted/edited away the approving comment.
 - **Never self-served.** No role approves, merges, or relays an approval.
@@ -818,7 +822,7 @@ grants the ownership it requires:
   **Write-time maintenance.** The role that changes a component's
   operational surface must update that component's handbook in the same
   unit of work that made the change (same-turn-sync), not on a separate
-  wake. This resolves the living-doc-vs-single-author-ownership
+  entry. This resolves the living-doc-vs-single-author-ownership
   contradiction: last change wins as current state, and the surface-changer
   owns the update, so no handbook is ever asserted-current-but-unmaintained.
 
