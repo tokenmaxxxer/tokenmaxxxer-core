@@ -22,6 +22,7 @@
 set -uo pipefail
 
 dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_tmp.sh"
 [ -d "$dir" ] || { echo "deny-only-check: no such directory: $dir" >&2; exit 2; }
 rc=0
 
@@ -63,7 +64,7 @@ forgery_probe() {
   # resolves the target with it then compares two different strings and allows
   # everything. A real repository has no such asymmetry; the probe must not
   # invent one, or it reports a pass the session would not give.
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   mkdir -p "$td/docs/specs" "$td/docs/issue-999/reports"
   canon="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/contract/role-handoff-contract.md"
