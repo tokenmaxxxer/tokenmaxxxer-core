@@ -319,11 +319,14 @@ two channels, and the system answers through exactly one:
   inference by a model. A free-text comment is never an approval, however
   affirmative it reads: deciding what a sentence means is a language
   problem, and the review Approve state exists precisely so no one has to.
-  The one structural exception is section 19's single-account path: an
-  issue-level comment whose entire body is the exact string `APPROVE
-  issue-<n>/<role>`, posted by an `approvers.md` account, is a mechanical
-  string match, not textual inference — free-text approval commentary of
-  any other shape remains categorically rejected.
+  The one structural exception is section 19's single-account path: a
+  PR-level comment, attached to the PR under review, whose entire body is
+  the exact string `APPROVE issue-<n>/<role>`, posted by an
+  `approvers.md` account, is a mechanical string match, not textual
+  inference — free-text approval commentary of any other shape remains
+  categorically rejected. Approval, acceptance, and refusal comments are
+  always attached to the PR under review, never the issue; an issue
+  comment is never approval provenance.
 - **Who counts as the human.** The target repo names its human approvers
   in `docs/specs/approvers.md` (one GitHub login per list line). Only an
   Approve review authored by a listed account satisfies a human seat.
@@ -664,17 +667,19 @@ v2's coding-only scope gate to the whole system.
   - **Single-account mode.** When the PR author and the approver are
     the same GitHub account (the default setup — section 10 — under
     which GitHub structurally forbids a review Approve on your own
-    PR), an issue-level comment whose entire body is the exact string
-    `APPROVE issue-<n>/<role>` — this role's own subject and role name,
-    verbatim, nothing else in the comment — posted by an account
-    listed in `docs/specs/approvers.md`, is a valid phase-2 approval.
-    String equality, never prose interpretation; an agent account's
-    comment never counts, listed or not, since agent accounts are
-    never in `approvers.md` (section 8). This closes the
-    comment-vs-review discrepancy recorded in the muster issue-31 and
-    issue-38 rounds: verify's strict review-only reading and
+    PR), a PR-level comment, attached to the PR under review, whose
+    entire body is the exact string `APPROVE issue-<n>/<role>` — this
+    role's own subject and role name, verbatim, nothing else in the
+    comment — posted by an account listed in `docs/specs/approvers.md`,
+    is a valid phase-2 approval. String equality, never prose
+    interpretation; an agent account's comment never counts, listed or
+    not, since agent accounts are never in `approvers.md` (section 8).
+    This closes the comment-vs-review discrepancy recorded in the muster
+    issue-31 and issue-38 rounds: verify's strict review-only reading and
     coding/qa/review's comment-accepting reading now converge on this
-    text.
+    text. A role recording provenance for this signal must cite the PR
+    comment (its URL or PR-comment id), never the issue — an issue
+    comment is never approval provenance.
   - Any other comment is feedback on the proposal — revise and push to
     the same PR. A close is refusal. Nothing else — no free-text
     comment, no reaction, no bot Approve — opens phase 2.
