@@ -5,23 +5,23 @@ produced_by: coding
 loop_state: done
 upstream:
   - path: docs/issue-16/reports/coding/current-state.md
-    sha: <set at commit>
+    sha: 9c481d360e25c0d05a065241404b273303d566de
   - path: docs/issue-16/reports/coding/research.md
-    sha: <set at commit>
+    sha: 9c481d360e25c0d05a065241404b273303d566de
   - path: docs/issue-16/proposals/plugin-description.md
-    sha: <set at commit>
-code_under_review: <set at commit>
+    sha: 9c481d360e25c0d05a065241404b273303d566de
+code_under_review: 9c481d360e25c0d05a065241404b273303d566de
 closed_checks:
   - name: json-parses
-    code_sha: <set at commit>
+    code_sha: 9c481d360e25c0d05a065241404b273303d566de
   - name: no-mint-token-challenge-references
-    code_sha: <set at commit>
+    code_sha: 9c481d360e25c0d05a065241404b273303d566de
   - name: version-field-rationale-verbatim
-    code_sha: <set at commit>
+    code_sha: 9c481d360e25c0d05a065241404b273303d566de
   - name: no-version-key-introduced
-    code_sha: <set at commit>
+    code_sha: 9c481d360e25c0d05a065241404b273303d566de
   - name: hooks-run-all-passes
-    code_sha: <set at commit>
+    code_sha: 9c481d360e25c0d05a065241404b273303d566de
 ---
 
 # Coding record — issue-16, phase 2
@@ -108,12 +108,12 @@ Recorded per hunt-cadence requirement even though nothing was dispatched.
 
 closed_checks:
 - name: json-parses
-  code_sha: <set at commit>
+  code_sha: 9c481d360e25c0d05a065241404b273303d566de
 - name: no-mint-token-challenge-references
-  code_sha: <set at commit>
+  code_sha: 9c481d360e25c0d05a065241404b273303d566de
 - name: version-field-rationale-verbatim
-  code_sha: <set at commit>
+  code_sha: 9c481d360e25c0d05a065241404b273303d566de
 - name: no-version-key-introduced
-  code_sha: <set at commit>
+  code_sha: 9c481d360e25c0d05a065241404b273303d566de
 - name: hooks-run-all-passes
-  code_sha: <set at commit>
+  code_sha: 9c481d360e25c0d05a065241404b273303d566de
