@@ -3,7 +3,7 @@ subject: issue-43
 role: coding
 kind: coding-record
 loop_state: landed
-code_under_review: TBD
+code_under_review: de940cb
 ---
 
 ## Phase 2 — execution record
@@ -72,4 +72,4 @@ None.
   console #1).
 - Any hook/script change (`gh-guard.sh`, `board-gate.sh`, etc.).
 
-commit shas landed: TBD
+commit shas landed: de940cb
