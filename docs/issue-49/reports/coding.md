@@ -8,10 +8,10 @@ upstream:
     sha: <set at commit>
   - path: docs/issue-49/proposals/strip-wake-vocabulary-readme.md
     sha: <set at commit>
-code_under_review: <set at commit>
+code_under_review: 56ed7150ca6feda5f046f982cba4bdf49839e9f
 closed_checks:
   - name: grep-zero-wake-hits-readme
-    code_sha: <set at commit>
+    code_sha: 56ed7150ca6feda5f046f982cba4bdf49839e9f
 ---
 
 # Coding record — issue-49, phase 2
@@ -69,4 +69,4 @@ dispatched.
 
 closed_checks:
 - name: grep-zero-wake-hits-readme
-  code_sha: <set at commit>
+  code_sha: 56ed7150ca6feda5f046f982cba4bdf49839e9f
