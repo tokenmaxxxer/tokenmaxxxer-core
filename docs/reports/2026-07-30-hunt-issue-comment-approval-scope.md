@@ -76,3 +76,41 @@ gate-enforced guarantee it doesn't implement and should instead be
 scoped to what actually holds (a social/orchestrator-level convention,
 not something `approval-gate.sh` itself checks) — as written, the
 prose and the mechanism it describes disagree.
+
+## before-landing — stance 2: does the single-account issue-comment path check anything about a comment beyond author+body, given GitHub lets a comment be hidden ("minimized") without deleting or editing it?
+
+Verdict: FINDING — a maintainer who hides/minimizes the `APPROVE issue-<n>/<role>` comment (GitHub's own "Hide comment" moderation action) has not revoked the approval: approval-gate.sh never reads `isMinimized`, so the hidden comment still authorizes execution writes.
+Kind: silent-failure
+Seed: core/hooks/approval-gate.sh comment-matching loop (`for c in issue_comments: ... if login in approvers and body == challenge: comment_approved = True`); contract text (section 19, "Revocation") states "Deleting or editing the `APPROVE issue-<n>/<role>` comment away ends the authorization ... (unchanged from the PR-comment model, re-anchored to the issue)."
+
+### Reproduce
+First, confirmed live against a real public repo that `gh issue view --json state,comments` actually returns an `isMinimized`/`minimizedReason` pair per comment (this is a real, documented JSON field of `gh issue view`, per `gh issue view --help`'s JSON FIELDS list showing `comments` as a sub-object type; GitHub's "Hide comment" UI action, with reasons Off-topic/Outdated/Duplicate/Resolved/Spam/Abusive, sets this without touching `body` or deleting the comment):
+
+```
+gh issue view 1 -R cli/cli --json state,comments
+# → comments include: {"author":{"login":"Vadim0695"}, ..., "isMinimized":true, "minimizedReason":"SPAM", "body":"..."}
+```
+
+Then, against the actual approval-gate.sh, with a CORE_GH stub shaped exactly like the test harness's `stub_gh` (argument-aware on `issue` vs `pr`), reporting an OPEN issue whose only APPROVE comment is minimized:
+
+```
+# repo scratch: git init; remote add origin ...; checkout -b issue-7/coding;
+# docs/specs/approvers.md containing "- jw-human"
+
+# stub gh:
+#!/bin/sh
+case "$1" in
+  issue) printf '%s' '{"state":"OPEN","comments":[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding","isMinimized":true,"minimizedReason":"OUTDATED"}]}' ;;
+  pr) echo "no pull requests found" >&2; exit 1 ;;
+esac
+
+printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"<repo>"}' \
+  | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR=<repo> CLAUDE_PLUGIN_ROOT=<plugin_root> CORE_GH=<stub gh> /bin/bash core/hooks/approval-gate.sh
+echo "EXIT=$?"
+```
+
+### Observed
+`EXIT=0` (allow) — the write to `src/app.py` is permitted even though the sole matching APPROVE comment is `isMinimized: true`. Control check: replacing the comments array with `[]` (or with the same comment but a non-matching body) against the identical stub/harness correctly yields `EXIT=2` with the expected "neither the PR ... nor issue #7 carries an approval" deny message — confirming it is specifically the ignored `isMinimized` field, not some other stub/setup artifact, that flips the verdict from deny to allow.
+
+### Expected
+A human who hides/minimizes the approving comment (the GitHub-native way to retract a comment's visible effect without editing its text or deleting it outright — the comment collapses in the UI to "This comment was marked as resolved/outdated/etc.") should not still be authorizing phase-2 execution writes. The contract's own "Revocation" clause frames revocation as "deleting or editing the comment away"; hiding it is neither of those literally, but is the standard GitHub action a maintainer reaches for to retract a comment while preserving the audit trail — and it looks, in the GitHub UI, exactly like the comment is gone. approval-gate.sh reads only `author` and `body` off each issue-comment object and has no awareness that the one matching comment has been hidden, so revocation-by-hiding silently fails while looking, from the human's side, identical to success.
