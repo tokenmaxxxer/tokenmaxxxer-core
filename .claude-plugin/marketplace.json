@@ -23,6 +23,11 @@
       "name": "scout",
       "source": "./scout",
       "description": "The phase-1 research protocol for every role session: bounded best-in-class reconnaissance with a saturation stop rule, compressed into a scout brief that feeds the role's proposal. Direction only; never a post-build comparison pass."
+    },
+    {
+      "name": "warrant",
+      "source": "./warrant",
+      "description": "The work-unit protocol for every role session: one approval gate at the front, then uninterrupted execution inside a frozen write set, with a diff-size-proportional, adaptively-bounded hunt dispatched at proposal and landing. Canonical source for this plugin; role rulebooks reference it rather than vendoring a copy."
     }
   ]
 }
