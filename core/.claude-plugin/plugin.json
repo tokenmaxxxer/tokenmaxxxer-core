@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "description": "Shared interaction-protocol machinery for every tokenmaxxxer role. Ships the canonical role-handoff contract (v3) and four hooks — directive.sh, board-gate.sh, approval-gate.sh, gh-guard.sh — the SessionStart briefing plus deny-only PreToolUse gates for docs layout, PR-Approve execution gating, and GitHub-act ownership. Gates refuse but never permit. No version field on purpose: for a git-distributed plugin the commit SHA is the version, so every commit is an update.",
+  "description": "Shared interaction-protocol machinery for every tokenmaxxxer role. Ships the canonical role-handoff contract (v3) and seven hooks — directive.sh, board-gate.sh, approval-gate.sh, gh-guard.sh, trailer-gate.sh, record-fields-gate.sh, handbook-trigger-gate.sh — the SessionStart briefing plus deny-only PreToolUse gates for docs layout, PR-Approve execution gating, GitHub-act ownership, commit-trailer/record-field/handbook-trigger enforcement, all parameterized on CLAUDE_ROLE rather than vendored per role. Also ships hooks/lib/role-directive.sh, a shared function every rulebook's own directive.sh sources instead of duplicating boilerplate, and hooks/tests/stub-check.sh, distributed to every rulebook to catch a locally-regrown copy of any of these. Gates refuse but never permit. No version field on purpose: for a git-distributed plugin the commit SHA is the version, so every commit is an update.",
   "author": {
     "name": "tokenmaxxxer"
   }
