@@ -11,6 +11,7 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$HERE/_tmp.sh"
 GATE="$HERE/../approval-gate.sh"
 PLUGIN_ROOT="$(cd "$HERE/../.." && pwd -P)"
 CANON="$PLUGIN_ROOT/contract/role-handoff-contract.md"
@@ -80,7 +81,7 @@ run() {
       cmd=*) tool="Bash"; cmd="${o#cmd=}" ;;
     esac
   done
-  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
@@ -132,7 +133,7 @@ run deny  issue-comment-minimized             comment-minimized       src/app.py
 
 # --- precondition: no remote, no approvals --------------------------------
 noremote() {
-  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" checkout -q -b issue-7/coding
   mkdir -p "$td/docs/specs" "$td/stub"
@@ -170,7 +171,7 @@ run allow readme-write           nopr    README.md
 
 # non-role session: gate stands aside entirely
 norole() {
-  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
+  mktd
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
     | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
@@ -184,7 +185,7 @@ norole
 
 # kill switch
 kill_switch() {
-  td="$(cd "$(mktemp -d -p "${TMPDIR:-/tmp}")" && pwd -P)"
+  mktd
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
     | env CLAUDE_ROLE=coding CORE_OFF=1 CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
