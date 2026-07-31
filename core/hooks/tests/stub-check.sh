@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-# Drift-recurrence detector (issue-66 item 4).
+# Drift-recurrence detector (issue-66 item 4; canon-pinned per issue-69).
+#
+# CANON EXECUTION MODEL: this script itself is core canon and is never
+# vendored into a rulebook. A rulebook invokes it by a path resolved
+# against core's own plugin install root (the same
+# ${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh shape core/hooks/hooks.json already
+# uses for the four registered gates), passing the rulebook's own directory
+# as the scan target — e.g.
+#   "${CORE_PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT/../core}/hooks/tests/stub-check.sh" "$(dirname "$0")/.."
+# A rulebook's test-harness record notes only the invocation and its
+# result; it never carries a second copy of this file. See
+# docs/handbooks/role-gates-tests.md for the documented invocation line and
+# docs/handbooks/canon-scripts.md for the general reference-not-vendor rule
+# this enforces (issue-69).
 #
 # The four role-agnostic gates (trailer-gate.sh, record-fields-gate.sh,
-# handbook-trigger-gate.sh) plus parse-check.sh are now registered as core
+# handbook-trigger-gate.sh) plus parse-check.sh are registered as core
 # canon hooks (core/hooks/hooks.json fires them for every plugin install —
 # issue-66's approver decision). A rulebook no longer needs its OWN copy of
 # any of these four files or its own hooks.json entry for them at all: core
@@ -11,6 +24,8 @@
 # presence of any of these filenames back under a rulebook's own hooks/ tree
 # is itself the drift signal — a locally-reintroduced copy is exactly the
 # shape that produced today's 38/40-unique-hash drift (issue-66 survey).
+# stub-check.sh checks for a copy of itself too (issue-69 item 2): the
+# detector vendored 43 times was itself the drift it exists to catch.
 #
 # directive.sh is different: every role still needs its own small file (the
 # four role-unique values), so its check is structural, not
@@ -19,11 +34,6 @@
 # that has grown a local copy of the boilerplate this promotion factored out
 # (the trap/kill-switch/guard/opening-closing lines) fails this check.
 #
-# Distributed to every rulebook the way parse-check.sh already is (per
-# parse-check.sh's own header) — dropped alongside it and run from the same
-# harness. Every rulebook copies this file verbatim and runs it over its own
-# hooks/ tree.
-#
 # Usage: stub-check.sh [hooks-dir]
 set -uo pipefail
 
@@ -31,7 +41,18 @@ dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)}"
 [ -d "$dir" ] || { echo "stub-check: no such directory: $dir" >&2; exit 2; }
 rc=0
 
-CANON_GATES="trailer-gate.sh record-fields-gate.sh handbook-trigger-gate.sh parse-check.sh"
+# CANON_GATES is derived from canon-manifest.txt (one filename per line,
+# next to this script) rather than hardcoded, so a future promotion (a new
+# core/hooks.json entry, or a new promoted test-harness script) adds one
+# manifest line instead of an edit to this detection logic (issue-69 item
+# 2, general-rule half).
+manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
+if [ -f "$manifest" ]; then
+  CANON_GATES="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#' | tr '\n' ' ')"
+else
+  echo "stub-check: WARN — canon-manifest.txt not found at $manifest, falling back to built-in list" >&2
+  CANON_GATES="trailer-gate.sh record-fields-gate.sh handbook-trigger-gate.sh parse-check.sh stub-check.sh"
+fi
 
 for name in $CANON_GATES; do
   # -mindepth 1 -maxdepth 3: a rulebook's own hooks/ (depth 1) or hooks/tests/
