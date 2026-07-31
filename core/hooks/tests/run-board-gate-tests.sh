@@ -196,6 +196,30 @@ run allow bash-read-board        Bash  '{"command":"cat '$BOARD'/reports/qa.md"}
 run allow bash-sed-read-foreign  Bash  '{"command":"sed -n 1,40p '$BOARD'/reports/review.md"}'
 run deny  bash-sed-inplace       Bash  '{"command":"sed -i s/a/b/ '$BOARD'/reports/review.md"}'
 
+# --- s4 READ-broad: reading ANOTHER issue's tree is never a violation -----
+# Every command below was refused by a live issue-53 coding session on
+# 2026-07-30 (five refusals, all read-only). The gate's read allowance
+# existed but was defeated by `|`, by the `>` of `2>&1`, and by a head check
+# that looked only at the first word of a pipeline. A role cannot meet s19's
+# survey rigor floor while `ls` and `git log` on another issue are refused.
+run allow bash-ls-foreign-issue  Bash  '{"command":"ls docs/issue-49/proposals docs/issue-49/reports/coding 2>&1"}'
+run allow bash-gitlog-pathspec   Bash  '{"command":"git log --oneline -1 -- docs/issue-49 2>&1 | head -30"}'
+run allow bash-gitlog-glob       Bash  '{"command":"git log --all -- docs/issue-49/* 2>&1 | cat"}'
+# Each of these reads a FOREIGN record or a foreign issue tree on purpose:
+# a case pointing at the role's own qa.md, or at bare docs/, passes with or
+# without the fix and would prove nothing.
+run allow bash-pipe-to-reader    Bash  '{"command":"cat '$BOARD'/reports/review.md | head -20"}'
+run allow bash-xargs-grep        Bash  '{"command":"find . -name *.md -print | xargs grep -l APPROVE 2>/dev/null | grep -v docs/issue"}'
+run allow bash-grep-devnull      Bash  '{"command":"grep -rn loop_state docs/issue-49/ 2>/dev/null | sort | uniq -c"}'
+run allow bash-wc-pipe           Bash  '{"command":"git diff -- docs/issue-49 | wc -l"}'
+
+# ...and the write side must stay refused through the same paths.
+run deny  bash-tee-foreign       Bash  '{"command":"cat a | tee '$BOARD'/reports/review.md"}'
+run deny  bash-redirect-foreign  Bash  '{"command":"echo x > '$BOARD'/reports/review.md"}'
+run deny  bash-stderr-to-file    Bash  '{"command":"git log 2>'$BOARD'/reports/review.log"}'
+run deny  bash-xargs-rm-foreign  Bash  '{"command":"find . -name *.md | xargs rm -rf '$BOARD'/reports/review"}'
+run deny  bash-subshell-write    Bash  '{"command":"echo $(cat '$BOARD'/reports/review.md)"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
