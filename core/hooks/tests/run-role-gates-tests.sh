@@ -113,6 +113,10 @@ cp "$HOOKS/trailer-gate.sh" "$td/hooks/trailer-gate.sh"
 out="$(/bin/bash "$HERE/stub-check.sh" "$td" 2>&1)"; rc=$?
 report deny "$([ $rc = 0 ] && echo allow || echo deny)" "stub-check: vendored trailer-gate.sh caught"
 rm -f "$td/hooks/trailer-gate.sh"
+cp "$HERE/stub-check.sh" "$td/hooks/tests/stub-check.sh"
+out="$(/bin/bash "$HERE/stub-check.sh" "$td" 2>&1)"; rc=$?
+report deny "$([ $rc = 0 ] && echo allow || echo deny)" "stub-check: vendored copy of itself caught (issue-69)"
+rm -f "$td/hooks/tests/stub-check.sh"
 cat > "$td/hooks/directive.sh" <<'EOF'
 #!/usr/bin/env bash
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)/hooks/lib/role-directive.sh"
