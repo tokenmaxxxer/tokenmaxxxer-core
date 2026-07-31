@@ -19,6 +19,9 @@ echo; echo "=== approval gate ==="
 echo; echo "=== gh guard ==="
 /bin/bash "$here/run-gh-guard-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ==="
+/bin/bash "$here/run-role-gates-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== terse (sibling plugin) ==="
 /bin/bash "$here/../../../terse/hooks/tests/parse-check.sh" || rc=1
 
