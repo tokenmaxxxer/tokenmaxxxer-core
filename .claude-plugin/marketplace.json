@@ -7,7 +7,7 @@
     {
       "name": "core",
       "source": "./core",
-      "description": "Shared machinery every tokenmaxxxer role enables alongside its own rulebook. Owns the issue/PR interaction protocol (contract v3): requirements enter as user-authored issues, every role returns all output as a PR from issue-<n>/<role>, and human decisions are GitHub acts — review Approve opens execution, merge accepts, comment is feedback, close refuses. Gates enforce layout, contract sync, role, branch, ownership, and the propose-first phase."
+      "description": "Shared machinery every tokenmaxxxer role enables alongside its own rulebook. Owns the issue/PR interaction protocol (contract v3): requirements enter as user-authored issues, every role returns all output as a PR from issue-<n>/<role>, and human decisions are GitHub acts — review Approve opens execution, merge accepts, comment is feedback, close refuses. Gates enforce layout, contract sync, role, branch, ownership, and the propose-first phase, plus the role-agnostic commit-trailer, record-field, and handbook-trigger gates every rulebook used to vendor — now canon, parameterized on CLAUDE_ROLE."
     },
     {
       "name": "terse",
