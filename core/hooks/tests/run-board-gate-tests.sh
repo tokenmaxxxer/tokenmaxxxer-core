@@ -12,6 +12,7 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$HERE/_tmp.sh"
 GATE="$HERE/../board-gate.sh"
 PLUGIN_ROOT="$(cd "$HERE/../.." && pwd -P)"
 
@@ -30,7 +31,7 @@ report() { # <want> <got> <name>
 # Board repo: canonical contract planted, role qa, branch issue-3/qa.
 run() {
   want="$1"; name="$2"; tool="$3"; tinput="$4"; shift 4
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b issue-3/qa
@@ -48,7 +49,7 @@ run() {
 # runb <want> <name> <branch> <role> <file_path> — branch/role matrix
 runb() {
   want="$1"; name="$2"; branch="$3"; brole="$4"; fp="$5"
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b "$branch"
@@ -80,7 +81,7 @@ run allow bash-append-record     Bash  '{"command":"echo note >> '$BOARD'/report
 
 drifted() {  # same harness, but approvers.md present/absent varies
   want="$1"; name="$2"; fp="$3"; mode="$4"; roleenv="$5"
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
   git -C "$td" checkout -q -b issue-3/qa
@@ -117,7 +118,7 @@ drifted allow bystander-issue-path    "$BOARD/notes.md"      missing ""
 # --- R3: no role, no board writes -----------------------------------------
 drifted() { :; } # not reused below
 noRole() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"; git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
@@ -139,7 +140,7 @@ runb allow board-right-branch    issue-3/qa qa "$BOARD/reports/qa.md"
 
 # --- precondition: no remote, no board ------------------------------------
 noremote() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
@@ -172,7 +173,7 @@ run deny  bash-rm-foreign-dir    Bash  '{"command":"rm -rf '$BOARD'/reports/revi
 
 # --- the shell fast path must not change any verdict ----------------------
 fastpath() {
-  td="$(cd "$(mktemp -d)" && pwd -P)"
+  mktd
   git init -q "$td"
   printf '{"tool_name":"Read","tool_input":{"file_path":"src/app.py"},"cwd":"%s"}' "$td" \
     | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
@@ -203,7 +204,7 @@ run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"
 # docs write at all.
 garbage() {
   want="$1"; name="$2"; raw="$3"
-  td="$(cd "$(mktemp -d)" && pwd -P)"; git init -q "$td"
+  mktd; git init -q "$td"
   printf '%s' "$raw" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
