@@ -11,7 +11,14 @@ remediation issue links to.
 
 Sourced from a gate script (bash) and loaded via `importlib` from a gate's
 own Python payload — see the usage comment at the top of each file for the
-exact lines. Functions, one per defect class from the issue's background:
+exact lines. **The bash source line is mandatory-guarded**
+(`. "$path" || { echo "<gate-name>.sh: cannot source gate-lib.sh" >&2; exit 2; }`,
+issue-75-confirmed defect: an unguarded source that fails when core is
+unreachable defines no `gate_*` function, and the resulting "command not
+found" (127) reads as the kill switch being off to every
+`gate_kill_switch_active ... || { exit 0; }` call site — silently allowing
+everything). `compliance-check.sh` flags an unguarded source; see below.
+Functions, one per defect class from the issue's background:
 
 - `gate_trap_fail_closed` — the one canonical fail-closed EXIT trap.
 - `gate_kill_switch_active <value>` — **fixed** convention: only a
@@ -31,10 +38,14 @@ exact lines. Functions, one per defect class from the issue's background:
   full `Write`/`Edit`/`MultiEdit`/`NotebookEdit` reconstruction, honoring
   each edit's own `replace_all` flag independently (MultiEdit) and
   returning the edited cell source for `NotebookEdit`.
-- `gate_bash_write_targets <command>` (bash) — token-scan a `Bash`
-  `tool_input.command` string for path-shaped candidates, the technique
-  `approval-gate.sh`/`board-gate.sh` already used, now reusable by any
-  gate that currently only matches the `Write`/`Edit`-family tools.
+- `gate_bash_write_targets <command>` (bash) / `gate_bash_write_targets(command)`
+  (Python, issue-75 parity fix) — token-scan a `Bash` `tool_input.command`
+  string for path-shaped candidates, the technique `approval-gate.sh`/
+  `board-gate.sh` already used, now reusable by any gate that currently
+  only matches the `Write`/`Edit`-family tools. Both languages use the
+  same character class and return the same token set for the same
+  command string (sh prints one token per line; py returns a list — the
+  natural per-language shape for identical data).
 
 ## The two bugs this issue fixed in core's own canon
 
@@ -57,7 +68,7 @@ migration:
 
 ## Standard test harness
 
-`core/hooks/tests/run-gate-lib-tests.sh` makes six case groups mandatory —
+`core/hooks/tests/run-gate-lib-tests.sh` makes seven case groups mandatory —
 a run that skips any of them fails the harness itself:
 
 1. `Edit` with `replace_all: true` against a multiply-occurring
@@ -69,7 +80,10 @@ a run that skips any of them fails the harness itself:
 5. Absolute `file_path` matching the same scope a relative-path fixture
    already matches, plus a `./`-prefixed variant.
 6. A `Bash`-tool file write reaching the same target a `Write`-tool call
-   would hit.
+   would hit, plus sh/py `gate_bash_write_targets` parity.
+7. `gate-lib.sh` sourced with `CLAUDE_PLUGIN_ROOT_CORE` pointed at a
+   nonexistent path and no valid relative fallback — must assert **deny**
+   (exit 2), not the pre-issue-75 silent-allow bug.
 
 Run it the same way `run-role-gates-tests.sh` is run today, from
 `core/hooks/tests/`: `bash run-gate-lib-tests.sh`.
@@ -79,10 +93,12 @@ Run it the same way `run-role-gates-tests.sh` is run today, from
 `core/hooks/tests/compliance-check.sh [hooks-dir]`, modeled on
 `stub-check.sh`'s pattern: flags a gate that reads a `*_OFF` kill-switch
 env var without calling `gate_kill_switch_active` (hand-rolled, likely
-fail-open), and a gate that reconstructs `Edit`/`MultiEdit` content via its
+fail-open), a gate that reconstructs `Edit`/`MultiEdit` content via its
 own `.replace(old, new[, 1])` call instead of `gate_reconstruct_write`
-(likely `replace_all`-ignoring). Invoked the same way `stub-check.sh` is,
-against a rulebook's own hooks directory:
+(likely `replace_all`-ignoring), and a gate that sources `gate-lib.sh`
+with no `||` guard on the same line (issue-75: fail-open on missing core).
+Invoked the same way `stub-check.sh` is, against a rulebook's own hooks
+directory:
 
 ```
 "${CORE_PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT/../core}/hooks/tests/compliance-check.sh" "$(dirname "$0")/.."
@@ -99,11 +115,11 @@ For each of the 43 rulebook repos' A+ remediation issue:
 
 1. Run `compliance-check.sh` against the rulebook's current gates and
    record the violation list.
-2. Migrate each flagged gate to source `gate-lib.sh` (bash) and load
-   `gate-lib.py` (Python payload), replacing its own hand-rolled kill
-   switch / path-normalize / reconstruct logic with the equivalent
-   `gate_*` call.
-3. Re-run the rulebook's own gate tests, plus a copy of the six-case
+2. Migrate each flagged gate to source `gate-lib.sh` **with the mandatory
+   `||` guard** (bash) and load `gate-lib.py` (Python payload), replacing
+   its own hand-rolled kill switch / path-normalize / reconstruct logic
+   with the equivalent `gate_*` call.
+3. Re-run the rulebook's own gate tests, plus a copy of the seven-case
    `run-gate-lib-tests.sh` suite adapted to that rulebook's gates.
 4. Re-run `compliance-check.sh` clean.
 5. File the rulebook's own A+ remediation issue referencing this
@@ -113,3 +129,27 @@ For each of the 43 rulebook repos' A+ remediation issue:
 This issue (#72) is the prerequisite standard; no retroactive fix to any
 of the 43 rulebooks' already-merged gates happens in this repo — each
 rulebook's own A+ issue does that work, following the checklist above.
+
+## Transition note (issue-75, for the final 43-rulebook remediation batch)
+
+The 2026-08-01 43-rulebook A+ re-audit found two core-canon defects in this
+standard itself, fixed in issue-75:
+
+1. **Unguarded source is fail-open.** The original usage comment showed a
+   bare `. "$path"` with no `||` guard. A rulebook that copied that
+   example verbatim silently disables every gate using it when core is
+   unreachable (the exact mechanism above). Every rulebook that already
+   migrated per this handbook before issue-75 should re-pull the guarded
+   source line from the current usage comment and re-check with
+   `compliance-check.sh`, which now flags the unguarded form.
+2. **`gate_bash_write_targets` was sh-only.** Any rulebook gate whose
+   Python payload called `gate_lib.gate_bash_write_targets` hit an
+   `AttributeError` on every `Bash` tool call (confirmed in
+   pr-communications: fail-closed on every command, not just writes).
+   `gate-lib.py` now has the function, sh/py parity-tested. Rulebooks that
+   worked around the missing function (e.g. skipped Bash-write coverage
+   entirely) should switch to calling it directly.
+
+Both fixes are additive — no public function's existing behavior changed,
+per this issue's own constraint — so re-pulling is a drop-in source-line
+and call-site update, not a rewrite.
