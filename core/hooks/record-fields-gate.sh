@@ -29,15 +29,13 @@ trap __fc EXIT
 # copy" principle the proposal applies everywhere else in this file.
 #
 # Kill switch: export RECORD_FIELDS_GATE_OFF=1
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"
 deny() { echo "${role:-record-fields-gate}: refused — $1" >&2; exit 2; }
 
-case "${RECORD_FIELDS_GATE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+gate_kill_switch_active "${RECORD_FIELDS_GATE_OFF:-}" || exit 0
 
 [ -n "$role" ] || deny "record-fields-gate: no CLAUDE_ROLE in the environment; the gate cannot resolve which record is this role's own."
 
@@ -124,8 +122,8 @@ try:
     # resulting content we can read. A Bash write to the record is out of
     # this gate's scope (board-gate/scope-gate handle Bash); passed through.
     path = None
-    if tool in ("Write", "Edit", "MultiEdit"):
-        p = ti.get("file_path")
+    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        p = ti.get("file_path") or ti.get("notebook_path")
         if isinstance(p, str) and p:
             path = p
     if path is None:
@@ -146,29 +144,11 @@ try:
         except OSError:
             deny("%s exists but cannot be read; failing closed on §20." % rel)
 
-    new_text = None
-    if tool == "Write":
-        c = ti.get("content")
-        if isinstance(c, str):
-            new_text = c
-    elif tool == "Edit":
-        o, n = ti.get("old_string"), ti.get("new_string")
-        if isinstance(o, str) and isinstance(n, str) and current is not None and o in current:
-            new_text = current.replace(o, n, 1)
-    elif tool == "MultiEdit":
-        edits = ti.get("edits")
-        text = current
-        if isinstance(edits, list) and text is not None:
-            ok = True
-            for e in edits:
-                if not isinstance(e, dict):
-                    ok = False; break
-                o, n = e.get("old_string"), e.get("new_string")
-                if not isinstance(o, str) or not isinstance(n, str) or o not in text:
-                    ok = False; break
-                text = text.replace(o, n, 1)
-            if ok:
-                new_text = text
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+    gate_lib = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(gate_lib)
+    new_text, _ok = gate_lib.gate_reconstruct_write(tool, ti, current)
 
     if new_text is None:
         deny(
