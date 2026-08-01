@@ -18,9 +18,59 @@ dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)}"
 [ -d "$dir" ] || { echo "compliance-check: no such directory: $dir" >&2; exit 2; }
 rc=0
 
-gates="$(find "$dir" -maxdepth 3 -type f -name '*-gate.sh' 2>/dev/null || true)"
+# Scope by registration, not by filename (issue-78): scan every script
+# actually wired into a hooks.json's PreToolUse array, not files whose name
+# happens to match a glob. A filename rule is always one un-anticipated
+# name away from missing the next wired script (confirmed: hunt-guard.sh
+# and gh-guard.sh are both PreToolUse-wired but neither matches
+# '*-gate.sh').
+gates=""
+hooks_jsons="$(find "$dir" -maxdepth 3 -type f -name 'hooks.json' 2>/dev/null || true)"
+while IFS= read -r hj; do
+  [ -n "$hj" ] || continue
+  hj_dir="$(cd "$(dirname "$hj")" && pwd -P)"
+  # Extract command strings inside the PreToolUse block only. hooks.json
+  # here is small and flat enough that a line-scoped grep is sufficient
+  # (compliance-check.sh already relies on grep-based structural checks
+  # elsewhere in this file rather than a JSON parser dependency).
+  in_pretooluse=0
+  while IFS= read -r line; do
+    case "$line" in
+      *'"PreToolUse"'*) in_pretooluse=1; continue ;;
+      *'"SessionStart"'*|*'"SubagentStop"'*|*'"UserPromptSubmit"'*|*'"Stop"'*|*'"PostToolUse"'*)
+        in_pretooluse=0; continue ;;
+    esac
+    [ "$in_pretooluse" = 1 ] || continue
+    case "$line" in
+      *'"command"'*)
+        cmd="${line#*:}"
+        cmd="${cmd#*\"}"
+        cmd="${cmd%\"*}"
+        cmd="${cmd%%\"*}"
+        # Strip a leading ${CLAUDE_PLUGIN_ROOT}/ or bash-invocation prefix,
+        # leaving the script's path relative to the hooks.json's directory
+        # (hooks.json lives at <plugin>/hooks/hooks.json; commands are
+        # written as ${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh, i.e. relative
+        # to <plugin>, one level above hooks.json itself).
+        script="${cmd#\$\{CLAUDE_PLUGIN_ROOT\}/}"
+        script="${script#bash }"
+        case "$script" in
+          *.sh)
+            candidate="$hj_dir/../$script"
+            if [ -f "$candidate" ]; then
+              resolved_path="$(cd "$(dirname "$candidate")" && pwd -P)/$(basename "$candidate")"
+              gates="${gates}${gates:+$'\n'}${resolved_path}"
+            fi
+            ;;
+        esac
+        ;;
+    esac
+  done < "$hj"
+done <<< "$hooks_jsons"
+gates="$(printf '%s\n' "$gates" | grep -v '^[[:space:]]*$' | sort -u || true)"
+
 if [ -z "$gates" ]; then
-  echo "compliance-check: no *-gate.sh files found under $dir — nothing to check"
+  echo "compliance-check: no PreToolUse-wired scripts found under $dir — nothing to check"
   exit 0
 fi
 

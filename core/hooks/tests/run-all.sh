@@ -22,6 +22,12 @@ echo; echo "=== gh guard ==="
 echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ==="
 /bin/bash "$here/run-role-gates-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== stub-check canon combination forms ==="
+/bin/bash "$here/run-stub-canon-forms-tests.sh" | tail -2 || rc=1
+
+echo; echo "=== compliance-check hooks.json scan scope ==="
+/bin/bash "$here/run-compliance-scan-scope-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== terse (sibling plugin) ==="
 /bin/bash "$here/../../../terse/hooks/tests/parse-check.sh" || rc=1
 
