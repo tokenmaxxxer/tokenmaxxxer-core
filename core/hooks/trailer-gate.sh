@@ -22,7 +22,7 @@ trap __fc EXIT
 #
 # Kill switch: export TRAILER_GATE_OFF=1 (role-blind on purpose: CLAUDE_ROLE
 # already scopes the session, so the switch needs no per-role namespace).
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "trailer-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"

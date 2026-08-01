@@ -20,7 +20,7 @@
 # Sessions without CLAUDE_ROLE (the user's own, the orchestrator's) pass
 # through untouched. Fail closed on non-0/2. Kill switch: CORE_OFF=1.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "gh-guard.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }

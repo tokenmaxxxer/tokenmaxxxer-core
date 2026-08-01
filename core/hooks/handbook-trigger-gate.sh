@@ -21,7 +21,7 @@ trap __fc EXIT
 # unconditionally, closing that bug as a side effect of promotion.
 #
 # Kill switch: export HANDBOOK_TRIGGER_GATE_OFF=1
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "handbook-trigger-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"

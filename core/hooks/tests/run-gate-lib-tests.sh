@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Standard test harness for core/hooks/lib/gate-lib.sh + gate-lib.py
-# (issue-72). Six case groups are MANDATORY — a run of this file that does
-# not exercise all six fails the harness itself, not just one gate:
+# (issue-72, issue-75). Seven case groups are MANDATORY — a run of this
+# file that does not exercise all seven fails the harness itself, not just
+# one gate:
 #
 #   1. Edit with replace_all: true against a multiply-occurring old_string.
 #   2. MultiEdit with a mix of replace_all true/false edits in one call.
@@ -10,7 +11,11 @@
 #   5. Absolute file_path matching the same scope a relative-path fixture
 #      already matches, plus a ./-prefixed variant.
 #   6. A Bash-tool file write to the same target a Write-tool call would
-#      hit, asserting equivalent deny/allow via gate_bash_write_targets.
+#      hit, asserting equivalent deny/allow via gate_bash_write_targets
+#      (sh and py versions, asserted to return the same token set).
+#   7. gate-lib.sh sourced with CLAUDE_PLUGIN_ROOT_CORE pointed at a
+#      nonexistent path and no valid relative fallback -> the guarded
+#      source line must deny (exit 2), not silently allow (issue-75 fix).
 #
 # Also runs record-fields-gate.sh end-to-end for the replace_all/
 # MultiEdit/NotebookEdit fix (issue-72's confirmed core-canon bug), and
@@ -130,6 +135,23 @@ bashscan 1 'echo x > docs/issue-72/reports/coding.md' 'docs/issue-72/reports/cod
 bashscan 0 'git status' 'docs/' \
   "Bash read-only command yields no docs/ candidate"
 
+# sh/py gate_bash_write_targets parity (issue-75 fix)
+pywritetargets() { # <command>
+  python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('gate_lib', '$LIBPY')
+gl = importlib.util.module_from_spec(spec); spec.loader.exec_module(gl)
+for t in gl.gate_bash_write_targets('$1'):
+    print(t)
+"
+}
+parity_cmd='echo x > docs/issue-72/reports/coding.md'
+sh_tokens="$(. "$LIB"; gate_bash_write_targets "$parity_cmd" | sort)"
+py_tokens="$(pywritetargets "$parity_cmd" | sort)"
+got=$([ "$sh_tokens" = "$py_tokens" ] && echo same || echo different)
+report same "$got" \
+  "gate-lib.py: gate_bash_write_targets returns the same token set as gate-lib.sh"
+
 # --- record-fields-gate.sh end-to-end: the confirmed core bug, fixed ----
 mark record-fields-gate-e2e
 rf() { # <want> <name> <role> <file_path> <content-json>
@@ -205,10 +227,23 @@ report deny "$([ $rc = 0 ] && echo allow || echo deny)" \
   "stub-check: vendored gate-lib.sh caught (issue-72 canon-manifest entry)"
 rm -rf "$td"
 
+# --- group 7: missing-core -> guarded source must deny, not allow --------
+mark missing-core
+td="$(mktemp -d)"
+out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"x"}}' \
+    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
+      CLAUDE_PLUGIN_ROOT_CORE="$td/no-such-core" \
+      /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+rc=$?
+got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })
+report deny "$got" \
+  "record-fields-gate.sh: CLAUDE_PLUGIN_ROOT_CORE pointed nowhere denies (issue-75 fix, not silent-allow)"
+rm -rf "$td"
+
 echo
 echo "gate-lib: $pass passed, $fail failed"
 echo "mandatory groups exercised:$groups_seen"
-for g in replace_all-edit multiedit-replace_all malformed-json kill-switch absolute-path bash-write-coverage; do
+for g in replace_all-edit multiedit-replace_all malformed-json kill-switch absolute-path bash-write-coverage missing-core; do
   case " $groups_seen " in
     *" $g "*) ;;
     *) echo "gate-lib: MANDATORY GROUP MISSING: $g" >&2; fail=$((fail + 1)) ;;
