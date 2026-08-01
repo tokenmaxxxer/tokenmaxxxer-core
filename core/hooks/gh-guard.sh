@@ -31,13 +31,14 @@ payload="$(cat 2>/dev/null || true)"
 
 [ -n "${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
 
-# Fast path: only Bash calls mentioning gh/git are adjudicated.
+# Fast path: only Bash calls mentioning gh/git (or another HTTP client
+# capable of reaching the same REST/GraphQL endpoints) are adjudicated.
 case "$payload" in
   *'"Bash"'*) ;;
   *) trap - EXIT; exit 0 ;;
 esac
 case "$payload" in
-  *gh*|*git*) ;;
+  *gh*|*git*|*curl*|*wget*|*http://*|*https://*) ;;
   *) trap - EXIT; exit 0 ;;
 esac
 
@@ -87,6 +88,26 @@ RULES = [
     (r"\bgit\s+push\b[^\n;|&]*\s(origin\s+)?(main|master)\b",
      "nothing reaches main except a PR the human merges (contract v3 s10) "
      "— push your issue-<n>/<role> branch instead"),
+    # Endpoint+verb rules below match the REST/GraphQL surface itself, not
+    # the `gh` token — the same act is still the act whether it is spelled
+    # `gh api ...`, `curl -X ... ...`, or `wget --method=... ...` (issue #20).
+    (r"(?=.*\bpulls?/\d+/(reviews|merge)\b)"
+     r"(?=.*(-X\s*(POST|PUT|PATCH|DELETE)\b|--method[= ]|-f\s))",
+     "the raw-API spelling of a review/merge is still a review/merge, "
+     "whatever HTTP client reaches the endpoint"),
+    (r"(?=.*\bpulls?/\d+(?!/))"
+     r"(?=.*(state\s*=\s*(closed|open)|-f\s+state=))",
+     "the raw-API spelling of a PR close/reopen (a state= write on the "
+     "bare pulls/N endpoint) is still a close/reopen"),
+    (r"(?=.*\bissues?/\d+(?!/))"
+     r"(?=.*(-X\s*(POST|PUT|PATCH|DELETE)\b|--method[= ]|-f\s+(state|title|body)=))",
+     "the raw-API spelling of an issue edit/close/reopen is still "
+     "user-only backlog work — no role touches issues, whatever the client"),
+    (r"(?=.*\bgraphql\b)"
+     r"(?=.*\b(mergePullRequest|addPullRequestReview|closePullRequest|"
+     r"reopenPullRequest|closeIssue|reopenIssue|updateIssue|deleteIssue)\b)",
+     "the GraphQL spelling of a PR/issue human-act mutation is still that "
+     "human act, whatever the transport"),
 ]
 
 for pat, why in RULES:
