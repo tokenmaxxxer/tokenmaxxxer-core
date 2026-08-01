@@ -36,23 +36,51 @@ which is also what makes "no role approves its own PR" mechanical.
 - The board is what is merged to `main`. An open PR is not on the board.
 - **One account, by default.** Everything — the orchestrator's
   conversational session AND the spawned role sessions — runs on the
-  user's own GitHub account. Identity separation is the session layer's
-  job: `gh-guard.sh` refuses role sessions the human's acts (review
-  verdicts, merge/close, issue authorship, APPROVE-shaped comments, their
-  raw-API spellings, pushes to main), whatever the token could do.
-  Because GitHub forbids approving your own PR, the single-account
-  approval signal is a PR comment that is EXACTLY `APPROVE
-  issue-<n>/<role>`, posted by an approvers.md login — the orchestrator
-  posts it after the human says so in conversation; string equality,
-  never prose interpretation. Merging your own PR is allowed by GitHub,
-  so merge relays unchanged.
-- **Hardening options (optional).** A separate agent identity — a machine
-  account with a PAT, or a GitHub App (`<app>[bot]`) — moves the split
-  from the session layer to the account layer: agent-authored PRs can
-  then receive a real review Approve, and self-approval becomes
-  impossible at the platform, not just the hook. Recommended where policy
-  allows; the protocol works identically either way since approval-gate
-  accepts both signals.
+  user's own GitHub account. Because GitHub forbids approving your own
+  PR, the single-account approval signal is a PR comment that is EXACTLY
+  `APPROVE issue-<n>/<role>`, posted by an approvers.md login — the
+  orchestrator posts it after the human says so in conversation; string
+  equality, never prose interpretation. Merging your own PR is allowed by
+  GitHub, so merge relays unchanged. Under this model the role session
+  holds the same token as the human's own account, so nothing at the
+  account layer stops a role session from self-approving — the only
+  thing standing between the two is `gh-guard.sh`'s session-layer refusal
+  (below), which is why the two-account model, not this default, is the
+  structural fix (issue #20).
+- **`gh-guard.sh` — defense-in-depth, not the fix.** `gh-guard.sh` refuses
+  role sessions the human's acts (review verdicts, merge/close, issue
+  authorship, APPROVE-shaped comments, their raw-API and non-`gh`-client
+  spellings, pushes to main), whatever the token could do — but it works
+  by matching the text of a `Bash` command, not by checking which account
+  performs the act, so it is a blocklist over an open-ended set of
+  spellings, not a completeness guarantee. It cannot see: a script
+  written to disk and then executed (`bash script.sh`); a renamed/copied
+  `gh` binary; a request whose command text never spells `gh`, `git`,
+  `curl`, `wget`, `http://`, or `https://` (Layer 0's pre-filter is a
+  plain substring match, so any client avoiding all six stays invisible
+  regardless of the host it reaches — the general form of "obfuscated
+  host," beyond the literal-IP case the widened rules below do catch);
+  or any tool other than `Bash` (writing the same script via the `Write`
+  tool is the file-indirection gap through a different door). These stay
+  open on purpose — `core/hooks/tests/run-gh-guard-tests.sh`'s `gap-c-*`
+  and `gap-d-*` cases assert them as `allow` so the gap stays visible
+  instead of silently reappearing — because closing them needs either
+  inspecting file contents across tool calls (a materially different,
+  stateful hook design) or the account-layer fix below.
+- **Two-account model — the structural fix.** A separate agent identity —
+  a machine account with a PAT, or a GitHub App (`<app>[bot]`) — moves
+  the split from the session layer to the account layer: the agent
+  account is excluded from `approvers.md`, so a forged approval carries a
+  login the gate rejects regardless of what `gh-guard.sh`'s pattern rules
+  catch, and agent-authored PRs can receive a real review Approve.
+  Self-approval becomes impossible at the platform, not just the hook.
+  This is not optional hardening on top of an already-sufficient
+  default — for a single-account setup, `gh-guard.sh` is the only thing
+  in the way, and issue #20 is a record of that gate missing a real gap
+  hit during ordinary work, not a hypothetical one. Adopt the two-account
+  model
+  wherever policy allows; the protocol works identically either way,
+  since approval-gate accepts both signals.
 - **Precondition: the target is a git repository with a GitHub remote, and
   `gh` is authenticated.** Issues, PRs, and reviews are GitHub objects, and
   approval's forgery resistance comes from being a GitHub-authenticated
