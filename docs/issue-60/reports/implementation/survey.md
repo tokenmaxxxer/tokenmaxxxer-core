@@ -125,3 +125,47 @@ Scouting skipped — bugfix-shaped: the issue names the exact function, the
 exact bypass, and the exact acceptance criteria; the fix is a targeted
 subcommand-awareness change to one function, with no open design
 question about wanted behavior.
+
+## 5. Re-verification addendum (2026-08-01) — this turn's state check
+
+This turn was assigned to (re)do issue-60's phase 1 from scratch. Before
+drafting anything new, checked whether that premise still held:
+
+- `docs/issue-60/proposals/2026-07-31-build-git-subcommand-aware-board-gate.md`
+  and this survey already exist on `main` — merged via PR #61
+  ("propose(implementation): git subcommand-aware read classification
+  (issue-60)", `mergedAt: 2026-07-31T07:01:18Z`, author `jjongkwann`).
+- Issue #60 carries one comment: body exactly `APPROVE
+  issue-60/implementation`, author `jjongkwann`, posted
+  `2026-07-31T07:00:47Z` (31s before the PR #61 merge). `jjongkwann` is
+  listed in `docs/specs/approvers.md`. PR author and approver are the
+  same account → single-account mode → this is a valid phase-2 Approve
+  signal per contract v3 s19, independently of the PR merge.
+- Three issues merged to `main` after PR #61 (issue-69 → PR #71,
+  issue-72 → PR #73/#74, issue-75 → PR #76/#77) touched
+  `core/hooks/lib/gate-lib.{sh,py}` (source-guard canonization, a shared
+  `gate_bash_write_targets` token-scan helper). Checked whether this
+  moved `board-gate.sh`'s `READ_ONLY_HEADS`/`_reads_only()` or
+  `approval-gate.sh`'s `READ_ONLY_HEADS`/`WRITEISH` into the shared lib,
+  which would have changed this proposal's diff surface: it did not.
+  Both gates still carry their own self-contained Python heredoc; neither
+  sources `gate_bash_write_targets` or any lib-level read/write
+  classification (`grep` for both symbols across `core/hooks/*.sh`
+  outside the two gates' own definitions returns nothing). The only
+  drift is a ~1-line shift from unrelated edits elsewhere in the same
+  heredocs (e.g. `READ_ONLY_HEADS` was at board-gate.sh:95-98 when the
+  proposal was written, is at :96-99 now; `_reads_only()` was :145-154,
+  is :141-156 now) — cosmetic, not structural. The proposal's checklist
+  (files, line anchors read as "near X", the `GIT_READ_SUBCOMMANDS`
+  tuple, `_git_subcommand()`, the `_reads_only()` segment-loop insertion,
+  the new `run-board-gate-tests.sh` cases) still matches the live code
+  exactly. **No amendment needed.**
+
+Conclusion: issue-60's phase 1 is not a fresh task this turn — it is
+already complete, merged, and approved for phase 2 delivery. Writing a
+second, competing proposal would contradict the one a human already
+approved, for no code-surface reason (verified above). This turn's
+output is this addendum (confirming the standing proposal still holds
+against post-merge changes) rather than new proposal content; see this
+PR's description for the full state trace and the recommended next
+step (a phase-2 delivery session on this same subject).
