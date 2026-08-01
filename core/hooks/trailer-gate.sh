@@ -22,15 +22,13 @@ trap __fc EXIT
 #
 # Kill switch: export TRAILER_GATE_OFF=1 (role-blind on purpose: CLAUDE_ROLE
 # already scopes the session, so the switch needs no per-role namespace).
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"
 deny() { echo "${role:-trailer-gate}: refused — $1" >&2; exit 2; }
 
-case "${TRAILER_GATE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+gate_kill_switch_active "${TRAILER_GATE_OFF:-}" || exit 0
 
 command -v python3 >/dev/null 2>&1 || deny "trailer-gate: python3 is required to evaluate the gate and is not on PATH."
 

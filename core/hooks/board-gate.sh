@@ -39,9 +39,10 @@
 # treats a non-2 hook exit as NON-BLOCKING (fail-open). An unparseable
 # payload refuses. Kill switch: CORE_OFF=1.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
-case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
+gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 payload="$(cat 2>/dev/null || true)"
 
