@@ -1,0 +1,17 @@
+# Registered directive.sh combination shapes (issue-78). One entry per
+# line: name:pattern-description, mirroring canon-manifest.txt's plain-line
+# convention. stub-check.sh classifies each non-blank/non-comment/
+# non-assignment line of a directive.sh against the union of these shapes;
+# a line matching any registered pattern is not "regrown boilerplate".
+#
+# single-call: the original shape — the only non-blank/non-comment/
+# non-assignment line is the one core_role_directive call.
+single-call:^[[:space:]]*core_role_directive[[:space:]]
+#
+# fragment-loop: sales-rulebook's approved (issue-10) directive-fragment
+# combination — a bash array of fragment names, a `for frag in ...; do`
+# loop iterating it, and the loop's `done` terminator, in addition to the
+# core_role_directive call itself.
+fragment-loop:^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=\(
+fragment-loop:^[[:space:]]*for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+
+fragment-loop:^[[:space:]]*done[[:space:]]*$

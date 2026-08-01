@@ -109,6 +109,65 @@ directory:
 rulebook vendoring a copy of any of them, per
 [`canon-scripts.md`](canon-scripts.md)'s reference-not-copy rule.
 
+**Scan scope (issue-78): by hooks.json registration, not by filename.**
+The scan set used to be every file under `$dir` matching `*-gate.sh` —
+a filename rule that missed any PreToolUse-wired script named something
+else (confirmed: `hunt-guard.sh` and `gh-guard.sh` are both wired into
+their own `hooks.json`'s `PreToolUse` array but neither matches
+`*-gate.sh`, so both silently skipped every check above). The scan set is
+now resolved by reading every `hooks.json` under `$dir`, extracting each
+`PreToolUse[].hooks[].command` entry's script path, and resolving it
+relative to that `hooks.json`'s own directory (`hooks.json` lives at
+`<plugin>/hooks/hooks.json`; commands are written as
+`${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh`, i.e. relative to `<plugin>`, one
+level above `hooks.json` itself) — matched as a literal string line, the
+same grep-based approach the per-file checks above already use rather
+than pulling in a JSON parser dependency. A script present on disk but not
+wired into any `hooks.json`'s `PreToolUse` array is correctly excluded:
+compliance-check judges what actually fires, not what merely exists.
+
+## Canon combination forms (issue-78)
+
+`directive.sh`'s structural check in `stub-check.sh` used to hardcode
+exactly one permitted shape: a single `core_role_directive` call, with
+every other non-blank/non-comment/non-assignment line treated as regrown
+boilerplate. That broke sales-rulebook's already-approved (issue-10)
+directive-fragment combination shape — a `FRAGMENTS=(...)` array plus a
+`for frag in "${FRAGMENTS[@]}"; do ... core_role_directive "$frag"; done`
+loop — even though the shape itself was approved elsewhere; the failure
+was a canon-format gap in `stub-check.sh`, not a rulebook defect.
+
+`core/hooks/tests/canon-forms.txt` is a new manifest, one registered
+`directive.sh` combination shape per group of `name:pattern-description`
+lines, in the same plain-line convention `canon-manifest.txt` already
+uses. `stub-check.sh` classifies each non-blank/non-comment/
+non-assignment line of a `directive.sh` against the union of every
+pattern registered in this manifest (in addition to the built-in
+source-line/`core_role_directive`/assignment checks); a line matching any
+registered pattern is not "regrown boilerplate". A `directive.sh` matching
+no registered shape at all still fails, unchanged. Missing manifest falls
+back to the single-call-only shape (no extra patterns permitted), the
+same missing-manifest fallback pattern `CANON_GATES` already uses.
+
+Adding a newly-approved combination shape in the future is a manifest
+line addition to `canon-forms.txt`, not a new hardcoded regex block in
+`stub-check.sh` — the same "config-driven registry over one-hardcoded-
+case-per-shape" shape `CANON_GATES` was already extracted from
+`canon-manifest.txt` to establish (issue-69).
+
+**Alternative considered and deferred:** defining the fragment-loop
+combination as a separate sourced *file* (splitting it out of
+`directive.sh` entirely) instead of teaching `stub-check.sh` to recognize
+it inline. This sidesteps `stub-check.sh`'s per-line classification
+entirely, but it requires every already-migrated rulebook (43 repos,
+issue-66/69/72/75 lineage) to restructure `directive.sh` again on a new
+physical-layout rule — a second migration wave stacked on the one just
+finished. Manifest-registration fixes the same problem by relaxing
+`stub-check.sh`'s classifier, with zero rulebook-side restructuring.
+Recorded here so a future issue can revisit the split-file option if a
+combination shape emerges that manifest-registration truly cannot
+express.
+
 ## Per-repo migration checklist
 
 For each of the 43 rulebook repos' A+ remediation issue:
