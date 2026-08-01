@@ -220,6 +220,24 @@ run deny  bash-stderr-to-file    Bash  '{"command":"git log 2>'$BOARD'/reports/r
 run deny  bash-xargs-rm-foreign  Bash  '{"command":"find . -name *.md | xargs rm -rf '$BOARD'/reports/review"}'
 run deny  bash-subshell-write    Bash  '{"command":"echo $(cat '$BOARD'/reports/review.md)"}'
 
+# --- git subcommand awareness (issue-60): `git` is not one read-only head -
+# READ_ONLY_HEADS used to trust "git" whole-command, so write-shaped git
+# subcommands bypassed the write scan before R1-R5 ever ran, on ANY issue
+# tree. Acceptance criteria: rm/checkout --/restore deny on a foreign tree;
+# log/diff/show keep allowing (s4 READ-broad, PR #59) with no regression.
+run deny  bash-git-rm-foreign-issue       Bash '{"command":"git rm -r docs/issue-49/reports"}'
+run deny  bash-git-checkout-foreign-issue Bash '{"command":"git checkout -- docs/issue-49/reports/x.md"}'
+run deny  bash-git-restore-foreign-issue  Bash '{"command":"git restore docs/issue-49/reports/x.md"}'
+# R5 integration: same issue/branch, foreign role's record — the write scan
+# the bypass used to skip must reach R5, not just stop at R4.
+run deny  bash-git-rm-foreign-record      Bash '{"command":"git rm -r '$BOARD'/reports/review.md"}'
+# a role's own bare record dir stays allowed via `git rm`, same as the
+# plain `rm -rf` case from issue #12 — the goal is R1-R5 adjudication, not
+# a blanket `git rm` ban.
+run allow bash-git-rm-own-subtree         Bash '{"command":"git rm -r '$BOARD'/reports/qa"}'
+# explicit `git show` regression case — log/diff already covered above.
+run allow bash-git-show-foreign-issue     Bash '{"command":"git show HEAD:docs/issue-49/reports/coding.md"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
