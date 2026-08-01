@@ -29,7 +29,7 @@ trap __fc EXIT
 # copy" principle the proposal applies everywhere else in this file.
 #
 # Kill switch: export RECORD_FIELDS_GATE_OFF=1
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-fields-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"
