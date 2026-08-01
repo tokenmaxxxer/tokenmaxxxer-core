@@ -35,9 +35,10 @@
 # either call = deny (fail closed). Kill switch: CORE_OFF=1. Test seam:
 # CORE_GH overrides the gh executable.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
-case "${CORE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
+gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 # Not a role session: none of this gate's business. The user's and the
 # orchestrator's own sessions write src/ freely.

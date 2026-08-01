@@ -21,15 +21,13 @@ trap __fc EXIT
 # unconditionally, closing that bug as a side effect of promotion.
 #
 # Kill switch: export HANDBOOK_TRIGGER_GATE_OFF=1
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"
 deny() { echo "${role:-handbook-trigger-gate}: refused — $*" >&2; exit 2; }
 
-case "${HANDBOOK_TRIGGER_GATE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+gate_kill_switch_active "${HANDBOOK_TRIGGER_GATE_OFF:-}" || exit 0
 
 command -v python3 >/dev/null 2>&1 || deny "handbook-trigger-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 command -v git >/dev/null 2>&1 || deny "handbook-trigger-gate.sh requires git, which is not on PATH; denying rather than guessing."

@@ -3,3 +3,6 @@ record-fields-gate.sh
 handbook-trigger-gate.sh
 parse-check.sh
 stub-check.sh
+gate-lib.sh
+gate-lib.py
+compliance-check.sh
