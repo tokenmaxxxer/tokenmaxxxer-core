@@ -15,3 +15,13 @@ single-call:^[[:space:]]*core_role_directive[[:space:]]
 fragment-loop:^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=\(
 fragment-loop:^[[:space:]]*for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+
 fragment-loop:^[[:space:]]*done[[:space:]]*$
+#
+# fragment-loop body rows (issue-83): sales-rulebook's real (not toy)
+# fragment-loop directive.sh spreads its `for ... in` argument list across
+# backslash-continued lines instead of one array literal, puts `do` on its
+# own line, and its loop body is a test-and-source row
+# (`[ -f "$frag" ] && . "$frag" 2>/dev/null`), not a bare `core_role_directive`
+# call — none of which the original header/footer-only patterns above cover.
+fragment-loop:^[[:space:]]*"[^"]+"[[:space:]]*\\?[[:space:]]*$
+fragment-loop:^[[:space:]]*do[[:space:]]*$
+fragment-loop:^[[:space:]]*\[[[:space:]]+-f[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"[[:space:]]+\][[:space:]]+&&[[:space:]]+\.[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"([[:space:]]+2>/dev/null)?[[:space:]]*$
