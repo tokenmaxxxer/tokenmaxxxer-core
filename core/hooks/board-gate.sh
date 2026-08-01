@@ -94,7 +94,7 @@ if not isinstance(ti, dict):
 # --- what is this call about to touch? ---------------------------------
 DOCS = "docs/"
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
-                   "diff", "stat", "file", "git", "sort", "uniq", "cut",
+                   "diff", "stat", "file", "sort", "uniq", "cut",
                    "tr", "echo", "printf", "basename", "dirname", "realpath",
                    "column", "nl", "comm", "jq", "true", "test", "[")
 # sed/awk read by default and only write with -i / redirection. Reading a
@@ -123,6 +123,30 @@ INPLACE = re.compile(r"(^|\s)-i\b|--in-place")
 # `xargs` runs whatever follows it, so it is transparent rather than safe:
 # resolve to the command it will actually run and judge that instead.
 TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin")
+# `git` needed to split off READ_ONLY_HEADS: unlike the other entries there,
+# read vs. write is decided by the SUBCOMMAND, not the command name — `git
+# log` cannot write a file but `git rm`/`checkout --`/`restore`/`clean`/
+# `apply`/`mv`/`stash` can. Trusting "git" whole-command let those bypass
+# the write scan entirely (issue-60).
+GIT_READ_SUBCOMMANDS = ("log", "show", "diff", "status", "blame",
+                        "ls-files", "ls-tree", "ls-remote", "cat-file",
+                        "rev-parse", "symbolic-ref", "describe", "shortlog",
+                        "reflog")
+
+
+def _git_subcommand(segment):
+    """The git subcommand a segment invokes, or "" if unresolved.
+
+    "" is deliberately not in GIT_READ_SUBCOMMANDS, so a bare `git`, or one
+    preceded only by argument-taking global flags (e.g. `-C <dir>`) this
+    function does not special-case, falls through to the normal write scan
+    — the safe direction, not a new hole.
+    """
+    words = segment.split()[1:]
+    for w in words:
+        if not w.startswith("-"):
+            return w
+    return ""
 
 
 def _head_of(segment):
@@ -148,6 +172,10 @@ def _reads_only(cmdline):
         if not seg:
             continue
         head = _head_of(seg)
+        if head == "git":
+            if _git_subcommand(seg) in GIT_READ_SUBCOMMANDS:
+                continue
+            return False
         if head in READ_ONLY_HEADS:
             continue
         if head in READ_UNLESS_INPLACE and not INPLACE.search(seg):
