@@ -155,6 +155,18 @@ line addition to `canon-forms.txt`, not a new hardcoded regex block in
 case-per-shape" shape `CANON_GATES` was already extracted from
 `canon-manifest.txt` to establish (issue-69).
 
+**Body-row coverage (issue-83):** the original entries above only cover
+the fragment-loop's header (`FRAGMENTS=(...)` / `for ... in ...`) and
+footer (`done`). sales-rulebook's real `directive.sh` (not the toy
+fixture the original suite used) spreads its `for ... in` argument list
+across backslash-continued quoted-path lines, puts `do` on its own line,
+and sources each fragment with a test-and-source body row
+(`[ -f "$frag" ] && . "$frag" 2>/dev/null`) — three physical-line shapes
+none of the header/footer patterns matched, so the real approved loop
+still failed `stub-check.sh`. Three more `fragment-loop:` pattern lines
+in `canon-forms.txt` cover them, same registry mechanism, no new
+`stub-check.sh` logic.
+
 **Alternative considered and deferred:** defining the fragment-loop
 combination as a separate sourced *file* (splitting it out of
 `directive.sh` entirely) instead of teaching `stub-check.sh` to recognize

@@ -41,10 +41,15 @@ cat > "$frag_loop_file" <<'DIRECTIVE'
 ROLE_NAME=sales
 ROLE_SUBJECT_PREFIX=subject
 ROLE_HANDBOOK=docs/handbooks/sales.md
-FRAGMENTS=(a b c)
-for frag in "${FRAGMENTS[@]}"; do
-  core_role_directive "$frag"
+for frag in \
+  "$HERE/../../sales-proposal-norm/hooks/directive.sh" \
+  "$HERE/../../sales-qualification-meddpicc/hooks/directive.sh" \
+  "$HERE/../../sales-stage-definitions/hooks/directive.sh" \
+  "$HERE/../../sales-playbook/hooks/directive.sh"
+do
+  [ -f "$frag" ] && . "$frag" 2>/dev/null
 done
+core_role_directive "$frag"
 DIRECTIVE
 
 malformed_file="$td/malformed-directive.sh"
