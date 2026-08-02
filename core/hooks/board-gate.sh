@@ -96,7 +96,7 @@ DOCS = "docs/"
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
                    "diff", "stat", "file", "sort", "uniq", "cut",
                    "tr", "echo", "printf", "basename", "dirname", "realpath",
-                   "column", "nl", "comm", "jq", "true", "test", "[")
+                   "column", "nl", "comm", "jq", "true", "test", "[", "cd")
 # sed/awk read by default and only write with -i / redirection. Reading a
 # FOREIGN record is sanctioned (s4 READ-broad; s15/s16 require reading the
 # finder's record) — measured: a role resolving findings could not open
@@ -118,7 +118,50 @@ DEVNULL_REDIR = re.compile(r"[0-9&]?>>?\s*/dev/null")
 SUBSHELL = re.compile(r"[`]|\$\(")
 # Pipeline/list separators. Every stage is checked, because the head of the
 # first stage says nothing about what `| tee docs/x` does downstream.
-SEGMENT = re.compile(r"\|\||&&|[|;\n]")
+# Quoted-span alternatives come first (regex alternation is ordered) so a
+# `|` or `;` inside a quoted string (e.g. a BRE `grep -n "A\|B"` pattern)
+# matches as part of the quote, not as a separator; _split_segments below
+# tells the two match kinds apart and only cuts on the real separators.
+# (?<!\\) on both quote alternatives: outside any real quote, `\"`/`\'` is
+# a backslash-escaped literal quote CHARACTER, not the start of a quoted
+# region — without the lookbehind a bare quote char there would still open
+# a "quote" match here, run to some unrelated later quote char (e.g. one
+# inside a trailing `#` comment), and swallow a real `;`/`|` separator in
+# between as if it were quoted content, hiding a real write in what the
+# shell treats as a second, separate command (found by warrant-hunt,
+# issue-88: `ls \" ; rm -rf docs/issue-1/x #"` fell through to allow()
+# before this lookbehind). The rare converse (a real quote preceded by an
+# already-escaped backslash, e.g. `\\"real quote"`) now instead over-splits
+# — the safe direction (comment at board-gate.sh:173).
+SEGMENT = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"|\|\||&&|[|;\n]")
+
+
+def _split_segments(cmdline):
+    """Same shape as SEGMENT.split(cmdline), but a quoted span never cuts.
+
+    SEGMENT now also matches whole quoted spans so it can tell them apart
+    from real separators; a plain .split() would still cut at those spans.
+    This walks the matches instead: a quote match extends the current
+    segment, a separator match ends it.
+    """
+    segments = []
+    current = []
+    pos = 0
+    for m in SEGMENT.finditer(cmdline):
+        start, end = m.span()
+        current.append(cmdline[pos:start])
+        token = m.group()
+        if token[:1] in ("'", '"'):
+            current.append(token)
+        else:
+            segments.append("".join(current))
+            current = []
+        pos = end
+    current.append(cmdline[pos:])
+    segments.append("".join(current))
+    return segments
+
+
 INPLACE = re.compile(r"(^|\s)-i\b|--in-place")
 # `xargs` runs whatever follows it, so it is transparent rather than safe:
 # resolve to the command it will actually run and judge that instead.
@@ -167,7 +210,7 @@ def _reads_only(cmdline):
     probe = DEVNULL_REDIR.sub(" ", cmdline)
     if SUBSHELL.search(probe) or FILE_REDIR.search(probe):
         return False
-    for seg in SEGMENT.split(probe):
+    for seg in _split_segments(probe):
         seg = seg.strip()
         if not seg:
             continue
