@@ -289,6 +289,35 @@ run deny  bash-escaped-quote-then-redirect Bash '{"command":"ls \\\" > '$BOARD'/
 # ever starts allowing, that is a real security regression.
 run deny  bash-quoted-subshell-write    Bash '{"command":"grep -n \"$(touch '$BOARD'/x.md)\" README.md"}'
 
+# --- issue #98: wrapper-headed writes, and READ_UNLESS_INPLACE's awk/sed
+# quoted-redirect gap ------------------------------------------------------
+# The FILE_REDIR half is already covered by the unrecognized-head
+# fail-closed default (survey, docs/issue-98/reports/implementation/survey.md)
+# -- these three pin that as a regression guard, not a new fix.
+run deny  bash-wrapper-bash-c-foreign     Bash '{"command":"bash -c \"echo hi > '$BOARD'/reports/review.md\""}'
+run deny  bash-wrapper-timeout-foreign    Bash '{"command":"timeout 30 bash -c \"echo hi > '$BOARD'/reports/review.md\""}'
+run deny  bash-wrapper-nohup-foreign      Bash '{"command":"nohup bash -c \"echo hi > '$BOARD'/reports/review.md\""}'
+run allow bash-wrapper-own-record         Bash '{"command":"bash -c \"echo hi > '$BOARD'/reports/qa.md\""}'
+# awk/sed real gap: neither uses -i, but both have their own write
+# mechanism. Single-quote chars inside the JSON "command" value are
+# spliced in via the standard '\''  idiom (end quote, literal quote,
+# resume quote) since the surrounding tinput argument is itself
+# single-quoted.
+run deny  awk-quoted-redirect-foreign     Bash '{"command":"awk '\''{print > \"'$BOARD'/reports/review.md\"}'\'' f"}'
+run deny  sed-w-cmd-foreign               Bash '{"command":"sed -n '\''/x/w '$BOARD'/reports/review.md'\'' f"}'
+# negative-space sibling: an awk read using bare > only as a NUMERIC
+# COMPARISON (not a redirect) has no clean regex-only way to tell apart
+# from a real redirect (survey: awk '$1 > 5 {print}' ...). Over-blocking
+# is this file's own established safe direction for exactly this
+# ambiguity (repeated inline comment elsewhere in this file), so it is
+# pinned here as an accepted, documented residual -- deny, not the
+# "allow" a perfect awk parser would give -- kept visible rather than
+# silently dropped, mirroring gap-c-*/gap-f-*. (Proposal:
+# docs/issue-98/proposals/2026-08-03-wrapper-head-class-fix-for-dequote-bypass.md
+# Rationale.)
+run deny  gap-awk-comparison-over-block   Bash '{"command":"awk '\''$1 > 5 {print}'\'' '$BOARD'/reports/review.md"}'
+run allow sed-plain-read-foreign          Bash '{"command":"sed -n 1,40p '$BOARD'/reports/review.md"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
