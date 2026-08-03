@@ -16,6 +16,15 @@ role-correctly-labeled refusals from the one canon file (`"${role}: refused
 `record-fields-gate.sh`'s `RECORD_FIELDS_TERMINAL_STATES` override changes
 which `loop_state` values count as terminal.
 
+For `CLAUDE_ROLE` in `{"coding", "implementation"}` (the repo's known
+coding/implementation naming double), `record-fields-gate.sh` additionally
+denies a write to that role's own record when `code_under_review:`'s
+value, stripped, matches a bare single commit-sha token
+(`^[0-9a-f]{7,40}$`, nothing else on the line) instead of a file list —
+the record is committed in the same commit as the code it describes, so a
+sha it would cite does not exist yet when the file is written. See
+`docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md`.
+
 `stub-check.sh` is checked against synthetic rulebook trees: a clean tree
 passes, a reintroduced vendored copy of any of the five canon files (the
 three gates, `parse-check.sh`, and `stub-check.sh` itself) is caught, a real
