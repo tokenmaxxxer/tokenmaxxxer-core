@@ -272,6 +272,30 @@ run allow bash-unresolved-head-then-read Bash '{"command":"date; grep -n foo doc
 # WHETHER a real write in scope is caught.
 run deny  bash-unresolved-head-real-write Bash '{"command":"date > docs/issue-49/reports/x.md"}'
 
+# --- issue #99: dead empty-candidates fallback + cd-relative write-verb gap
+# (issue-90 execution-observation Finding 1) --------------------------------
+# The candidates.append(DOCS) fallback could never survive hit-extraction
+# (posixpath.normpath("docs/") == "docs", whose .find("docs/") == -1), so a
+# write whose target is expressed relative to a preceding `cd` into a
+# foreign docs/ path always reached allow() with no adjudication at all.
+# Fixed by tracking the most recent docs/-landing `cd` target as a sticky
+# cd_tail and reconstructing DOCS + cd_tail as the candidate instead.
+run deny  bash-cd-relative-redirect-foreign Bash '{"command":"cd docs/issue-49 && date > x.md"}'
+# the gap is not specific to redirection: cp/mv carry no docs/ token of
+# their own either once the directory comes only from a preceding cd.
+run deny  bash-cd-relative-cp-foreign    Bash '{"command":"cd docs/issue-49 && cp /tmp/a x.md"}'
+run deny  bash-cd-relative-mv-foreign    Bash '{"command":"cd docs/issue-49 && mv /tmp/a x.md"}'
+# negative-space sibling: a role's own legitimate cd-then-write into its
+# own issue tree must still allow — now via genuine R1-R4 adjudication
+# (R4's branch check actually runs and actually matches), not by accident
+# of the dead fallback's unconditional allow.
+run allow bash-cd-relative-write-own-issue Bash '{"command":"cd docs/issue-3/reports && date > qa.md"}'
+# pins the accepted over-blocking trade-off (proposal Rationale): cd_tail
+# is sticky and never un-set, so cd-ing back OUT of docs/ before the write
+# still denies even though the write's real target is /tmp, not docs/ —
+# a deliberate, named cost of the simpler existential tracker, not a bug.
+run deny  bash-cd-out-then-write-elsewhere Bash '{"command":"cd docs/issue-49 && cd /tmp && date > y.md"}'
+
 # --- FILE_REDIR quote-awareness (issue-94) ---------------------------------
 # FILE_REDIR used to run on raw segment text, so a `>` sitting INSIDE a
 # quoted string (e.g. a grep pattern) was misread as a write and refused.
