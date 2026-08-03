@@ -238,6 +238,27 @@ run allow bash-git-rm-own-subtree         Bash '{"command":"git rm -r '$BOARD'/r
 # explicit `git show` regression case — log/diff already covered above.
 run allow bash-git-show-foreign-issue     Bash '{"command":"git show HEAD:docs/issue-49/reports/coding.md"}'
 
+# --- quoted-pipe segment-split blindness, and cd read-classification -----
+# (issue-88): SEGMENT used to split on any bare `|`/`;` with no
+# quote-awareness, so a quoted BRE OR pattern like `grep -n "A\|B"` cut
+# into fake segments whose second-fragment head was an arbitrary word —
+# denied. And `cd` was absent from READ_ONLY_HEADS, so a `cd`-prefixed
+# read was denied outright even though the identical read without the
+# `cd` prefix was allowed.
+run allow bash-quoted-pipe-grep      Bash '{"command":"grep -n \"A\\|B\" '$BOARD'/x.md"}'
+run allow bash-quoted-pipe-classtest Bash '{"command":"grep -n \"^class \\|^    def test_\" '$BOARD'/x.md"}'
+run allow bash-single-quoted-pipe    Bash '{"command":"grep -n '\''A|B'\'' '$BOARD'/x.md"}'
+run allow bash-cd-then-cat           Bash '{"command":"cd '$BOARD' && cat '$BOARD'/x.md"}'
+# negative-space siblings: neither fix may open a hole in R1-R5.
+run deny  bash-cd-then-write-foreign Bash '{"command":"cd '$BOARD' && echo x > '$BOARD'/reports/review.md"}'
+run deny  bash-quoted-pipe-then-redirect Bash '{"command":"grep -n \"A\\|B\" x | tee '$BOARD'/review.md"}'
+# warrant-hunt regression (issue-88): a backslash-escaped quote CHARACTER
+# outside any real shell quote must not be treated as opening a quoted
+# span — that let the fake "quote" run to an unrelated later quote (here,
+# one inside a `#` comment) and swallow the real `;` between two real
+# commands, hiding a write in the second as if it were quoted content.
+run deny  bash-escaped-quote-then-write  Bash '{"command":"ls \\\" ; rm -rf '$BOARD'/x #\""}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
