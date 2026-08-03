@@ -199,15 +199,44 @@ def _git_subcommand(segment):
     return ""
 
 
+def _segment_is_failing(seg, stripped):
+    """True when this segment could not be proven read-only.
+
+    The per-segment classification _write_candidate_segments applies
+    (SUBSHELL/FILE_REDIR, git subcommand, READ_ONLY_HEADS,
+    READ_UNLESS_INPLACE's own write mechanisms), extracted to its own
+    function (issue-99) so the in-order `cd`-tracking walk in the Bash
+    candidate builder can reuse the exact same per-segment verdict instead
+    of growing a second, independent copy.
+    """
+    if SUBSHELL.search(seg) or gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
+        return True
+    head = gate_lib.gate_head_of(stripped)
+    if head == "git":
+        return _git_subcommand(stripped) not in GIT_READ_SUBCOMMANDS
+    if head in READ_ONLY_HEADS:
+        return False
+    if head in READ_UNLESS_INPLACE:
+        writes = INPLACE.search(stripped) is not None
+        # sed/awk read by default; both also have a write mechanism
+        # that doesn't involve -i, checked RAW (not gate_outside_quotes)
+        # -- the wrapped program argument is not inert data here, same
+        # reasoning issue-98/Finding-1 turns on for `bash -c` (issue-98).
+        if not writes and head in ("awk", "gawk"):
+            writes = FILE_REDIR.search(stripped) is not None
+        if not writes and head == "sed":
+            writes = SED_WRITE_CMD.search(stripped) is not None
+        return writes
+    return True
+
+
 def _write_candidate_segments(cmdline):
     """Segments of this command line that could not be proven read-only.
 
-    Same classification rules _reads_only used to apply inline (SUBSHELL/
-    FILE_REDIR, git subcommand, READ_ONLY_HEADS, READ_UNLESS_INPLACE), but
-    checked per-segment and returning WHICH segments failed instead of
-    collapsing to one bool — issue-90: a docs-path token sitting inside a
-    different, already-provably-read-only segment must not become a write
-    candidate just because some other segment on the same line couldn't be
+    Thin filter over _segment_is_failing (issue-99 refactor; no behavior
+    change) — issue-90: a docs-path token sitting inside a different,
+    already-provably-read-only segment must not become a write candidate
+    just because some other segment on the same line couldn't be
     classified.
     """
     probe = DEVNULL_REDIR.sub(" ", cmdline)
@@ -217,36 +246,47 @@ def _write_candidate_segments(cmdline):
         stripped = seg.strip()
         if not stripped:
             continue
-        if SUBSHELL.search(seg) or gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
+        if _segment_is_failing(seg, stripped):
             failing.append(seg)
-            continue
-        head = gate_lib.gate_head_of(stripped)
-        if head == "git":
-            if _git_subcommand(stripped) in GIT_READ_SUBCOMMANDS:
-                continue
-            failing.append(seg)
-            continue
-        if head in READ_ONLY_HEADS:
-            continue
-        if head in READ_UNLESS_INPLACE:
-            writes = INPLACE.search(stripped) is not None
-            # sed/awk read by default; both also have a write mechanism
-            # that doesn't involve -i, checked RAW (not gate_outside_quotes)
-            # -- the wrapped program argument is not inert data here, same
-            # reasoning issue-98/Finding-1 turns on for `bash -c` (issue-98).
-            if not writes and head in ("awk", "gawk"):
-                writes = FILE_REDIR.search(stripped) is not None
-            if not writes and head == "sed":
-                writes = SED_WRITE_CMD.search(stripped) is not None
-            if not writes:
-                continue
-        failing.append(seg)
     return failing
 
 
 def _reads_only(cmdline):
     """True when no stage of this command line can write a file."""
     return not _write_candidate_segments(cmdline)
+
+
+def _cd_target(stripped):
+    """The argument a `cd` segment would receive, or "" if there isn't one
+    (bare `cd`, or only flag-shaped words before the segment ends).
+
+    First non-flag word after `cd` — same skip-leading-flags idiom
+    _git_subcommand already uses for the analogous git-subcommand case.
+    """
+    for w in stripped.split()[1:]:
+        if not w.startswith("-"):
+            return w
+    return ""
+
+
+def norm(p):
+    return posixpath.normpath(p.replace("\\", "/"))
+
+
+def _docs_relative_tail(token):
+    """The part of `token` after its first `docs/` component, once
+    normalized — "" when `token` carries no `docs/` token of its own.
+
+    The same normalize-then-find logic the hit-extraction loop already
+    performed inline, exposed here (issue-99) so the `cd`-tracking walk in
+    the Bash candidate builder can reuse it to decide whether a `cd`
+    target itself lands under `docs/`, not only to extract final hits.
+    """
+    n = norm(token)
+    idx = n.find(DOCS)
+    if idx >= 0:
+        return n[idx + len(DOCS):]
+    return ""
 
 candidates = []
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -258,32 +298,54 @@ elif tool == "Bash":
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
     if DOCS in cmdline:
-        failing_segments = _write_candidate_segments(cmdline)
-        if not failing_segments:
+        probe = DEVNULL_REDIR.sub(" ", cmdline)
+        classified = []
+        for seg in _split_segments(probe):
+            stripped = seg.strip()
+            if not stripped:
+                continue
+            classified.append((seg, stripped, _segment_is_failing(seg, stripped)))
+        if not any(failing for _, _, failing in classified):
             allow()          # a plain read of the board is not a write (s4)
-        # every docs-path-shaped token in a segment that could not be
-        # proven read-only becomes a candidate target (issue-90: scoped to
-        # those segments, not the whole cmdline); this is a superset scan
-        # within scope, and over-blocking is the safe direction here
-        scan_text = "\n".join(failing_segments)
-        for tok in re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), scan_text):
-            candidates.append(tok)
-        if not candidates:
-            candidates.append(DOCS)   # mentioned but unextractable: adjudicate
+        # In-order walk (issue-99), replacing the old whole-block rescan:
+        # a preceding read-only `cd` into a docs/ path is tracked as
+        # cd_tail — sticky, never cleared by a later non-docs/ `cd` (a
+        # deliberate, named over-blocking trade-off; a full relative-path
+        # resolver that un-tracks on leaving docs/ was scouted and
+        # rejected — see the proposal's Rationale). Every docs-path-shaped
+        # token a segment that could not be proven read-only carries of
+        # its own becomes a candidate, same as before (issue-90, scoped to
+        # failing segments only); a failing segment with NO token of its
+        # own now reconstructs DOCS + cd_tail instead of the dead
+        # candidates.append(DOCS) fallback, but only when cd_tail is
+        # actually set — a failing segment with no docs/ token of its own
+        # and no preceding docs/-landing cd contributes nothing, which is
+        # exactly issue-90's own preserved negative space (a docs/ mention
+        # living only in an already-read-only segment elsewhere on the
+        # line must not manufacture a candidate here).
+        cd_tail = ""
+        for seg, stripped, failing in classified:
+            if not failing:
+                if gate_lib.gate_head_of(stripped) == "cd":
+                    target = _cd_target(stripped)
+                    if target:
+                        tail = _docs_relative_tail(target)
+                        if tail:
+                            cd_tail = tail
+                continue
+            own_hits = re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), seg)
+            if own_hits:
+                candidates.extend(own_hits)
+            elif cd_tail:
+                candidates.append(DOCS + cd_tail)
 else:
     allow()
 
-def norm(p):
-    return posixpath.normpath(p.replace("\\", "/"))
-
 hits = []
 for c in candidates:
-    n = norm(c)
-    idx = n.find(DOCS)
-    if idx >= 0:
-        tail = n[idx + len(DOCS):]
-        if tail:
-            hits.append(tail)
+    tail = _docs_relative_tail(c)
+    if tail:
+        hits.append(tail)
 if not hits:
     allow()                  # nothing under docs/: not this gate's business
 

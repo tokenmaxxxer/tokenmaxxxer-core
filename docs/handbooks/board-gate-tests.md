@@ -121,3 +121,57 @@ convention already accepts over-blocking as the safe direction for
 exactly this kind of ambiguity) — so it now denies too, kept visible as a
 `gap-*` case rather than silently accepted, mirroring `gap-c-*`/`gap-f-*`
 in `gh-guard-tests.md`.
+
+Also covers issue-99's dead empty-candidates fallback and the `cd`-relative
+write-verb gap it shared (root-caused independently by
+`docs/issue-90/reports/execution-observation.md` Finding 1). The `Bash`
+candidate builder's `candidates.append(DOCS)` fallback — reached whenever
+every write-classified segment carried no `docs/`-shaped token of its own
+— was annotated "mentioned but unextractable: adjudicate" but structurally
+could never do so: `posixpath.normpath("docs/")` is `"docs"`, whose
+`.find("docs/")` is `-1`, so the fallback candidate never produced a hit
+and the branch always reached `allow()` instead. A command whose write
+target is expressed relative to a `cd`-ed foreign issue directory —
+`cd docs/issue-49 && date > x.md` — allowed where the pre-issue-90 code
+denied via R4; the same gap caught non-redirect write verbs (`cp`, `mv`)
+too, since their targets carry no `docs/` token any more than the
+redirect case's does.
+
+Fixed by extending the existing per-segment classification (issue-90)
+with an in-order walk that tracks the most recent `docs/`-landing `cd`
+target as a sticky `cd_tail` — set only when a read-only `cd` segment's
+own target itself lands under `docs/`, and never cleared by a later
+non-`docs/` `cd` (a deliberate, existential tracker, not a full
+relative-path resolver: reconstructing only the `cd` target *directory*
+is enough to re-run R1-R4 correctly, since none of those need the exact
+write-target filename). Any later write-classified segment with no
+`docs/` token of its own now reconstructs `DOCS + cd_tail` as its
+candidate instead of the dead fallback; a write-classified segment with
+no token of its own AND no `cd_tail` set contributes nothing, preserving
+issue-90's own negative space (a `docs/` mention sitting only in an
+already-read-only segment elsewhere on the line must not manufacture a
+candidate). `_write_candidate_segments`'s per-segment read/fail test was
+extracted to `_segment_is_failing(seg, stripped)` so the walk and the
+existing function share one classification, not two independent copies.
+
+`bash-cd-relative-redirect-foreign` pins the issue's own headline repro
+(`cd docs/issue-49 && date > x.md`, want deny via genuine R4
+adjudication); `bash-cd-relative-cp-foreign` and `bash-cd-relative-mv-foreign`
+pin the same gap for non-redirect write verbs. `bash-cd-relative-write-own-issue`
+is the negative-space sibling: a role's own legitimate `cd`-then-write
+into its own issue tree still allows, now via genuine R1-R4 adjudication
+rather than the dead fallback's accidental allow.
+`bash-cd-out-then-write-elsewhere` pins the accepted over-blocking
+trade-off named in the fix's proposal: `cd_tail` is sticky and never
+un-set, so `cd`-ing back OUT of `docs/` before the write
+(`cd docs/issue-49 && cd /tmp && date > y.md`) still denies even though
+the write's real target is `/tmp` — a deliberate, measured cost of the
+simpler existential tracker (this file's own established
+"over-blocking is the safe direction" posture), not a bug. Full
+relative-path resolution (tracking exact effective cwd through arbitrary
+`cd`/`cd ..`/multi-hop chains, un-set on leaving `docs/`) and closing the
+related, pre-existing, same-issue cross-role R5 gap this fix does not
+touch (`cd docs/issue-3/reports && cp /tmp/a review.md` allowing when R5
+would want deny — needs per-command destination-argument extraction, a
+materially larger surface) are both named explicitly out of scope; see
+`docs/issue-99/proposals/2026-08-03-fix-board-gate-dead-fallback-and-cd-write-verb-gap.md`.
