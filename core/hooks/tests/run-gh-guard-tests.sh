@@ -86,5 +86,46 @@ run deny  quote-real-merge-after-quote  coding 'grep -n "gh pr merge" x.py; gh p
 # the line, not because of the quoted "pulls/5/merge" text.
 run deny  gap-f-api-merge-in-quote-still-fires coding 'echo "note: pulls/5/merge discussed" ; curl -X PUT https://api.github.com/repos/o/r/pulls/5/merge'
 
+# --- issue #98: wrapper-headed commands (bash -c/sh -c/eval/-lc variants,
+# including through TRANSPARENT) still execute their quoted argument, so
+# gate_dequote's blanking must not blind the three dequote=True rules to
+# them. One case per issue-named variant, spread across all three in-scope
+# rules (merge, review --approve, issue create) rather than all merge. ----
+run deny  wrapper-bash-c            coding 'bash -c "gh pr merge 5"'
+run deny  wrapper-bash-lc           coding 'bash -lc "gh pr merge 7 --merge"'
+run deny  wrapper-timeout-bash-c    coding 'timeout 30 bash -c "gh pr merge 7 --merge"'
+run deny  wrapper-env-bash-c        coding 'env bash -c "gh pr review 7 --approve"'
+run deny  wrapper-xargs-bash-c      coding 'xargs -I{} bash -c "gh pr merge 7 --merge"'
+run deny  wrapper-nohup-bash-c      qa     'nohup bash -c "gh issue create --title bug"'
+run deny  wrapper-python3-c         coding 'python3 -c "import os; os.system('"'"'gh pr merge 7 --merge'"'"')"'
+run deny  wrapper-sh-c              coding 'sh -c "gh pr merge 5"'
+run deny  wrapper-eval              coding 'eval "gh pr merge 5"'
+# hunt-confirmed (docs/issue-98/reports/implementation.md, Hunt): a
+# TRANSPARENT wrapper's OWN value-taking flag (nice -n N, env -u NAME,
+# timeout -s SIG, xargs -I fmt with a space instead of xargs -I{})
+# defeated the first design (which walked gate_head_of's hop-by-hop
+# TRANSPARENT skip), landing on the flag's value token instead of the
+# real wrapper head -- fixed by scanning local words directly for the
+# rightmost WRAPPER_HEADS word instead of depending on that walk.
+run deny  wrapper-timeout-flag-arg  coding 'timeout -s KILL 30 bash -c "gh pr merge 5"'
+run deny  wrapper-nice-flag-arg     coding 'nice -n 10 bash -c "gh pr merge 5"'
+run deny  wrapper-env-flag-arg      coding 'env -u FOO bash -c "gh pr merge 5"'
+run deny  wrapper-xargs-space-flag  coding 'xargs -I {} bash -c "gh pr merge 5"'
+# hunt-confirmed: perl's own code-argument flag is -e, not -c (-c means
+# "check syntax, don't run" for perl) -- the -c-only flag check missed
+# perl entirely despite perl being a named WRAPPER_HEADS member.
+run deny  wrapper-perl-e            coding 'perl -e "system('"'"'gh pr merge 5'"'"')"'
+# accepted over-block residual (proposal Rationale, docs/issue-98/proposals/
+# 2026-08-03-wrapper-head-class-fix-for-dequote-bypass.md): the per-span
+# resolver denies on the wrapper head firing, whatever the wrapper's own
+# quoted argument actually contains -- a real bash -c wrapping a
+# LEGITIMATE nested grep still denies, kept visible rather than silently
+# accepted (mirrors the gap-c-*/gap-f-* convention).
+run deny  wrapper-bash-c-plain-grep coding 'bash -c "grep -n '"'"'gh pr merge'"'"' x.py"'
+# the three existing quote-* negative-space cases above (lines 78-80) are
+# re-run unchanged by this same suite run -- still allow, confirming the
+# wrapper-head class fix adds a new detection path without undoing #94's
+# dequoting for non-wrapper heads.
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

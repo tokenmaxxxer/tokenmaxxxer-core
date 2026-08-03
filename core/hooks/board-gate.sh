@@ -137,7 +137,7 @@ SUBSHELL = re.compile(r"[`]|\$\(")
 # before this lookbehind). The rare converse (a real quote preceded by an
 # already-escaped backslash, e.g. `\\"real quote"`) now instead over-splits
 # — the safe direction (comment at board-gate.sh:173).
-SEGMENT = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"|\|\||&&|[|;\n]")
+SEGMENT = re.compile(gate_lib.GATE_QUOTE_SPAN.pattern + r"|\|\||&&|[|;\n]")
 
 
 def _split_segments(cmdline):
@@ -167,9 +167,12 @@ def _split_segments(cmdline):
 
 
 INPLACE = re.compile(r"(^|\s)-i\b|--in-place")
-# `xargs` runs whatever follows it, so it is transparent rather than safe:
-# resolve to the command it will actually run and judge that instead.
-TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin")
+# sed's own file-write mechanism, independent of -i: the `w`/`W` command
+# (as its own command, or as an `s///...w file` trailing flag). Scoped to
+# a `w`/`W` word boundary followed by whitespace-then-a-filename-char, so
+# an ordinary word beginning with w ("with", "while", ...) never matches
+# (issue-98).
+SED_WRITE_CMD = re.compile(r"\b[wW]\s+\S")
 # `git` needed to split off READ_ONLY_HEADS: unlike the other entries there,
 # read vs. write is decided by the SUBCOMMAND, not the command name — `git
 # log` cannot write a file but `git rm`/`checkout --`/`restore`/`clean`/
@@ -196,19 +199,6 @@ def _git_subcommand(segment):
     return ""
 
 
-def _head_of(segment):
-    """The command a pipeline stage will actually run, or "" if unknowable."""
-    words = segment.split()
-    while words:
-        w = words[0].rsplit("/", 1)[-1]
-        if w not in TRANSPARENT:
-            return w
-        # skip xargs/env's own flags (and env's VAR=value assignments)
-        words = [x for x in words[1:]
-                 if not x.startswith("-") and "=" not in x.split("/")[0]]
-    return ""
-
-
 def _write_candidate_segments(cmdline):
     """Segments of this command line that could not be proven read-only.
 
@@ -230,7 +220,7 @@ def _write_candidate_segments(cmdline):
         if SUBSHELL.search(seg) or gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
             failing.append(seg)
             continue
-        head = _head_of(stripped)
+        head = gate_lib.gate_head_of(stripped)
         if head == "git":
             if _git_subcommand(stripped) in GIT_READ_SUBCOMMANDS:
                 continue
@@ -238,8 +228,18 @@ def _write_candidate_segments(cmdline):
             continue
         if head in READ_ONLY_HEADS:
             continue
-        if head in READ_UNLESS_INPLACE and not INPLACE.search(stripped):
-            continue
+        if head in READ_UNLESS_INPLACE:
+            writes = INPLACE.search(stripped) is not None
+            # sed/awk read by default; both also have a write mechanism
+            # that doesn't involve -i, checked RAW (not gate_outside_quotes)
+            # -- the wrapped program argument is not inert data here, same
+            # reasoning issue-98/Finding-1 turns on for `bash -c` (issue-98).
+            if not writes and head in ("awk", "gawk"):
+                writes = FILE_REDIR.search(stripped) is not None
+            if not writes and head == "sed":
+                writes = SED_WRITE_CMD.search(stripped) is not None
+            if not writes:
+                continue
         failing.append(seg)
     return failing
 
