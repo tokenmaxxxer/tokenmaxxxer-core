@@ -65,6 +65,10 @@ command -v python3 >/dev/null 2>&1 || exit 2
 IFS='' read -r -d '' CORE_BOARD_GATE <<'PY' || true
 import json, os, posixpath, re, subprocess, sys
 
+import importlib.util
+_spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
+
 DENY = 2
 BUCKETS = ("_assets", "decisions", "handbooks", "proposals", "reports",
            "specs")
@@ -223,7 +227,7 @@ def _write_candidate_segments(cmdline):
         stripped = seg.strip()
         if not stripped:
             continue
-        if SUBSHELL.search(seg) or FILE_REDIR.search(seg):
+        if SUBSHELL.search(seg) or gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
             failing.append(seg)
             continue
         head = _head_of(stripped)

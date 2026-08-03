@@ -47,6 +47,10 @@ command -v python3 >/dev/null 2>&1 || exit 2
 IFS='' read -r -d '' CORE_GH_GUARD <<'PY' || true
 import json, os, re, sys
 
+import importlib.util
+_spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
+
 def deny(msg):
     sys.stderr.write("gh-guard: %s\n" % msg)
     sys.exit(2)
@@ -70,48 +74,60 @@ role = os.environ["CLAUDE_ROLE"].strip()
 RULES = [
     (r"\bgh\s+pr\s+review\b.*(--approve|-a\b|--request-changes)",
      "a PR review verdict is the human's act, relayed by the orchestrator "
-     "with the user's account — never a role session's"),
+     "with the user's account — never a role session's",
+     True),
     (r"\bgh\s+pr\s+(merge|close|reopen)\b",
      "merging or closing a PR is the human's acceptance/refusal — a role "
-     "session only opens PRs and pushes to its own issue branch"),
+     "session only opens PRs and pushes to its own issue branch",
+     True),
     (r"\bgh\s+issue\s+(create|close|reopen|edit|transfer|delete)\b",
      "issues are the user's requirement backlog, user-authored only "
-     "(contract v3 s9) — no role touches them"),
+     "(contract v3 s9) — no role touches them",
+     True),
     (r"\bgh\s+api\b.*(pulls?/\d+/(reviews|merge)|/merge\b)",
-     "the raw-API spelling of a review/merge is still a review/merge"),
+     "the raw-API spelling of a review/merge is still a review/merge",
+     False),
     (r"\bgh\s+pr\s+comment\b.*\bAPPROVE\b",
      "an APPROVE-shaped comment is the single-account approval signal — "
-     "posting it from a role session is a forged approval"),
+     "posting it from a role session is a forged approval",
+     False),
     (r"\bgh\s+api\b.*(issues|pulls?)/\d+/comments.*\bAPPROVE\b",
      "the raw-API spelling of an APPROVE comment is still a forged "
-     "approval"),
+     "approval",
+     False),
     (r"\bgit\s+push\b[^\n;|&]*\s(origin\s+)?(main|master)\b",
      "nothing reaches main except a PR the human merges (contract v3 s10) "
-     "— push your issue-<n>/<role> branch instead"),
+     "— push your issue-<n>/<role> branch instead",
+     False),
     # Endpoint+verb rules below match the REST/GraphQL surface itself, not
     # the `gh` token — the same act is still the act whether it is spelled
     # `gh api ...`, `curl -X ... ...`, or `wget --method=... ...` (issue #20).
     (r"(?=.*\bpulls?/\d+/(reviews|merge)\b)"
      r"(?=.*(-X\s*(POST|PUT|PATCH|DELETE)\b|--method[= ]|-f\s))",
      "the raw-API spelling of a review/merge is still a review/merge, "
-     "whatever HTTP client reaches the endpoint"),
+     "whatever HTTP client reaches the endpoint",
+     False),
     (r"(?=.*\bpulls?/\d+(?!/))"
      r"(?=.*(state\s*=\s*(closed|open)|-f\s+state=))",
      "the raw-API spelling of a PR close/reopen (a state= write on the "
-     "bare pulls/N endpoint) is still a close/reopen"),
+     "bare pulls/N endpoint) is still a close/reopen",
+     False),
     (r"(?=.*\bissues?/\d+(?!/))"
      r"(?=.*(-X\s*(POST|PUT|PATCH|DELETE)\b|--method[= ]|-f\s+(state|title|body)=))",
      "the raw-API spelling of an issue edit/close/reopen is still "
-     "user-only backlog work — no role touches issues, whatever the client"),
+     "user-only backlog work — no role touches issues, whatever the client",
+     False),
     (r"(?=.*\bgraphql\b)"
      r"(?=.*\b(mergePullRequest|addPullRequestReview|closePullRequest|"
      r"reopenPullRequest|closeIssue|reopenIssue|updateIssue|deleteIssue)\b)",
      "the GraphQL spelling of a PR/issue human-act mutation is still that "
-     "human act, whatever the transport"),
+     "human act, whatever the transport",
+     False),
 ]
 
-for pat, why in RULES:
-    if re.search(pat, cmd):
+dq = gate_lib.gate_dequote(cmd)
+for pat, why, dequote in RULES:
+    if re.search(pat, dq if dequote else cmd):
         deny("refused for role session '%s': %s. (two-account model, "
              "contract v3 s8)" % (role, why))
 

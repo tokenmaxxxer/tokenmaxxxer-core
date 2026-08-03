@@ -72,5 +72,19 @@ else
   fail=$((fail+1)); printf 'FAIL   %-34s want=%s got=%s\n' gap-d-write-tool allow "$gd_got"
 fi
 
+# --- issue #94: quote-aware matching for the three pure verb-invocation
+# rules (review-verdict, merge/close/reopen, issue create/close/reopen/
+# edit/transfer/delete) --------------------------------------------------
+run allow quote-gh-pr-merge-in-grep     coding 'grep -n "^def \|gh pr merge\|pr merge" spawn.py'
+run allow quote-review-approve-in-grep  coding 'grep -n "gh pr review --approve" notes.py'
+run allow quote-issue-create-in-grep    coding 'grep -n "gh issue create" notes.py'
+run deny  quote-real-merge-after-quote  coding 'grep -n "gh pr merge" x.py; gh pr merge 5'
+# gap-f — an explicit, deliberately-NOT-fixed residual case: one of the
+# eight unchanged rules (the raw-API endpoint+verb rule) stays quote-blind
+# on purpose; kept visible rather than silently dropped (mirrors gap-c-*).
+# Denies correctly here because of the real, unquoted curl call later on
+# the line, not because of the quoted "pulls/5/merge" text.
+run deny  gap-f-api-merge-in-quote-still-fires coding 'echo "note: pulls/5/merge discussed" ; curl -X PUT https://api.github.com/repos/o/r/pulls/5/merge'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
