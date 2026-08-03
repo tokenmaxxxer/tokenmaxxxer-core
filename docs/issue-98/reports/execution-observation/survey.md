@@ -145,6 +145,18 @@ by itself confirm or deny. Each is a phase-2 evidence line, not a finding.
   use, called harmless there (gate-lib.py:258-283 docstring; record:90-92).
   Which of these is actually the residual limit, and its risk, is a phase-2
   question.
+- **U6 — live gate behavior met while producing this survey (not about PR
+  #103's content).** The first attempt to commit these phase-1 files was
+  refused by the live `board-gate.sh` hook: `docs/issue-98/reports/
+  implementation.md belongs to another role. execution-observation writes
+  only execution-observation.md, execution-observation/** — never a foreign
+  record. (contract v3 s11)`. No such write was attempted; the foreign path
+  appeared only as a *citation inside the commit message text* passed to
+  `git commit -F -` on stdin. The same class of path-token false positive
+  was recorded by issue-94's own observation (`2680c8f`). Worked around by
+  passing the message from a file outside the repo. Whether this is a
+  distinct finding or a known, already-reported residual is a phase-2
+  question; it concerns the board's current gate, not PR #103's delivery.
 - **U5 — citation convention.** `docs/issue-98/reports/implementation.md:5`
   reads `code_under_review: 27a0c8aaeba542400f7c3c43828b89c94ffa2d9a` — a
   bare 40-hex token, and specifically the *proposal* commit, not the
