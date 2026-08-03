@@ -184,6 +184,16 @@ try:
             "and open findings." % ", ".join(missing)
         )
 
+    if role in ("coding", "implementation"):
+        m_cur = re.search(r'^\s*code_under_review:\s*(.+?)\s*$', new_text, re.M)
+        if m_cur and re.match(r'^[0-9a-f]{7,40}$', m_cur.group(1).strip()):
+            deny(
+                "code_under_review: '%s' is a bare commit sha, not a file list. Per "
+                "docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md, "
+                "this role's own record cites code_under_review as the reviewed file list — the "
+                "record's own commit sha does not exist yet when the file is written." % m_cur.group(1).strip()
+            )
+
     loop_state = m_ls.group(1).strip().lower()
     if loop_state not in TERMINAL:
         open_missing = []
