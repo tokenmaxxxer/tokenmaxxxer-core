@@ -73,6 +73,12 @@ run_rf allow "product-role scope-proposed treated as terminal via override" prod
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"' \
   RECORD_FIELDS_TERMINAL_STATES="landed scope-proposed"
+run_rf deny  "implementation record code_under_review bare sha denied (issue-100)" implementation \
+  "docs/issue-3/reports/implementation.md" \
+  '"loop_state: landed\n\ncode_under_review: 0123456789abcdef0123456789abcdef01234567\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "implementation record code_under_review file list allowed (issue-100)" implementation \
+  "docs/issue-3/reports/implementation.md" \
+  '"loop_state: landed\n\ncode_under_review: `a.sh`, `b.sh`\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
 # --- handbook-trigger-gate.sh: role-labeled refusal ------------------------
 run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
