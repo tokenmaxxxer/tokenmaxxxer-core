@@ -46,6 +46,13 @@ Functions, one per defect class from the issue's background:
   same character class and return the same token set for the same
   command string (sh prints one token per line; py returns a list — the
   natural per-language shape for identical data).
+- `gate_dequote(text)` / `gate_outside_quotes(text, pattern)` (Python,
+  issue-94) — blank every quoted span in `text` to a space, and match a
+  pattern only outside quotes. The shared primitive that replaces each
+  gate's own inline "quote-span-first regex + finditer-skip-quote-matches"
+  trick, so a pattern like a `gh pr merge` phrase or a redirect character
+  sitting only inside a quoted argument (e.g. a `grep` search pattern)
+  never falsely fires.
 
 ## The two bugs this issue fixed in core's own canon
 
