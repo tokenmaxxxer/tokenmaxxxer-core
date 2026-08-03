@@ -259,6 +259,19 @@ run deny  bash-quoted-pipe-then-redirect Bash '{"command":"grep -n \"A\\|B\" x |
 # commands, hiding a write in the second as if it were quoted content.
 run deny  bash-escaped-quote-then-write  Bash '{"command":"ls \\\" ; rm -rf '$BOARD'/x #\""}'
 
+# --- candidate scan scoped to failing segments only (issue-90) ------------
+# _reads_only used to collapse per-segment classification to one bool, so
+# when ANY segment failed, the candidate scan swept the WHOLE cmdline for
+# docs/-shaped tokens — including tokens inside a different, already
+# provably-read-only segment. A genuinely read-only command was refused
+# solely because an unrelated segment on the same line couldn't be
+# classified.
+run allow bash-unresolved-head-then-read Bash '{"command":"date; grep -n foo docs/issue-49/reports/x.md"}'
+# negative-space sibling: a real write INSIDE the failing segment itself
+# must still deny — scoping narrows WHERE candidates are hunted, not
+# WHETHER a real write in scope is caught.
+run deny  bash-unresolved-head-real-write Bash '{"command":"date > docs/issue-49/reports/x.md"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 

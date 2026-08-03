@@ -156,6 +156,35 @@ run deny  wrong-role-branch      human   src/app.py branch=issue-7/qa
 run deny  bash-redirect-src      nopr    x cmd='echo hi > src/app.py'
 run allow bash-read-src          nopr    x cmd='cat src/app.py'
 
+# --- cd read-classification, and quote-aware WRITEISH (ported from
+# board-gate.sh, issue-88/PR #89; issue-90) -------------------------------
+# READ_ONLY_HEADS had no "cd" entry, so a cd-prefixed read was denied
+# outright even though the identical read without the cd prefix was
+# allowed; WRITEISH was quote-blind, so a `>`/`|` inside a quoted string
+# (e.g. a grep pattern) was flagged as if it were a real shell write-ish
+# character.
+run allow bash-cd-then-read-own-reports nopr x cmd='cd docs/issue-7/reports/coding && ls'
+# negative-space sibling: a cd-headed line that really writes must still
+# deny.
+run deny  bash-cd-then-write-src        nopr x cmd='cd docs/issue-7 && echo x > src/app.py'
+# NOTE: this harness's run() builds tinput via naive printf '%s' with no
+# JSON-escaping, so a cmd= value carrying a literal `"` must pre-escape it
+# to `\"` (and any literal `\` to `\\`) here so the constructed JSON stays
+# valid and actually reaches _writeish's quote-span logic — an unescaped
+# quote would instead break the JSON and deny via the unrelated
+# unreadable-payload path, silently not testing the fix.
+run allow bash-quoted-redirect-in-grep      nopr x cmd='grep -n \"a > b\" src/app.py'
+run allow bash-single-quoted-pipe-grep      nopr x cmd='grep -n '\''a > b'\'' src/app.py'
+# negative-space sibling: a real, unquoted pipe later in the same line
+# must still deny.
+run deny  bash-quoted-redirect-then-real-pipe nopr x cmd='grep -n \"a > b\" x | tee docs/issue-7/reports/coding.md'
+# warrant-hunt regression (ported from board-gate's
+# bash-escaped-quote-then-write, issue-88): a backslash-escaped quote
+# CHARACTER outside any real shell quote must not open a fake quoted span
+# that swallows the real `>` between two real tokens. Real command line
+# this constructs (post JSON-unescape): ls \" > docs/issue-7/x.md #"
+run deny  bash-escaped-quote-then-write nopr x cmd='ls \\\" > docs/issue-7/x.md #\"'
+
 # --- the docs execution surface (doc-producing roles) ---------------------
 run deny  record-before-approve  nopr    docs/issue-7/reports/coding.md
 run deny  record-comment-only    comment docs/issue-7/reports/coding.md
