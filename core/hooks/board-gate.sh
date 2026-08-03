@@ -205,26 +205,44 @@ def _head_of(segment):
     return ""
 
 
-def _reads_only(cmdline):
-    """True when no stage of this command line can write a file."""
+def _write_candidate_segments(cmdline):
+    """Segments of this command line that could not be proven read-only.
+
+    Same classification rules _reads_only used to apply inline (SUBSHELL/
+    FILE_REDIR, git subcommand, READ_ONLY_HEADS, READ_UNLESS_INPLACE), but
+    checked per-segment and returning WHICH segments failed instead of
+    collapsing to one bool — issue-90: a docs-path token sitting inside a
+    different, already-provably-read-only segment must not become a write
+    candidate just because some other segment on the same line couldn't be
+    classified.
+    """
     probe = DEVNULL_REDIR.sub(" ", cmdline)
-    if SUBSHELL.search(probe) or FILE_REDIR.search(probe):
-        return False
-    for seg in _split_segments(probe):
-        seg = seg.strip()
-        if not seg:
+    segments = _split_segments(probe)
+    failing = []
+    for seg in segments:
+        stripped = seg.strip()
+        if not stripped:
             continue
-        head = _head_of(seg)
+        if SUBSHELL.search(seg) or FILE_REDIR.search(seg):
+            failing.append(seg)
+            continue
+        head = _head_of(stripped)
         if head == "git":
-            if _git_subcommand(seg) in GIT_READ_SUBCOMMANDS:
+            if _git_subcommand(stripped) in GIT_READ_SUBCOMMANDS:
                 continue
-            return False
+            failing.append(seg)
+            continue
         if head in READ_ONLY_HEADS:
             continue
-        if head in READ_UNLESS_INPLACE and not INPLACE.search(seg):
+        if head in READ_UNLESS_INPLACE and not INPLACE.search(stripped):
             continue
-        return False
-    return True
+        failing.append(seg)
+    return failing
+
+
+def _reads_only(cmdline):
+    """True when no stage of this command line can write a file."""
+    return not _write_candidate_segments(cmdline)
 
 candidates = []
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -236,11 +254,15 @@ elif tool == "Bash":
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
     if DOCS in cmdline:
-        if _reads_only(cmdline):
+        failing_segments = _write_candidate_segments(cmdline)
+        if not failing_segments:
             allow()          # a plain read of the board is not a write (s4)
-        # every docs-path-shaped token becomes a candidate target; this is
-        # a superset scan, and over-blocking is the safe direction here
-        for tok in re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), cmdline):
+        # every docs-path-shaped token in a segment that could not be
+        # proven read-only becomes a candidate target (issue-90: scoped to
+        # those segments, not the whole cmdline); this is a superset scan
+        # within scope, and over-blocking is the safe direction here
+        scan_text = "\n".join(failing_segments)
+        for tok in re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), scan_text):
             candidates.append(tok)
         if not candidates:
             candidates.append(DOCS)   # mentioned but unextractable: adjudicate

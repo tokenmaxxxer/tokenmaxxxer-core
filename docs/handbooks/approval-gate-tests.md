@@ -30,3 +30,33 @@ unconditionally, missing/empty `approvers.md`, branch and role
 preconditions, the no-remote precondition, and the docs execution-surface
 rules (phase-1 homes stay open; the record file and other doc paths wait
 for the Approve).
+
+Also covers two read-classification fixes ported from `board-gate.sh`
+(issue-88/PR #89), addressing the identical twin defects `approval-gate.sh`
+carried (issue-90): `READ_ONLY_HEADS` had no `"cd"` entry, so a
+`cd`-prefixed read (`cd docs/issue-7/reports/coding && ls`) was denied
+outright even though the identical read without the `cd` prefix was
+allowed (`bash-cd-then-read-own-reports`, plus the negative-space
+`bash-cd-then-write-src` proving a `cd`-prefixed real write still denies);
+and `WRITEISH` was quote-blind (`re.compile(r"[>|`]|\$\(")` flagged a
+`>`/`|` inside a quoted string, e.g. a `grep` pattern, as if it were a
+real shell write-ish character). `WRITEISH` now leads with quote-span
+alternatives (`(?<!\\)`-guarded, same shape as `board-gate.sh`'s
+`SEGMENT`) and a new `_writeish(cmdline)` helper walks
+`WRITEISH.finditer` to tell a quoted-span match from a real one, answering
+the boolean `WRITEISH.search` used to answer directly.
+`bash-quoted-redirect-in-grep` and `bash-single-quoted-pipe-grep` pin the
+fix for `"`- and `'`-quoted redirects; the negative-space
+`bash-quoted-redirect-then-real-pipe` proves a real, unquoted `|` later
+on the same line still denies. `bash-escaped-quote-then-write` ports
+`board-gate.sh`'s warrant-hunt regression: a backslash-escaped quote
+CHARACTER outside any real shell quote must not open a fake quoted span
+that swallows the real `>` between two real tokens.
+
+Test-authoring note: this harness's `run()` builds the `Bash` tool's JSON
+`tinput` from a `cmd=` option via a plain `printf '%s'` substitution with
+no JSON-escaping. A `cmd=` value carrying a literal `"` must pre-escape it
+to `\"` (and any literal `\` to `\\`) in the test line itself, or the
+resulting JSON is invalid and the gate denies via its unrelated
+unreadable-payload path — a deny that can coincidentally match a `want
+deny` case without ever exercising `_writeish` at all.
