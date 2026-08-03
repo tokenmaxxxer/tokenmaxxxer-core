@@ -475,6 +475,21 @@ evidence commands were refused by the sandbox for shell-shape reasons
 each was reissued in a plainer form with no loss of evidence — the same class
 of false positive issue #94 exists to reduce, observed from the other side.
 
+One of those refusals is worth recording precisely, because it is a live
+instance of the family this issue is about, sitting in the part of the family
+the delivery did not reach. Posting this record's summary as a PR comment —
+a `gh pr comment --body-file -` whose heredoc body quoted another record's
+path in prose — was refused by board-gate as a write to that path, from the
+wrong branch. Nothing was being written: the path was a citation inside a
+comment body being sent to the GitHub API. This is not the quoted-span case
+PR #96 fixed (a heredoc body is not a quoted span, so `gate_dequote` does not
+reach it) and not a defect of PR #96; it is the same underlying cause the
+issue names in its "왜 한 이슈인가" section — shell text judged as plaintext
+rather than as tokens — surviving in board-gate's path-token extraction after
+the write-ish judgment itself was fixed. Reported here as an observation for
+the human, not as a finding against the observed role, and worked around by
+rewording the citation.
+
 ## loop_state
 
 - `phase-1` — survey, scout brief and proposal committed at `ec404fc`; PR #97
