@@ -272,6 +272,23 @@ run allow bash-unresolved-head-then-read Bash '{"command":"date; grep -n foo doc
 # WHETHER a real write in scope is caught.
 run deny  bash-unresolved-head-real-write Bash '{"command":"date > docs/issue-49/reports/x.md"}'
 
+# --- FILE_REDIR quote-awareness (issue-94) ---------------------------------
+# FILE_REDIR used to run on raw segment text, so a `>` sitting INSIDE a
+# quoted string (e.g. a grep pattern) was misread as a write and refused.
+# Fixed via gate_lib.gate_outside_quotes, the shared quote-span primitive.
+run allow bash-quoted-redirect-in-grep  Bash '{"command":"grep -n \"A > B\" '$BOARD'/x.md"}'
+# negative-space sibling: a real, unquoted `>` into the board must still deny.
+run deny  bash-real-redirect-then-quote Bash '{"command":"echo hi > '$BOARD'/x.md"}'
+# warrant-hunt sibling of bash-escaped-quote-then-write, targeting
+# FILE_REDIR instead of the segment splitter: a backslash-escaped quote
+# CHARACTER outside any real shell quote must not open a fake quoted span
+# that swallows the real `>` between two real tokens.
+run deny  bash-escaped-quote-then-redirect Bash '{"command":"ls \\\" > '$BOARD'/x.md #\""}'
+# SUBSHELL deliberately stays quote-blind: command substitution is live
+# inside double quotes in real bash, so this must keep denying — if it
+# ever starts allowing, that is a real security regression.
+run deny  bash-quoted-subshell-write    Bash '{"command":"grep -n \"$(touch '$BOARD'/x.md)\" README.md"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 

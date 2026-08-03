@@ -169,3 +169,23 @@ def gate_bash_write_targets(command):
     pattern to each token.
     """
     return _BASH_WRITE_TARGET_RE.findall(command)
+
+
+GATE_QUOTE_SPAN = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"")
+
+
+def gate_dequote(text):
+    """Blank every quoted span in `text` to a single space.
+
+    Same "substitute with a space" idiom board-gate.sh's own
+    DEVNULL_REDIR.sub(" ", cmdline) already uses. A pattern matched
+    against the result never fires on an occurrence sitting only inside a
+    quoted argument (e.g. a grep search pattern); a real occurrence
+    outside any quote is untouched.
+    """
+    return GATE_QUOTE_SPAN.sub(" ", text)
+
+
+def gate_outside_quotes(text, pattern):
+    """True when `pattern` matches somewhere in `text` outside any quoted span."""
+    return re.search(pattern, gate_dequote(text)) is not None

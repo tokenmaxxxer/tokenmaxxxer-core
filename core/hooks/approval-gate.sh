@@ -59,6 +59,10 @@ command -v python3 >/dev/null 2>&1 || exit 2
 IFS='' read -r -d '' CORE_APPROVAL_GATE <<'PY' || true
 import json, os, posixpath, re, subprocess, sys
 
+import importlib.util
+_spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
+
 DENY = 2
 
 def deny(msg):
@@ -83,28 +87,8 @@ if not isinstance(ti, dict):
 
 READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
                    "diff", "stat", "file", "git", "cd")
-# Quoted-span alternatives first (regex alternation is ordered) so a
-# `>`/`|`/backtick/`$(` inside a quoted string (e.g. `grep -n "a > b" f`)
-# matches as part of the quote, not as a real write-ish character;
-# _writeish below tells the two match kinds apart. (?<!\\) on both quote
-# alternatives: outside any real quote, `\"`/`\'` is a backslash-escaped
-# literal quote CHARACTER, not the start of a quoted region — without the
-# lookbehind a bare quote char there would still open a "quote" match,
-# run to some unrelated later quote char, and swallow a real write-ish
-# character in between as if it were quoted content. Ported from
-# board-gate.sh's SEGMENT (issue-88/PR #89; issue-90).
-WRITEISH = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"|[>|`]|\$\(")
 CODE_RE = re.compile(r"(^|/)(src|test)/")
 ISSUE_RE = re.compile(r"(^|/)docs/(issue-[0-9]+)/(.*)$")
-
-
-def _writeish(cmdline):
-    """True when cmdline has any write-ish character outside a quote."""
-    for m in WRITEISH.finditer(cmdline):
-        if m.group()[:1] in ("'", '"'):
-            continue
-        return True
-    return False
 
 role = os.environ["CLAUDE_ROLE"].strip()
 
@@ -136,7 +120,7 @@ elif tool == "Bash":
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
     head = cmdline.strip().split()[0].rsplit("/", 1)[-1] if cmdline.strip() else ""
-    if head in READ_ONLY_HEADS and not _writeish(cmdline):
+    if head in READ_ONLY_HEADS and not gate_lib.gate_outside_quotes(cmdline, r"[>|`]|\$\("):
         allow()              # reading the tree is phase-agnostic
     for tok in re.findall(r"[\w./~$-]+", cmdline):
         if CODE_RE.search(tok) or ISSUE_RE.search(tok):

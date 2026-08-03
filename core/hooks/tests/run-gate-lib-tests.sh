@@ -152,6 +152,46 @@ got=$([ "$sh_tokens" = "$py_tokens" ] && echo same || echo different)
 report same "$got" \
   "gate-lib.py: gate_bash_write_targets returns the same token set as gate-lib.sh"
 
+# --- group: gate_dequote / gate_outside_quotes (issue-94) -----------------
+mark dequote
+dequote() { # <want:absent|present> <needle> <command-arg> <name>
+  out="$(python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('gate_lib', '$LIBPY')
+gl = importlib.util.module_from_spec(spec); spec.loader.exec_module(gl)
+print(gl.gate_dequote('''$3'''))
+")"
+  case "$out" in
+    *"$2"*) got=present ;;
+    *)      got=absent ;;
+  esac
+  report "$1" "$got" "$4"
+}
+dequote absent  '>' 'grep -n "A > B" x.md' \
+  "gate_dequote: quoted > is absent from output"
+dequote present 'grep -n' 'grep -n "A > B" x.md' \
+  "gate_dequote: unquoted grep -n survives"
+dequote present 'x.md' 'grep -n "A > B" x.md' \
+  "gate_dequote: unquoted x.md survives"
+dequote absent  'gh pr merge' 'grep -n "gh pr merge" spawn.py' \
+  "gate_dequote: quoted 'gh pr merge' phrase is absent from output"
+dequote present '>' 'echo hi > x.md' \
+  "gate_dequote: unquoted > outside any quote survives unchanged"
+
+outquotes() { # <want:True|False> <pattern> <command-arg> <name>
+  got="$(python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('gate_lib', '$LIBPY')
+gl = importlib.util.module_from_spec(spec); spec.loader.exec_module(gl)
+print(gl.gate_outside_quotes('''$3''', r'$2'))
+")"
+  report "$1" "$got" "$4"
+}
+outquotes True  '>' 'echo hi > x.md' \
+  "gate_outside_quotes: real unquoted occurrence -> True"
+outquotes False '>' 'grep -n "a > b" x.md' \
+  "gate_outside_quotes: only-quoted occurrence -> False"
+
 # --- record-fields-gate.sh end-to-end: the confirmed core bug, fixed ----
 mark record-fields-gate-e2e
 rf() { # <want> <name> <role> <file_path> <content-json>
