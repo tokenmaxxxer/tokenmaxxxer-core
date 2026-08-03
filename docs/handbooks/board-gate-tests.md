@@ -60,3 +60,24 @@ sits on the same line); its negative-space sibling
 `bash-unresolved-head-real-write` proves a real write inside the failing
 segment itself still denies — the scoping narrows *where* candidates are
 hunted for, not *whether* a real write in scope is caught.
+
+Also covers `FILE_REDIR` quote-awareness (issue-94): `FILE_REDIR` used to
+run `.search()` on raw segment text, so a `>` sitting INSIDE a quoted
+string (e.g. `grep -n "A > B" docs/x.md`, a pure read) was misread as a
+write candidate and refused. Fixed by routing it through the shared
+`gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern)` primitive
+(`core/hooks/lib/gate-lib.py`), which strips quoted spans before matching.
+`SUBSHELL` deliberately stays quote-blind — command substitution
+(backtick / `$(`) is live even inside double quotes in real bash, so
+making it quote-aware would newly ALLOW a real write like
+`grep -n "$(touch docs/x.md)" README.md`. Four cases pin this:
+`bash-quoted-redirect-in-grep` (the issue's exact repro: a quoted `>` in a
+grep pattern must not be misread as a write); its negative-space sibling
+`bash-real-redirect-then-quote` (a real, unquoted `>` into the board must
+still deny); `bash-escaped-quote-then-redirect`, a warrant-hunt sibling of
+`bash-escaped-quote-then-write` targeting `FILE_REDIR` instead of the
+segment splitter (a backslash-escaped quote CHARACTER outside any real
+shell quote must not open a fake quoted span that swallows the real `>`
+between two real tokens); and `bash-quoted-subshell-write`, proving
+`SUBSHELL` correctly stays quote-blind and keeps denying a real write
+smuggled through command substitution inside double quotes.

@@ -53,6 +53,22 @@ on the same line still denies. `bash-escaped-quote-then-write` ports
 CHARACTER outside any real shell quote must not open a fake quoted span
 that swallows the real `>` between two real tokens.
 
+The quote-aware `WRITEISH`/`_writeish` mechanism described in the two
+paragraphs above has since been relocated out of `approval-gate.sh` into
+the shared `gate_lib.gate_dequote`/`gate_outside_quotes` primitive
+(`core/hooks/lib/gate-lib.py`), the same primitive `board-gate.sh` uses
+(issue-94; see
+`docs/issue-94/proposals/2026-08-03-quote-aware-board-gate-writeish-and-segment-gh-guard.md`).
+The call site now reads
+``gate_lib.gate_outside_quotes(cmdline, r"[>|`]|\$\(")`` instead of the
+former `_writeish(cmdline)`. Observable behavior is unchanged — same
+quote-span-then-match algorithm, just centralized — so no new test cases
+were added; the existing `bash-quoted-redirect-in-grep`,
+`bash-single-quoted-pipe-grep`, `bash-quoted-redirect-then-real-pipe`,
+`bash-escaped-quote-then-write`, `bash-cd-then-read-own-reports`, and
+`bash-cd-then-write-src` cases already pin the behavior above and
+continue to cover it.
+
 Test-authoring note: this harness's `run()` builds the `Bash` tool's JSON
 `tinput` from a `cmd=` option via a plain `printf '%s'` substitution with
 no JSON-escaping. A `cmd=` value carrying a literal `"` must pre-escape it
