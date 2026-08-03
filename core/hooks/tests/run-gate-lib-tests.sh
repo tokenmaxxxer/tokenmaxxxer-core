@@ -192,6 +192,73 @@ outquotes True  '>' 'echo hi > x.md' \
 outquotes False '>' 'grep -n "a > b" x.md' \
   "gate_outside_quotes: only-quoted occurrence -> False"
 
+# --- group: gate_head_of/TRANSPARENT (relocated from board-gate.sh) and
+# gate_wrapper_head_before (issue-98) ---------------------------------------
+mark wrapper-head
+headof() { # <want-head> <segment> <name>
+  got="$(python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('gate_lib', '$LIBPY')
+gl = importlib.util.module_from_spec(spec); spec.loader.exec_module(gl)
+print(gl.gate_head_of('''$2'''))
+")"
+  report "$1" "$got" "$3"
+}
+headof bash 'bash -c "gh pr merge 5"' \
+  "gate_head_of: bash -c resolves to bash"
+headof grep 'xargs grep -l APPROVE' \
+  "gate_head_of: xargs resolves through to grep (board-gate parity)"
+headof rm   'xargs -I{} rm -rf x' \
+  "gate_head_of: xargs -I{} resolves through to rm (board-gate parity)"
+headof bash 'timeout 30 bash -c x' \
+  "gate_head_of: timeout's own bare DURATION arg is skipped, not mistaken for the head"
+headof bash 'nohup bash -c x' \
+  "gate_head_of: nohup resolves through to bash"
+
+wrapperhead() { # <want:head-or-empty> <cmdline> <needle> <name>
+  got="$(python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('gate_lib', '$LIBPY')
+gl = importlib.util.module_from_spec(spec); spec.loader.exec_module(gl)
+cmd = '''$2'''
+for m in gl.GATE_QUOTE_SPAN.finditer(cmd):
+    if '$3' in m.group():
+        print(repr(gl.gate_wrapper_head_before(cmd, m.start())))
+        break
+else:
+    print('<no-quoted-span-found>')
+")"
+  report "'$1'" "$got" "$4"
+}
+wrapperhead bash 'bash -c "gh pr merge 5"' 'gh pr merge' \
+  "gate_wrapper_head_before: bash -c \"...\" -> bash"
+wrapperhead bash 'bash -lc "gh pr merge 7 --merge"' 'gh pr merge' \
+  "gate_wrapper_head_before: bash -lc \"...\" (combined short flag) -> bash"
+wrapperhead bash 'timeout 30 bash -c "gh pr merge 7 --merge"' 'gh pr merge' \
+  "gate_wrapper_head_before: timeout 30 bash -c \"...\" -> bash (sees through timeout's own bare arg)"
+wrapperhead bash 'env bash -c "gh pr merge 7 --merge"' 'gh pr merge' \
+  "gate_wrapper_head_before: env bash -c \"...\" -> bash"
+wrapperhead bash 'xargs -I{} bash -c "gh pr merge 7 --merge"' 'gh pr merge' \
+  "gate_wrapper_head_before: xargs -I{} bash -c \"...\" -> bash"
+wrapperhead bash 'nohup bash -c "gh pr merge 7 --merge"' 'gh pr merge' \
+  "gate_wrapper_head_before: nohup bash -c \"...\" -> bash"
+wrapperhead sh 'sh -c "gh pr merge 5"' 'gh pr merge' \
+  "gate_wrapper_head_before: sh -c \"...\" -> sh"
+wrapperhead eval 'eval "gh pr merge 5"' 'gh pr merge' \
+  "gate_wrapper_head_before: eval \"...\" -> eval (no -c flag needed)"
+wrapperhead '' 'grep "gh pr merge" file.txt' 'gh pr merge' \
+  "gate_wrapper_head_before: quoted grep pattern (no wrapper head) -> empty"
+wrapperhead '' 'bash "script.sh with gh pr merge inside"' 'gh pr merge' \
+  "gate_wrapper_head_before: bash \"path\" with no -c reads a file, not code -> empty"
+# hunt-confirmed (docs/issue-98/reports/implementation.md, Hunt): a
+# TRANSPARENT wrapper's own value-taking flag (nice -n N, timeout -s SIG)
+# used to defeat resolution by landing on the flag's value token instead
+# of the real wrapper head.
+wrapperhead bash 'timeout -s KILL 30 bash -c "gh pr merge 5"' 'gh pr merge' \
+  "gate_wrapper_head_before: timeout -s KILL 30 (value-taking flag before the bare DURATION) -> bash"
+wrapperhead bash 'nice -n 10 bash -c "gh pr merge 5"' 'gh pr merge' \
+  "gate_wrapper_head_before: nice -n 10 (value-taking flag) -> bash"
+
 # --- record-fields-gate.sh end-to-end: the confirmed core bug, fixed ----
 mark record-fields-gate-e2e
 rf() { # <want> <name> <role> <file_path> <content-json>

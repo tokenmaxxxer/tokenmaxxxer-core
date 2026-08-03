@@ -125,11 +125,27 @@ RULES = [
      False),
 ]
 
+def _deny_for(why):
+    deny("refused for role session '%s': %s. (two-account model, "
+         "contract v3 s8)" % (role, why))
+
 dq = gate_lib.gate_dequote(cmd)
 for pat, why, dequote in RULES:
     if re.search(pat, dq if dequote else cmd):
-        deny("refused for role session '%s': %s. (two-account model, "
-             "contract v3 s8)" % (role, why))
+        _deny_for(why)
+    # issue-98: `bash -c`/`sh -c`/`eval`/`python3 -c`-style wrappers put
+    # the denied text inside a quoted argument that is EXECUTED, not
+    # inert data -- gate_dequote blanks it same as a real grep pattern
+    # would be blanked, so the check above alone lets the wrapped verb
+    # through. Only reached for the three dequote=True rules, and only
+    # when the raw (unquoted-aware) command also carries the pattern, so
+    # a quoted-only mention with no wrapper head (e.g. a plain grep) is
+    # still unaffected.
+    if dequote and re.search(pat, cmd):
+        for span in gate_lib.GATE_QUOTE_SPAN.finditer(cmd):
+            if re.search(pat, span.group()) and \
+               gate_lib.gate_wrapper_head_before(cmd, span.start()):
+                _deny_for(why)
 
 allow()
 PY

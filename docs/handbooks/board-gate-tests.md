@@ -81,3 +81,43 @@ shell quote must not open a fake quoted span that swallows the real `>`
 between two real tokens); and `bash-quoted-subshell-write`, proving
 `SUBSHELL` correctly stays quote-blind and keeps denying a real write
 smuggled through command substitution inside double quotes.
+
+Also covers issue-98's two requirements against `board-gate.sh`
+specifically (the wrapper-head class fix itself lives in
+`gh-guard.sh`/`gate-lib.py`; see `gh-guard-tests.md`). First, the issue's
+own open question about whether a wrapper-headed write (`bash -c "echo hi
+> docs/x"`, `timeout 30 bash -c "..."`, `nohup bash -c "..."`) bypasses
+`FILE_REDIR` the same way it bypasses `gh-guard.sh`'s dequoted rules:
+confirmed NOT a hole. `gate_outside_quotes(seg, FILE_REDIR.pattern)` does
+miss the dequoted `>`, but `gate_lib.gate_head_of` then resolves the
+segment's head to `bash`/`timeout`/`nohup` — none in `READ_ONLY_HEADS` or
+`READ_UNLESS_INPLACE` — so the segment fails closed via the same
+fall-through every other unrecognized head already takes.
+`bash-wrapper-bash-c-foreign`, `bash-wrapper-timeout-foreign`,
+`bash-wrapper-nohup-foreign` pin this as a regression guard on behavior
+that was already correct before this issue; `bash-wrapper-own-record`
+confirms a wrapped write to the role's OWN record still allows (not
+evidence of a hole either way).
+
+Second, a real, independent gap: `READ_UNLESS_INPLACE`'s `awk`/`sed`
+heads read by default and only checked `-i`/`--in-place` for a write
+signal, missing each language's OWN write mechanism. `awk`'s `print >
+"file"` redirect syntax writes with no `-i` involved at all — fixed by
+checking the raw (not `gate_outside_quotes`) `FILE_REDIR` pattern for
+`awk`/`gawk` segments, since awk's own quoted program argument is not
+inert data here (the same reasoning issue-98's Finding 1 turns on for
+`bash -c`). `sed`'s file-write mechanism is the literal `w`/`W` command
+(as its own command, or an `s///...w file` trailing flag), not `>` —
+fixed by a new `SED_WRITE_CMD` pattern scoped to a `w`/`W` word boundary
+followed by whitespace-then-a-filename-char, so an ordinary word starting
+with w (`with`, `while`, ...) never matches. `awk-quoted-redirect-foreign`
+and `sed-w-cmd-foreign` pin both fixes as `deny` on a foreign-record path
+(the issue's own repro shapes); `sed-plain-read-foreign` pins a plain
+`sed -n` read still `allow`. `gap-awk-comparison-over-block` pins a named,
+accepted residual: `awk '$1 > 5 {print}' ...` uses a bare `>` as a
+NUMERIC COMPARISON, not a redirect — indistinguishable from a real
+redirect without a real awk parser (this file's own established
+convention already accepts over-blocking as the safe direction for
+exactly this kind of ambiguity) — so it now denies too, kept visible as a
+`gap-*` case rather than silently accepted, mirroring `gap-c-*`/`gap-f-*`
+in `gh-guard-tests.md`.

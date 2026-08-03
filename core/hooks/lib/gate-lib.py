@@ -189,3 +189,119 @@ def gate_dequote(text):
 def gate_outside_quotes(text, pattern):
     """True when `pattern` matches somewhere in `text` outside any quoted span."""
     return re.search(pattern, gate_dequote(text)) is not None
+
+
+TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin",
+               "timeout", "nohup")
+# `timeout` (unlike the rest of TRANSPARENT) always takes one bare
+# positional DURATION argument of its own before the wrapped command --
+# `timeout 30 cmd`, no flag -- so resolving through it needs one extra
+# word skipped beyond its own flags to reach the command it actually runs.
+TRANSPARENT_TAKES_ARG = ("timeout",)
+
+
+def _resolve_transparent(segment):
+    """Walk `segment`'s words through TRANSPARENT.
+
+    Returns (head, trailing_words): the first word that is not itself a
+    pass-through wrapper, and the words (unfiltered, in original order)
+    that follow it in `segment` -- e.g. for "env bash -c ", head is
+    "bash" and trailing_words is ["-c"]. Flags/VAR=value words belonging
+    to a TRANSPARENT wrapper are skipped one hop at a time (stopping at
+    the first surviving word) rather than filtered from the whole
+    remainder in one pass, so a flag that belongs to the REAL command
+    (e.g. bash's own `-c` in `timeout 30 bash -c "..."`) is preserved in
+    trailing_words instead of being swept away as if it were the
+    wrapper's own flag.
+    """
+    words = segment.split()
+    while words:
+        w = words[0].rsplit("/", 1)[-1]
+        if w not in TRANSPARENT:
+            return w, words[1:]
+        skip_extra = w in TRANSPARENT_TAKES_ARG
+        i = 1
+        while i < len(words):
+            tok = words[i]
+            if tok.startswith("-") or "=" in tok.split("/")[0]:
+                i += 1
+                continue
+            if skip_extra:
+                skip_extra = False
+                i += 1
+                continue
+            break
+        words = words[i:]
+    return "", []
+
+
+def gate_head_of(segment):
+    """The command a pipeline stage will actually run, or "" if unknowable.
+
+    Relocated from board-gate.sh's own `_head_of` (issue-98), so both
+    board-gate.sh and gh-guard.sh resolve pass-through wrappers through
+    the same primitive instead of growing a second, independent copy.
+    """
+    return _resolve_transparent(segment)[0]
+
+
+WRAPPER_HEADS = ("bash", "sh", "dash", "ksh", "zsh", "eval",
+                 "python", "python3", "python2", "perl")
+
+_SEPARATOR_RE = re.compile(r"\|\||&&|[|;\n]")
+_WRAPPER_C_FLAG_RE = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+# perl's own code-argument flag is `-e`, not `-c` (`-c` means "check syntax,
+# don't run" for perl) -- every other WRAPPER_HEADS member uses `-c`.
+_PERL_E_FLAG_RE = re.compile(r"^-[A-Za-z]*e[A-Za-z]*$")
+
+
+def gate_wrapper_head_before(cmdline, span_start):
+    """Is the quoted span starting at `span_start` a shell/interpreter
+    wrapper's code argument -- about to be EXECUTED, not inert data?
+
+    Walks backward from `span_start` to the previous top-level separator
+    (`;`, `|`, `&&`, `||`, newline, or start-of-string -- all outside any
+    quoted span; found by blanking quoted spans in the text before
+    `span_start` to a same-length run of spaces first, so positions stay
+    aligned with `cmdline`), then scans the words of that local text
+    DIRECTLY for the rightmost (closest-to-the-quote) WRAPPER_HEADS word
+    -- deliberately not via gate_head_of's TRANSPARENT hop-by-hop walk,
+    which assumes every `-`-prefixed token is a self-contained flag: a
+    wrapper reached through a TRANSPARENT prefix whose OWN flag takes a
+    separate value token (`nice -n 10 bash -c "..."`, `env -u FOO bash -c
+    "..."`, `timeout -s KILL 30 bash -c "..."`, `xargs -I fmt bash -c
+    "..."`) would otherwise misresolve the head to that value token
+    instead of the real wrapper -- a fail-OPEN outcome here (unlike
+    board-gate.sh's fail-closed-on-unrecognized-head default), so this
+    scan intentionally does not depend on correctly walking past every
+    wrapper's own flag grammar. Returns that head only when its quoted
+    argument is unambiguously code: `eval` always executes with no flag
+    needed; `perl` needs `-e`-shaped (its actual code flag; `-c` means
+    "check syntax, don't run" for perl); every other wrapper head needs a
+    `-c`-shaped flag (exactly `-c`, or a combined short-flag token
+    containing `c`, e.g. `-lc`/`-ic`) between the head and the quote.
+    Returns "" otherwise -- including a bare `bash "script.sh"` with no
+    `-c`, which reads a script FILE rather than executing the quoted text
+    as code, and a WRAPPER_HEADS word appearing only as a `find -exec`-
+    style unrelated argument with no code-flag following it.
+    """
+    masked = GATE_QUOTE_SPAN.sub(lambda m: " " * len(m.group()),
+                                  cmdline[:span_start])
+    sep_end = 0
+    for m in _SEPARATOR_RE.finditer(masked):
+        sep_end = m.end()
+    words = cmdline[sep_end:span_start].split()
+    head, head_idx = "", -1
+    for i, w in enumerate(words):
+        base = w.rsplit("/", 1)[-1]
+        if base in WRAPPER_HEADS:
+            head, head_idx = base, i
+    if not head:
+        return ""
+    if head == "eval":
+        return head
+    tail = words[head_idx + 1:]
+    flag_re = _PERL_E_FLAG_RE if head == "perl" else _WRAPPER_C_FLAG_RE
+    if any(flag_re.match(t) for t in tail):
+        return head
+    return ""
