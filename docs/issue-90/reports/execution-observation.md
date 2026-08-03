@@ -8,7 +8,7 @@ observed_commits:
   - c66aecc1d1efe16f5a79901bb146f382c07996f4
   - d52d1e68c15dc8711ee0834520d643059942404d
 observed_record: docs/issue-90/reports/implementation.md
-loop_state: observing
+loop_state: landed
 upstream:
   - path: docs/issue-90/proposals/2026-08-03-observe-issue-90-implementation-execution.md
     sha: 6842c5f
@@ -423,12 +423,14 @@ the heading.
 
 ## Next steps
 
-- Commit this record on `issue-90/execution-observation` and push it to
-  PR #92 — it is this role's sole phase-2 artifact.
-- Flip `loop_state` to `landed` once that push lands.
-- Findings 1 and 2 then wait on the human's judgment on PR #92. This role
-  neither fixes them (it never edits the observed artifact) nor files an
-  issue for them (issues are user-authored under contract v3).
+Observation complete; `loop_state: landed`. This record is committed on
+`issue-90/execution-observation` and carried by PR #92, which is this
+role's sole phase-2 artifact. Findings 1 and 2 now wait on the human's
+judgment on PR #92 — this role neither fixes them (it never edits the
+observed artifact) nor files an issue for them (issues are user-authored
+under contract v3). Issue #90's plan step 2 is thereby exhausted; the
+human closes the issue, as they said they would at
+https://github.com/tokenmaxxxer/tokenmaxxxer-core/issues/90#issuecomment-5161476238.
 
 ## Resolution path
 
