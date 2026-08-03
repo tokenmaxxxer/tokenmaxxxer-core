@@ -6,7 +6,8 @@
 # freelunch-NEVER violations:
 #   sync_agent_dispatch — Agent/Task called with run_in_background: false
 #   non_sonnet_worker   — Agent/Task not on Sonnet (no model: sonnet, and not
-#                         subagent_type: freelunch-worker with model unset)
+#                         subagent_type: freelunch-worker or
+#                         freelunch:freelunch-worker with model unset)
 # Default mode is observe-only (always allows). With FREELUNCH_ENFORCE=1 a
 # flagged call is DENIED with a corrective reason; the logged row records
 # "enforced": true. Denial converts the dispatch, it never loses work: a
@@ -68,7 +69,12 @@ if tool in ("Agent", "Task"):
     # "sonnet", "claude-sonnet-5", "us.anthropic.claude-sonnet-…" are all the pin;
     # exact-matching "sonnet" logged legitimate dispatches as violations, which
     # quietly corrupts the record the stack uses to judge its own policies.
-    if "sonnet" not in model and not (model == "" and agent_type == "freelunch-worker"):
+    # Same reasoning applies to agent_type: the harness registers this agent
+    # under the plugin-namespaced "freelunch:freelunch-worker", but nothing
+    # guarantees every context injects that prefix, so both the qualified and
+    # legitimate unqualified spellings are recognized — exact-matching only
+    # one form mis-flagged the other as non_sonnet_worker.
+    if "sonnet" not in model and not (model == "" and agent_type in ("freelunch-worker", "freelunch:freelunch-worker")):
         row["violations"].append("non_sonnet_worker")
 else:  # Workflow
     row["script_chars"] = len(inp.get("script", "") or "")
@@ -103,7 +109,7 @@ REASONS = {
         "freelunch: every worker runs on Sonnet (measured: an identical 12-worker "
         "fan-out took 78s on Haiku vs 21s on Sonnet; per-request latency dominates). "
         "Re-issue the SAME call with model: sonnet, or with subagent_type: "
-        "freelunch-worker and no model override. Any agent type is fine as long as "
+        "freelunch:freelunch-worker and no model override. Any agent type is fine as long as "
         "the model is Sonnet."
     ),
 }
