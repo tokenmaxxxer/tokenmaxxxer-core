@@ -53,6 +53,37 @@ Functions, one per defect class from the issue's background:
   trick, so a pattern like a `gh pr merge` phrase or a redirect character
   sitting only inside a quoted argument (e.g. a `grep` search pattern)
   never falsely fires.
+- `TRANSPARENT` / `gate_head_of(segment)` (Python, issue-98) — relocated
+  from `board-gate.sh`'s own `_head_of`: resolves a pipeline segment
+  through pass-through wrappers (`xargs`, `env`, `time`, `nice`,
+  `command`, `builtin`, plus `timeout`/`nohup` added in this move) to the
+  command it actually runs. `timeout`'s own bare positional DURATION
+  argument (`timeout 30 cmd`, no flag) is skipped one hop at a time
+  rather than filtered from the whole remainder in one pass, so a flag
+  belonging to the REAL command (not the wrapper) is never mistaken for
+  the wrapper's own and swept away.
+- `WRAPPER_HEADS` / `gate_wrapper_head_before(cmdline, span_start)`
+  (Python, issue-98) — `gate_dequote` blanks a quoted span to inert data,
+  but `bash -c`/`sh -c`/`eval`/`python3 -c` (and the same family through
+  `timeout`/`env`/`xargs`/`nohup`) **execute** that data. Given the start
+  position of a quoted span, walks back to the previous top-level
+  separator outside any quote, then scans that local text's words
+  DIRECTLY for the rightmost `WRAPPER_HEADS` word (`bash`/`sh`/`dash`/
+  `ksh`/`zsh`/`eval`/`python`/`python3`/`python2`/`perl`) — deliberately
+  NOT via `gate_head_of`'s TRANSPARENT hop-by-hop walk, which assumes
+  every `-`-prefixed token is a self-contained flag and so misresolves a
+  wrapper reached through a TRANSPARENT prefix whose OWN flag takes a
+  separate value token (`nice -n 10 bash -c "..."`, `timeout -s KILL 30
+  bash -c "..."`; found by a hunt pass, `docs/issue-98/reports/
+  implementation.md`). Returns the found head only when its quoted
+  argument is unambiguously code — `eval` always executes with no flag
+  needed; `perl` needs an `-e`-shaped flag (its real code-argument flag;
+  `-c` means "check syntax, don't run" for perl); any other wrapper head
+  needs a `-c`-shaped flag (`-c`, or a combined short-flag token
+  containing `c`, e.g. `-lc`) between the head and the quote. A gate that
+  needs to know "is this quoted text about to run as a command" (not
+  merely "is this quoted text real data") calls this per matched quoted
+  span; see `gh-guard.sh`'s three dequoted verb rules for the pattern.
 
 ## The two bugs this issue fixed in core's own canon
 

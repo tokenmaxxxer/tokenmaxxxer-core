@@ -63,3 +63,56 @@ positive path. This residual false-positive class — a quoted mention of a
 raw-API path tripping one of the eight unchanged rules — is tracked by
 `gap-f-api-merge-in-quote-still-fires`, kept visible rather than silently
 dropped, same convention as `gap-c-*`/`gap-d-*`.
+
+As of issue #98, the same three dequoted rules also close the class of
+bypass issue-94's own execution-observation (Finding 1) confirmed live:
+`bash -c`/`sh -c`/`eval`/`python3 -c`, including through `timeout`/`env`/
+`xargs`/`nohup`, DEQUOTE blanks their quoted argument to inert data the
+same way it blanks a `grep` pattern, but that argument is not data — it
+is EXECUTED. `bash -c "gh pr merge 5"` denied before #94's dequote fix
+and silently started allowing after it; this class fix restores the
+denial without reopening #94's own negative space. The fix (`gate_lib.
+gate_wrapper_head_before`, `docs/handbooks/gate-house-standard.md`) is a
+per-quoted-span check: when a dequoted rule's pattern misses `dq` but
+matches raw `cmd`, every quoted span whose own raw text also matches the
+pattern is checked for a wrapper head immediately before it; a non-empty
+wrapper head still denies. `wrapper-bash-c`, `wrapper-bash-lc`,
+`wrapper-timeout-bash-c`, `wrapper-env-bash-c`, `wrapper-xargs-bash-c`,
+`wrapper-nohup-bash-c`, `wrapper-python3-c`, `wrapper-sh-c`, and
+`wrapper-eval` cover the issue's own named variants (one case per
+variant, spread across all three dequoted rules — merge, review
+--approve, issue create — not all merge), each denying on a real payload
+inside the wrapper's quoted argument. The three pre-existing `quote-*`
+cases (`quote-gh-pr-merge-in-grep`, etc.) are re-asserted `allow`
+unchanged by the same suite run, confirming the new check adds a
+detection path gated on a wrapper head rather than undoing #94's
+dequoting for non-wrapper heads (a plain `grep` resolves to head `grep`,
+not a `WRAPPER_HEADS` member, so `gate_wrapper_head_before` returns
+empty). `wrapper-bash-c-plain-grep` (`bash -c "grep -n 'gh pr merge'
+x.py"`, a real wrapper invocation nesting a legitimate grep) is a named,
+accepted over-block residual: the per-span resolver denies on the
+wrapper head firing, whatever the wrapper's own quoted argument actually
+contains — recursing into it to tell a real payload from a nested
+data-only lookup is a real extension point, not built here (proposal
+Rationale, `docs/issue-98/proposals/2026-08-03-wrapper-head-class-fix-
+for-dequote-bypass.md`) — kept visible rather than silently accepted,
+same convention as `gap-c-*`/`gap-f-*`.
+
+A hunt pass (`docs/issue-98/reports/implementation.md`, `## Hunt`) found
+that the first version of `gate_wrapper_head_before` resolved the local
+head via `gate_head_of`'s TRANSPARENT hop-by-hop walk, which assumes
+every `-`-prefixed token is a self-contained flag — so a TRANSPARENT
+wrapper's OWN value-taking flag (`nice -n 10`, `env -u FOO`, `timeout -s
+KILL 30`, `xargs -I fmt` with a space instead of `xargs -I{}`) landed the
+resolved "head" on the flag's VALUE token instead of the real wrapper,
+silently allowing the wrapped verb through — a fail-OPEN outcome, unlike
+`board-gate.sh`'s fail-closed-on-unrecognized-head default that absorbs
+the same imprecision harmlessly. Fixed by having `gate_wrapper_head_before`
+scan the local segment's words DIRECTLY for the rightmost WRAPPER_HEADS
+word instead of depending on that walk — `wrapper-timeout-flag-arg`,
+`wrapper-nice-flag-arg`, `wrapper-env-flag-arg`, `wrapper-xargs-space-flag`
+pin the fix. The same pass also found `perl`'s own code-execution flag is
+`-e`, not `-c` (`-c` means "check syntax, don't run" for perl) — the
+`-c`-shaped-flag-only check missed perl entirely despite `perl` being a
+named `WRAPPER_HEADS` member; fixed with a `perl`-specific `-e`-shaped
+flag check, pinned by `wrapper-perl-e`.
