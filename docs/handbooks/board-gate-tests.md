@@ -46,3 +46,17 @@ commands as if it were quoted content, hiding a write in the second real
 command from the per-segment head check entirely (`_reads_only()` then
 returns `True` and `allow()` skips R1-R5). Fixed with a `(?<!\\)`
 negative lookbehind on both quote alternatives in `SEGMENT`.
+
+Also covers candidate-scan scoping (issue-90): `_reads_only` used to
+collapse per-segment classification down to one `bool`, so when the
+`Bash` candidate builder saw `False` it fell back to scanning the entire
+raw `cmdline` for `docs/`-shaped tokens — sweeping in tokens that sat
+inside a DIFFERENT, already-provably-read-only segment on the same line.
+`_write_candidate_segments(cmdline)` now returns *which* segments could
+not be proven read-only, and the candidate scan runs only over those
+segments' joined text. `bash-unresolved-head-then-read` pins the fix (a
+read-only segment allows even though an unrelated, unresolvable segment
+sits on the same line); its negative-space sibling
+`bash-unresolved-head-real-write` proves a real write inside the failing
+segment itself still denies — the scoping narrows *where* candidates are
+hunted for, not *whether* a real write in scope is caught.
