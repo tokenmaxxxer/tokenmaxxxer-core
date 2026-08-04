@@ -191,9 +191,17 @@ def _git_subcommand(segment):
     preceded only by argument-taking global flags (e.g. `-C <dir>`) this
     function does not special-case, falls through to the normal write scan
     — the safe direction, not a new hole.
+
+    First non-flag word after the resolved head, same skip-leading-flags
+    idiom `_cd_target` uses for the analogous `cd`-argument case. Reads
+    gate_lib.gate_trailing_words (issue-107) instead of re-splitting
+    `segment` itself, so a wrapper prefix (`timeout 30 git log`) doesn't
+    shift which word this scan lands on -- the same resolver
+    gate_head_of already used to decide this segment IS a `git` (issue-114,
+    closing the sibling gap issue-107 left in gate_lib.gate_trailing_words's
+    other caller).
     """
-    words = segment.split()[1:]
-    for w in words:
+    for w in gate_lib.gate_trailing_words(segment):
         if not w.startswith("-"):
             return w
     return ""
