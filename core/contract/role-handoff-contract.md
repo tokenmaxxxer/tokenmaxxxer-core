@@ -836,6 +836,15 @@ Additionally, whenever the role leaves work open, the record must state:
    the role is aware of touching this subject, the intended resolution path
    or who owns resolving it, not just the fact that it is open.
 
+Additionally, whenever the role's record states a confirmed `finding` entry
+(section 2's `finding` kind, any `verdict` other than `Unverifiable`), the
+record must state:
+
+6. **Defect class and other habitats** — (a) which defect class the
+   finding belongs to, and (b) whether that class was checked for
+   elsewhere in the codebase outside the observed scope, recording either
+   the sweep's result or the reason a sweep was not possible.
+
 This is a minimum, not a template — role-specific required fields (section
 2's table) are additional, not replaced by this list. This section pairs
 with section 18 gate B: gate B measures, after a round, whether a
