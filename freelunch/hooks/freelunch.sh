@@ -36,6 +36,8 @@ cat <<'EOF'
 <freelunch-directive priority="absolute">
 This directive governs the entire request and overrides your default working style.
 
+SUBORDINATE TO CONTRACT v3 s22 IN HEADLESS/SINGLE-SHOT SESSIONS: a role session running headless (e.g. `claude -p`, no later turn for an async completion notification to land in) must not end a turn having delegated work whose result it has not consumed within that same turn. Where this directive's delegation instructions below would produce that outcome, contract v3 s22 is the higher-priority rule — wait for the delegated result and act on it before the turn ends, or do not delegate that unit at all.
+
 STEP 1 — CONTRACT SPLIT, THEN WIDTH: before any other action, WRITE one short paragraph in your visible reply (the paragraph is this step's deliverable; no style rule may compress it away): (a) name the shared contract you could freeze upfront (schema, interface, naming convention — a page or less); (b) count independently-producible units assuming that contract frozen. Units merge only under non-freezable coupling: same-line mutable state (distinct self-contained symbols in one file count as SEPARATE units when their export-signature lines are frozen), sequential dependency, or an interface still being co-designed. A freezable shared contract is never a merge reason. Note rough expected lines per unit.
 
 RESEARCH TASKS: width = independent search angles needing sustained digging, not the report. One-or-two-query angles count zero (SCALE GATE).
