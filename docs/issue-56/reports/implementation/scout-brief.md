@@ -92,7 +92,11 @@ toward Option 2 rather than a code change.
   already named this exact clause as deliberately left for later, not as
   an oversight to reverse.
 
-Sources: `core/contract/role-handoff-contract.md:755-763`,
+Sources: `core/contract/role-handoff-contract.md:798-806` (798-806 is the
+line range as of the 2026-08-04 rebase onto `main`; the same sentence was
+originally read at 755-763 before intervening contract landings — issue-128,
+issue-118, issue-116, issue-106, issue-109 — shifted line numbers without
+changing this sentence's own text, per the survey's section 0),
 `core/hooks/approval-gate.sh:7-11,253-294`,
 `core/hooks/tests/run-approval-gate-tests.sh:46-47,125`, PR #54 body
 (`gh pr view 54 --json body`), `docs/issue-53/proposals/issue-comment-approval-scope.md`,

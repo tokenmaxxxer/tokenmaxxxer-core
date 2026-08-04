@@ -32,10 +32,42 @@ and record the choice under `docs/decisions/` per `s21`.
   output of this session; no code or contract edits happen until a human
   Approve opens phase 2.
 - The contract edit stays inside `s19`'s "What the gate blocks,
-  mechanically" bullet (`role-handoff-contract.md:755-763`) — no edit to
-  `s8`, `s10`, or `s19`'s other bullets, which #53 already resolved (`rg -n
-  "never the issue" core/contract/` → 0 hits, confirmed unaffected by this
-  change).
+  mechanically" bullet (`role-handoff-contract.md:798-806` as of the
+  2026-08-04 rebase onto `main`; originally cited at 755-763 before
+  intervening contract landings shifted line numbers without touching this
+  sentence's own text — survey section 0) — no edit to `s8`, `s10`, or
+  `s19`'s other bullets, which #53 already resolved (`rg -n "never the
+  issue" core/contract/` → 0 hits, confirmed unaffected by this change).
+- **Re-grounded against the current contract (survey section 0).** This
+  branch was rebased onto `main` after five contract landings that postdate
+  this proposal's first draft. None require a scope change here, but each
+  is accounted for rather than silently left stale:
+  - `s12` ("Staleness rule," `role-handoff-contract.md:479-485`) gained a
+    same-commit exemption: an `upstream` entry citing a `path` that lands
+    in the same commit as the citing document is written `sha: same-commit`
+    (`s1`, `role-handoff-contract.md:39-46`), not a placeholder. This
+    round's survey, scout-brief, and this proposal again land in one
+    commit; any citation among the three sibling docs follows that rule.
+  - `s13` ("Commit trailer requirement," `role-handoff-contract.md:509-521`)
+    is textually unchanged, but is now additionally mirrored into
+    `core/hooks/directive.sh`'s `SessionStart` heredoc and mechanically
+    enforced by `core/hooks/trailer-gate.sh` (issue-122, landed same day as
+    this rebase) — this proposal's own commit still needs the `Subject:
+    issue-56` trailer, as before, now surfaced from three directions.
+  - `s20` ("Per-role record minimum content," `role-handoff-contract.md:859-862`)
+    gained a sixth item, "Defect class and other habitats," required only
+    when a record states a confirmed `finding` entry. This proposal and its
+    survey/scout-brief record no `finding`-kind entry, so item 6 does not
+    apply here.
+  - `s22` ("Headless execution," `role-handoff-contract.md:945-988`) is a
+    new section binding headless sessions that delegate work without
+    consuming the result before the turn ends. This round's work was done
+    directly, with no outstanding delegation at turn end, so `s22` imposes
+    no constraint on this proposal's own scope.
+  - `s19`'s "human's verdict" bullet gained a near-miss clause (a role must
+    plainly flag an approval-shaped comment that fails the exact-string
+    test). Orthogonal to this issue's no-PR-refusal sentence; noted for
+    completeness only.
 - `core/hooks/approval-gate.sh` gets a header-comment edit only (lines
   7-11) — no change to the executable `python3` heredoc, no change to
   `core/hooks/tests/run-approval-gate-tests.sh`. The chosen option (below)
@@ -51,9 +83,36 @@ and record the choice under `docs/decisions/` per `s21`.
 
 ## Rationale
 
+**The issue-53 deprecation trade-off, stated explicitly.** Issue #53
+("contract+gate: make the issue comment the canonical approval location,"
+closed, merged via PR #54) deprecated — retired, by shipping and testing
+a replacement — the contract's earlier guarantee that a role's
+execution-surface write required a PR already open on the branch. Before
+#53, `s19`/`s8`'s "always attached to the PR under review, never the
+issue" wording made a standing PR structurally necessary for the
+two-account path, and `s19`'s no-PR-refusal sentence (this issue's
+subject) made that necessity explicit for the single-account path too.
+#53 replaced that with a single-account issue-comment path that resolves
+`approved` from the issue alone (`approval-gate.sh`'s `comment_approved`,
+survey section 2) — a valid `APPROVE issue-<n>/<role>` comment now
+authorizes a write with zero PRs on the branch, confirmed by the
+currently-passing `issue-comment-approved-no-pr` test. This proposal
+treats that deprecation as settled, not reopened here (see the rejected
+Option 1 below), and states its trade-off in the contract text itself
+(Clause 1): what is given up is the mechanical guarantee that "a PR must
+exist before any execution-surface write"; what replaces it is two
+controls that already exist for other reasons — the approved proposal's
+own frozen `files:`/scope, and the unconditional per-PR merge review that
+happens regardless of which approval path fired. The trade accepted is
+simplicity and compatibility with the two-PR-per-issue practice (phase
+1's PR merges before phase 2's PR opens), at the cost of a mechanical
+precondition becoming a human-process expectation instead — the same
+trade #53's own design already made; this issue's job is only to make
+the contract's prose say so, not to re-litigate it.
+
 **Chosen: the issue's Option 2 — amend the sentence, state the trade-off.**
 Retire the "enforced rather than customary" claim from both sites the
-survey found (`role-handoff-contract.md:755-763` and
+survey found (`role-handoff-contract.md:798-806` and
 `approval-gate.sh:7-11`), state plainly why (the single-account path
 resolves from the issue alone, with no reference to PR existence; the
 branch's two-PR practice makes a temporary no-PR gap expected, not a
@@ -89,7 +148,7 @@ drift #53 was filed to end, reproduced one clause later.
 
 ## What will be done
 
-- [ ] **Clause 1** — `core/contract/role-handoff-contract.md:755-763`
+- [ ] **Clause 1** — `core/contract/role-handoff-contract.md:798-806`
   ("What the gate blocks, mechanically"): replace the current bullet with:
 
   > - **What the gate blocks, mechanically.** The execution surface is

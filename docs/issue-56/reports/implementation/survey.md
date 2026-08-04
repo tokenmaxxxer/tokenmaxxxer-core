@@ -6,9 +6,83 @@ loop_state: scope-proposed
 
 # Current-state survey — issue #56
 
+## 0. Re-verified against current `main` after rebase (2026-08-04)
+
+This survey and its proposal were first drafted 2026-08-01/02, on a branch
+point (`90a17ad`) that predates a batch of contract landings on `main`
+between then and this rebase (`git log --oneline origin/issue-56/implementation..origin/main
+-- core/contract/role-handoff-contract.md` at rebase time: `6486c4b`
+issue-128, `1b10565` issue-118, `f991220` issue-116, `ce4e81c` issue-106,
+`31db283` issue-109). The branch has now been rebased onto `main`
+(`1cbbabb`) with no conflicts (this issue's docs are additive-only; none of
+the intervening commits touched `docs/issue-56/**`). Re-reading
+`core/contract/role-handoff-contract.md` at the rebased `HEAD` in full
+(`diff` against the pre-rebase copy confirms no local edits, only the
+`git rebase` fast-forward) turns up five places this survey's own citations
+need re-grounding, none of which reopen this issue's substance:
+
+- **The cited `s19` sentence itself did not change.** `git diff
+  <old-merge-base> main -- core/contract/role-handoff-contract.md` shows no
+  edit inside the "What the gate blocks, mechanically" bullet — the exact
+  wording quoted in section 1 below is byte-identical to what this survey
+  first read. What changed is everything *around* it: earlier insertions in
+  sections 1, 9, and 12 pushed the bullet from lines 755-763 down to
+  798-806. Every line-number citation in this survey and the proposal is
+  updated below to match.
+- **Section 12 ("Staleness rule"), `role-handoff-contract.md:479-485`,
+  gained a "Same-commit exemption" paragraph** (issue-128, `6486c4b`):
+  an `upstream` entry recorded as `sha: same-commit` (section 1's own new
+  same-commit rule, `role-handoff-contract.md:39-46`) is exempt from the
+  staleness diff the same way a chain-root `upstream: []` is, "since `path`
+  landed in the same commit as the document citing it." This is directly
+  relevant to *this* round: the survey, scout brief, and proposal land in
+  one commit again, as they did in the first pass — any citation among the
+  three sibling docs by `path` would use the literal `same-commit`, per
+  that rule, never a placeholder.
+- **Section 13 ("Commit trailer requirement"), `role-handoff-contract.md:509-521`,
+  did not change its own wording**, but is now additionally mirrored into
+  `core/hooks/directive.sh`'s printed `SessionStart` heredoc (issue-122,
+  delivered same-day, `8995fe6`): "A commit that stages any docs/issue-<n>/**
+  work must use git commit -m and carry a Subject: issue-<n> trailer naming
+  that issue (contract v3 s13) ... the same requirement trailer-gate.sh
+  already enforces mechanically at commit time." Confirmed by reading
+  `core/hooks/trailer-gate.sh` in full: it denies any staged `docs/issue-<n>/**`
+  commit whose `-m` message lacks a `Subject: issue-<n>` line
+  (`trailer-gate.sh:164-165`). This round's commit(s) still need that
+  trailer, now enforced from three directions instead of one (contract
+  text, injected directive, mechanical gate).
+- **Section 19's "human's verdict" bullet gained a near-miss clause**
+  (`role-handoff-contract.md:801-812` region, issue-116, `f991220`): when an
+  approval check surfaces a comment that is "approval-shaped but fails this
+  test," the role must state that fact plainly once. Does not touch the
+  no-PR-refusal sentence this issue is about; recorded for completeness
+  since it lives in the same section.
+- **Section 20 ("Per-role record minimum content"), `role-handoff-contract.md:859-862`,
+  gained a sixth required item** (issue-118, `1b10565`): "Defect class and
+  other habitats," required only "whenever the role's record states a
+  confirmed `finding` entry (section 2's `finding` kind, any `verdict`
+  other than `Unverifiable`)." This survey and its proposal record no
+  `finding`-kind entry, so item 6 does not apply to this round; recorded
+  for completeness.
+- **Section 22 ("Headless execution: delegation requires same-turn
+  consumption"), `role-handoff-contract.md:945-988`, is an entirely new
+  section** (issue-106, `ce4e81c`) that did not exist when this survey was
+  first drafted. It binds a headless/single-shot session that delegates
+  subagent work without consuming the result before the turn ends. This
+  round's work (rebase + doc rewrite) was performed directly, with no
+  `Agent`/`Task` delegation left uncommitted at turn end, so section 22
+  imposes no additional constraint on this proposal's own scope; recorded
+  for completeness since it is one of the sections that landed underneath
+  this stale PR.
+
+None of the five items above changes this issue's own substance (the s19
+no-PR-refusal sentence and its trade-off) — the re-verification confirms
+the target sentence is unchanged and re-grounds every citation against the
+current file.
+
 ## 1. The stale sentence, located exactly
 
-`core/contract/role-handoff-contract.md:755-763` (section 19, "What the gate
+`core/contract/role-handoff-contract.md:798-806` (section 19, "What the gate
 blocks, mechanically"), current text:
 
 > A role session's writes to that surface are refused while its
@@ -17,7 +91,7 @@ blocks, mechanically"), current text:
 > proposal PR first" enforced rather than customary.
 
 `s19`'s companion bullet directly below, "Later entries are unaffected"
-(`role-handoff-contract.md:764-769`), is unaffected by this issue: it already
+(`role-handoff-contract.md:807-812`), is unaffected by this issue: it already
 scopes to "a later role-entry on a subject whose PR already carries the
 Approve," a different question (re-clearing the gate) from the one this
 issue raises (a PR existing at all).
