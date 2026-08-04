@@ -262,8 +262,12 @@ def _cd_target(stripped):
 
     First non-flag word after `cd` — same skip-leading-flags idiom
     _git_subcommand already uses for the analogous git-subcommand case.
+    Reads gate_lib.gate_trailing_words (issue-107) instead of re-splitting
+    `stripped` itself, so a wrapper prefix (`timeout 30 cd docs/issue-49`)
+    doesn't shift which word this scan lands on -- the same resolver
+    gate_head_of already used to decide this segment IS a `cd`.
     """
-    for w in stripped.split()[1:]:
+    for w in gate_lib.gate_trailing_words(stripped):
         if not w.startswith("-"):
             return w
     return ""

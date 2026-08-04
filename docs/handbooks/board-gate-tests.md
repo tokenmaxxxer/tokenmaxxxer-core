@@ -175,3 +175,24 @@ touch (`cd docs/issue-3/reports && cp /tmp/a review.md` allowing when R5
 would want deny — needs per-command destination-argument extraction, a
 materially larger surface) are both named explicitly out of scope; see
 `docs/issue-99/proposals/2026-08-03-fix-board-gate-dead-fallback-and-cd-write-verb-gap.md`.
+
+Also covers a wrapper-prefixed `cd` argument-extraction gap (issue-107,
+Finding 1 of `docs/issue-99/reports/execution-observation.md`): head
+detection (`gate_lib.gate_head_of`) correctly resolves a wrapped segment
+like `timeout 30 cd docs/issue-49` to `cd` through
+`gate_lib._resolve_transparent`'s wrapper walk, but `_cd_target` used to
+re-split the RAW segment (`stripped.split()[1:]`) instead of reading that
+same walk's own trailing words — an index assumption a wrapper prefix
+invalidates, so it read the wrapper's own argument (`timeout`'s duration,
+or the wrapper word itself for an argument-less wrapper like `command`)
+instead of the real `cd` target. `cd_tail` was then never set, and a
+`docs/`-token-free write after the wrapped `cd` reached `allow()` with no
+rule applied — the same unadjudicated-write class issue-99 was filed to
+close, just reachable through a wrapper prefix issue-99 itself did not
+have to consider. Fixed with a new accessor,
+`gate_lib.gate_trailing_words(segment)` (`_resolve_transparent(segment)[1]`),
+so `_cd_target` reads the same command-start model `gate_head_of` already
+uses instead of a second, independent one. `bash-wrapper-timeout-cd-relative-foreign`
+and `bash-wrapper-command-cd-relative-foreign` pin the fix (`deny`),
+covering both the extra-argument wrapper shape (`timeout`) and an
+argument-less pre-issue-98 wrapper shape (`command`).
