@@ -97,6 +97,17 @@ run_rf allow "record sha: same-commit allowed (issue-128)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n\n## open findings\nnone\n"'
 
+# --- record-fields-gate.sh: sha allow-list red->green (issue-133) ----------
+run_rf deny  "proposal sha: HEAD denied (issue-133)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n"'
+run_rf deny  "proposal sha: TBD denied (issue-133)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: TBD\n"'
+run_rf deny  "proposal sha bracket+trailing-prose denied (issue-133)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit> -- fix later\n"'
+
 # --- handbook-trigger-gate.sh: role-labeled refusal ------------------------
 run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   want="$1"; name="$2"; role="$3"; shift 3

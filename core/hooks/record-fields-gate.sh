@@ -12,11 +12,14 @@ trap __fc EXIT
 #
 # issue-128: a second, independently-scoped check applies to both a role's
 # own record above AND docs/issue-<n>/proposals/*.md (a different artifact
-# kind — a proposal write does not run the five checks above). It denies
-# any `sha:` line whose value is a bracket placeholder (`^<.*>$`, e.g.
-# `<set at commit>`). Per contract §1's same-commit convention, an
-# upstream path landing in the same commit as the citing document is
-# written as the literal `sha: same-commit`, never a placeholder.
+# kind — a proposal write does not run the five checks above). It allows a
+# `sha:` line's value only when it is exactly `same-commit` or exactly a
+# 40-character lowercase hex commit sha (issue-133 — tightened from an
+# earlier bracket-only blacklist that missed unresolved spellings like
+# `HEAD`/`TBD`); every other value is denied. Per contract §1's
+# same-commit convention, an upstream path landing in the same commit as
+# the citing document is written as the literal `sha: same-commit`, never
+# a placeholder.
 #
 # Promoted to core canon (issue-66). The issue-66 survey found this file
 # NOT to be pure role-token substitution like trailer-gate.sh/
@@ -169,13 +172,19 @@ try:
         )
 
     def placeholder_shas(text):
-        return [m.group(1).strip() for m in re.finditer(r'^\s*sha:\s*(<[^\n]*>)\s*$', text, re.M)]
+        bad = []
+        for m in re.finditer(r'^\s*sha:\s*(.*)$', text, re.M):
+            v = m.group(1).strip()
+            if v == "same-commit" or re.match(r'^[0-9a-f]{40}$', v):
+                continue
+            bad.append(v)
+        return bad
 
     def deny_placeholder(bad):
         deny(
-            "sha: %s is a bracket placeholder, not a resolvable value (issue-128). Per contract "
-            "§1's same-commit convention, write `sha: same-commit` when `path` lands in this same "
-            "commit; use the real commit sha once it exists." % bad[0]
+            "sha: %s is not `same-commit` or a 40-character hex commit sha (issue-128/133). Per "
+            "contract §1's same-commit convention, write `sha: same-commit` when `path` lands in "
+            "this same commit; otherwise use the real 40-character commit sha." % bad[0]
         )
 
     if is_proposal and not is_record:
