@@ -10,9 +10,13 @@
 #                         freelunch:freelunch-worker with model unset)
 # Default mode is observe-only (always allows). With FREELUNCH_ENFORCE=1 a
 # flagged call is DENIED with a corrective reason; the logged row records
-# "enforced": true. Denial converts the dispatch, it never loses work: a
-# background dispatch + completion notification is semantically equivalent
-# to waiting synchronously. Kill switch: FREELUNCH_OFF=1 (no log, no deny).
+# "enforced": true. For an interactive session, denial converts the
+# dispatch without losing work: a background dispatch + completion
+# notification is a fine substitute for waiting synchronously there. That
+# substitution is NOT available to a headless/single-shot session bound by
+# contract v3 s22 (no later turn for the notification to land in), so
+# sync_agent_dispatch is never enforced there — see the headless carve-out
+# below. Kill switch: FREELUNCH_OFF=1 (no log, no deny).
 
 # Normalize (lowercase, trim whitespace) before matching so common spelling
 # variants (`False`, `OFF`, trailing/leading whitespace) resolve the same as
@@ -45,11 +49,27 @@ tool = payload.get("tool_name", "")
 if tool not in ("Agent", "Task", "Workflow"):
     sys.exit(0)
 
+# Headless carve-out (contract v3 s22): CLAUDE_CODE_ENTRYPOINT is set by the
+# harness before the session'"'"'s own conversation begins, so it is not a
+# signal a running session could spoof to dodge sync_agent_dispatch at will
+# (warrant-hunt pre-mortem, docs/issue-116 proposal). Empirically confirmed
+# this value is "sdk-cli" for a headless/single-shot invocation; "cli" is
+# the interactive-terminal entrypoint. Anything else (a different SDK
+# entrypoint, "remote", unset, or unrecognized) is treated as
+# non-interactive-or-ambiguous and fails toward NOT denying, per the
+# proposal'"'"'s own floor. tty state was evaluated and rejected as a signal
+# here: this hook'"'"'s own stdout is captured by the harness to parse the
+# permission-decision JSON in every invocation mode, so isatty() on it
+# cannot discriminate interactive from headless for this specific hook.
+entrypoint = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "")
+session_is_interactive = entrypoint == "cli"
+
 inp = payload.get("tool_input") or {}
 row = {
     "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     "session": payload.get("session_id", ""),
     "tool": tool,
+    "session_entrypoint": entrypoint,
     "violations": [],
 }
 if tool in ("Agent", "Task"):
@@ -80,7 +100,15 @@ else:  # Workflow
     row["script_chars"] = len(inp.get("script", "") or "")
     row["named"] = inp.get("name", "")
 
-row["enforced"] = bool(enforce and row["violations"])
+# sync_agent_dispatch is always logged (full audit trail preserved above)
+# but only ever contributes to enforcement in a session the entrypoint
+# signal clearly marks interactive — a headless session obeying contract
+# v3 s22 is never denied for making the one call shape s22 requires.
+# non_sonnet_worker is untouched: it holds in every session type.
+enforceable = list(row["violations"])
+if "sync_agent_dispatch" in enforceable and not session_is_interactive:
+    enforceable.remove("sync_agent_dispatch")
+row["enforced"] = bool(enforce and enforceable)
 
 try:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -101,9 +129,12 @@ except Exception as exc:
 REASONS = {
     "sync_agent_dispatch": (
         "freelunch: synchronous Agent dispatch (run_in_background: false) is "
-        "blocked — a synchronous call is the orchestrator idling. Re-issue the "
-        "SAME Agent call with run_in_background: true; you will be notified on "
-        "completion, which is semantically equivalent to waiting."
+        "blocked in this interactive session — a synchronous call is the "
+        "orchestrator idling. Re-issue the SAME Agent call with "
+        "run_in_background: true; you will be notified on completion. (A "
+        "headless/single-shot session bound by contract v3 s22 is not "
+        "denied by this check: waiting synchronously is the only way such "
+        "a session can consume a delegated result before its turn ends.)"
     ),
     "non_sonnet_worker": (
         "freelunch: every worker runs on Sonnet (measured: an identical 12-worker "
@@ -115,7 +146,7 @@ REASONS = {
 }
 
 if row["enforced"]:
-    reason = " ".join(REASONS[v] for v in row["violations"] if v in REASONS)
+    reason = " ".join(REASONS[v] for v in enforceable if v in REASONS)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

@@ -756,7 +756,17 @@ v2's coding-only scope gate to the whole system.
     approval provenance for the single-account path.
   - Any other comment is feedback on the proposal — revise and push to
     the same PR. A close is refusal. Nothing else — no free-text
-    comment, no reaction, no bot Approve — opens phase 2.
+    comment, no reaction, no bot Approve — opens phase 2. When the
+    comment a role session's own approval check surfaces is itself
+    approval-shaped but fails this test — a near-match on the exact
+    string, or an affirmative-sounding comment, from a listed or
+    unlisted account — the role session must, beyond not treating it as
+    approval, state that fact plainly once (not repeatedly), in its
+    reply or its record: the human learns of the near-miss from the
+    session that actually read the comment, rather than depending
+    solely on an external orchestrator noticing the same event
+    separately. This is complementary to, not a replacement for, any
+    warn duty a spawning orchestrator carries under its own rulebook.
 - **Phase 2 — execute.** Only after the Approve does the role perform its
   actual work (code to `src/`, tests to `test/`, its record and report
   documents) on the same branch, reported through the same PR. Merge of
