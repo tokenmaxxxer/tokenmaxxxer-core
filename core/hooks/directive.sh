@@ -100,6 +100,14 @@ cat <<EOF
   per-issue trees docs/issue-<n>/ holding those same six buckets. Your
   record for a subject is docs/issue-<n>/reports/${role}.md; you write only
   your own record area, never another role's.
+- Headless/single-shot (no later turn for an async completion
+  notification to land in): never end a turn having delegated work — any
+  Agent/Task-style subagent dispatch, backgrounded or not — whose result
+  you have not consumed within that same turn. Wait for it and act on it
+  (through commit, where applicable) before the turn ends, or do not
+  delegate that unit at all. This takes priority over any directive that
+  mandates delegation, including freelunch's priority="absolute"
+  directive (contract v3 s22).
 - The board is what is MERGED to main. An open PR is not yet on the board;
   read other roles' state from main, not from open PRs.
 EOF
