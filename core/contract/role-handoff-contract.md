@@ -282,6 +282,23 @@ identifier is needed in a rulebook (e.g. a local cache key), the naming
 rule is: use the repo's directory name. This holds regardless of whether
 the repo has a remote configured.
 
+**Skill assessment before an issue is filed.** Before an issue is drafted,
+the orchestrator judges per-request whether any of the user's available
+skills apply to that request — a per-task judgment call, not a lookup
+against a fixed skill-to-request mapping. A skill judged applicable is
+invoked through the real `Skill` tool mechanism; reading the skill's file
+as text and paraphrasing it does not satisfy this. The invoked skill's
+procedural demands (required steps, evidence standards, stop conditions,
+output shape) are folded into the drafted issue's requirements and
+acceptance-criteria text — the skill invocation itself produces no
+artifact of its own, so the issue text is the only output that carries
+forward. Role sessions that later work the resulting issue remain
+skill-isolated: no skill is injected into a role session; only the
+issue's own requirements/acceptance-criteria text (already carrying any
+folded-in skill demands) reaches the role. This subsection aligns with
+on-the-record #258 / PR #259, which established the same procedure for
+`on-the-record/commands/run.md` step 1.
+
 ## 10. Where records live: the board is the target repo's `main`
 
 All role output lives inside the target repository — the repository the
