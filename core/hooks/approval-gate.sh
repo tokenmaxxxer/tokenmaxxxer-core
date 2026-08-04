@@ -119,7 +119,7 @@ elif tool == "Bash":
     cmdline = ti.get("command")
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
-    head = cmdline.strip().split()[0].rsplit("/", 1)[-1] if cmdline.strip() else ""
+    head = gate_lib.gate_head_of(cmdline)
     if head in READ_ONLY_HEADS and not gate_lib.gate_outside_quotes(cmdline, r"[>|`]|\$\("):
         allow()              # reading the tree is phase-agnostic
     for tok in re.findall(r"[\w./~$-]+", cmdline):

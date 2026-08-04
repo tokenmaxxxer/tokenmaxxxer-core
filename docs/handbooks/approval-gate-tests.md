@@ -69,6 +69,21 @@ were added; the existing `bash-quoted-redirect-in-grep`,
 `bash-cd-then-write-src` cases already pin the behavior above and
 continue to cover it.
 
+Also covers issue-124's R1 fix (`docs/issue-114/reports/execution-observation.md`
+`## Verdict 4`, R1): the read-only early-allow head check used to compute
+`head` via raw `cmdline.strip().split()[0].rsplit("/", 1)[-1]`, with no
+`TRANSPARENT`-wrapper resolution, so a wrapped read (`timeout 30 grep -rn
+foo src/app.py`) resolved `head` to `"timeout"` — not in `READ_ONLY_HEADS`
+— and missed the shortcut, falling through to the slower candidate scan
+with no PR to authorize it (an over-block, not a hole: the same fail-closed
+direction issue-114 fixed in `board-gate.sh`, in a different gate). Fixed
+by switching the call site to `gate_lib.gate_head_of(cmdline)`, the same
+resolver `board-gate.sh` and `gh-guard.sh` already use, instead of growing
+a second, independent head-resolution path in `approval-gate.sh` itself.
+`bash-wrapper-timeout-grep-read` pins the fix (`allow`); its negative-space
+sibling `bash-wrapper-timeout-write` pins that a same-wrapper write stays
+denied, unchanged before and after the fix.
+
 Test-authoring note: this harness's `run()` builds the `Bash` tool's JSON
 `tinput` from a `cmd=` option via a plain `printf '%s'` substitution with
 no JSON-escaping. A `cmd=` value carrying a literal `"` must pre-escape it
