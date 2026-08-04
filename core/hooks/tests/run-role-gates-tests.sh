@@ -80,6 +80,23 @@ run_rf allow "implementation record code_under_review file list allowed (issue-1
   "docs/issue-3/reports/implementation.md" \
   '"loop_state: landed\n\ncode_under_review: `a.sh`, `b.sh`\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
+# --- record-fields-gate.sh: same-commit sha placeholder check (issue-128) --
+run_rf deny  "proposal sha bracket placeholder denied (issue-128)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n"'
+run_rf allow "proposal sha: same-commit allowed (issue-128)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n"'
+run_rf allow "proposal sha real hex allowed (issue-128)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: 0123456789abcdef0123456789abcdef01234567\n"'
+run_rf deny  "record sha bracket placeholder denied despite complete §20 fields (issue-128)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n\n## open findings\nnone\n"'
+run_rf allow "record sha: same-commit allowed (issue-128)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n\n## open findings\nnone\n"'
+
 # --- handbook-trigger-gate.sh: role-labeled refusal ------------------------
 run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   want="$1"; name="$2"; role="$3"; shift 3
