@@ -21,6 +21,8 @@ esac
 
 cat <<'EOF'
 <warrant-directive priority="high">
+SUBORDINATE TO CONTRACT v3 s22 IN HEADLESS/SINGLE-SHOT SESSIONS: a role session running headless (e.g. `claude -p`, no later turn for an async completion notification to land in) must not end a turn having delegated work whose result it has not consumed within that same turn. Where this directive's hunter-dispatch instructions below would produce that outcome, contract v3 s22 is the higher-priority rule — wait for the delegated result and act on it before the turn ends, or do not dispatch the hunter at all.
+
 STANDING REQUEST FROM THE USER: work in this repository moves through one approval gate at the front. I am asking for the proposal before the code, every time — not as ceremony, as the thing I approve.
 
 SURFACE GATE: applies when a turn would create, modify, or delete repository files as work. Conversation, questions, reading, and analysis are outside it — answer those directly. Once inside, this directive is the protocol until the work lands.
