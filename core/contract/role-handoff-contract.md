@@ -36,6 +36,14 @@ loop_state: <this role's own state-machine position; see section 2's
   `sha` (the commit that introduced the record itself) at write time; there
   is nothing to compare it against, so section 4's staleness rule is
   trivially satisfied for it and never fires against itself.
+- When `path` lands in the same commit as the record or proposal citing it —
+  this repo's phase-1 practice commits the survey, scout brief, and
+  proposal together, so the cited path's own commit sha does not exist yet
+  at write time — `sha:` is written as the literal `same-commit`, never a
+  bracketed placeholder (e.g. `<set at commit>`). A later citation of the
+  same `path`, once that commit exists in history, uses its real resolved
+  sha instead. See section 12's same-commit exemption for how this
+  interacts with the staleness rule.
 - `subject` is the issue number (`issue-<n>`, section 9), copied verbatim by every role
   touching the same piece of work.
 - `loop_state` is this contract's field for that role's internal
@@ -467,6 +475,14 @@ continue. It waits for the user's answer.
 against; it states its own `sha` at write time and the check is trivially
 satisfied — this is not a gap, it is the defined behavior for the first
 record in a chain.
+
+**Same-commit exemption.** An `upstream` entry recorded as `sha:
+same-commit` (section 1) is exempt from this comparison the same way a
+chain-root's `upstream: []` is — `path` landed in the same commit as the
+document citing it, so there is no separate, already-existing commit to
+diff against yet. A role or tool building automated staleness tooling
+around this comparison must special-case the literal `same-commit` value
+alongside the chain-root `[]` case.
 
 **When it fires.** Exactly once per role-entry, at the point the role
 begins acting on a handed-over artifact, before work starts. It does not
