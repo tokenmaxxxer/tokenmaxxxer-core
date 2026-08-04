@@ -6,9 +6,12 @@
 #
 # Deny-only rule: a role session's write to the EXECUTION SURFACE is
 # refused while the role's issue-<n>/<role> subject lacks an Approve
-# signal authored by an account listed in docs/specs/approvers.md —
-# including while no PR exists at all, which is what makes "open the
-# proposal PR first" enforced rather than customary.
+# signal authored by an account listed in docs/specs/approvers.md.
+# Once the single-account signal is a live issue comment, this
+# refusal does not require a PR to be open or to have ever existed —
+# the comment path resolves from the issue alone (below); a role's
+# frozen proposal scope and the unconditional per-PR merge decision
+# bound the work instead (contract v3 s19).
 #
 # The execution surface is src/**, test/**, and everything under the issue
 # tree docs/issue-<n>/ EXCEPT the two phase-1 homes: proposals/** (the
