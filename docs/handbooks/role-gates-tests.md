@@ -26,15 +26,18 @@ sha it would cite does not exist yet when the file is written. See
 `docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md`.
 
 `record-fields-gate.sh` also runs a second, independently-scoped check
-(issue-128) against both a role's own `reports/<role>.md` write and any
-`docs/issue-<n>/proposals/*.md` write (a proposal is a different artifact
-kind, so it does not run the five §20 checks above — only this narrower
-check applies to it): any `sha:` line whose value is a bracket placeholder
-(`^<.*>$`, e.g. `sha: <set at commit>`) is denied. Per contract §1's
+(issue-128, tightened to an allow-list by issue-133) against both a role's
+own `reports/<role>.md` write and any `docs/issue-<n>/proposals/*.md`
+write (a proposal is a different artifact kind, so it does not run the
+five §20 checks above — only this narrower check applies to it): a `sha:`
+line's value is allowed only when it is exactly the literal `same-commit`
+or exactly a 40-character lowercase hex commit sha; every other value —
+a bracket placeholder (`sha: <set at commit>`), a bare unresolved spelling
+(`sha: HEAD`, `sha: TBD`), or a bracket with trailing prose
+(`sha: <set at commit> -- fix later`) — is denied. Per contract §1's
 same-commit convention, an `upstream` entry whose `path` lands in the same
 commit as the citing record or proposal is written as the literal
-`sha: same-commit` instead — a value the check allows through, same as a
-real commit sha.
+`sha: same-commit` instead.
 
 `stub-check.sh` is checked against synthetic rulebook trees: a clean tree
 passes, a reintroduced vendored copy of any of the five canon files (the
