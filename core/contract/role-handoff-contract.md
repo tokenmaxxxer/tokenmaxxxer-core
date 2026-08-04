@@ -889,3 +889,48 @@ doc-classification hook installed on the agents doing the work — the
 pre-work approval gate (section 19) and this placement rule are both
 contract-internal now, not dependent on host tooling the spawned agents do
 not carry.
+
+## 22. Headless execution: delegation requires same-turn consumption
+
+A role session invoked headless/single-shot — `claude -p` and equivalent
+non-interactive invocations, where no human is present to notice an idle
+wait and no later turn exists for an async completion notification to
+land in — must not end its turn having delegated work (any `Agent`/`Task`-
+style subagent dispatch, backgrounded or not) whose result it has not yet
+consumed within that same turn. Delegating and then narrating that the
+turn will wait for a completion notification is the failure this section
+closes: the process exits once its own main loop is idle, the delegated
+worker's output may land on disk with no session left to commit it, and
+the outcome is `failed-no-commit` — not a crash, and not distinguishable
+from success in either dispatched agent's own result record
+(`repo-status-board` issue #29 phase 2 is the incident this section
+answers; `on-the-record` issue #247 is the fuller writeup).
+
+- **The rule.** If delegating, the same turn must wait for the delegated
+  result and act on it — through commit, where a commit is the applicable
+  action — before the turn ends. If a same-turn wait is not possible (the
+  delegated unit cannot report back before the turn's own end), the role
+  must not delegate that unit of work at all; it does the work itself, in
+  the foreground, inside the turn.
+- **Priority over delegation-mandating directives.** This rule takes
+  priority over any directive that recommends or mandates delegation —
+  naming `freelunch`'s `priority="absolute"` directive specifically,
+  since its own text (`freelunch/hooks/freelunch.sh`) instructs
+  unconditional background dispatch whenever a turn needs any repo tool
+  call ("YES → DELEGATED, always ... never `run_in_background: false`"),
+  with no headless-session carve-out. Whenever a role session is running
+  headless/single-shot, this section's same-turn-consumption requirement
+  is the higher-priority rule: a directive that mandates delegation does
+  not authorize ending a turn still waiting on the delegation it caused.
+- **Scope.** This section binds headless/single-shot sessions
+  specifically. An interactive session has a human present who can notice
+  an idle wait and does not exit its process merely because its main loop
+  is idle — this section does not restrict delegation behavior there.
+- **What this does not do.** This section does not prohibit delegation or
+  subagent use outright — only the pattern of delegating and then ending
+  the turn still waiting on the result. It does not alter or replace
+  `on-the-record`'s own after-the-fact safety net (auto-respawn triggered
+  off a `failed-no-commit` verdict, `on-the-record` issue #247/PR #256):
+  that mechanism recovers the outcome after the fact; this section is the
+  prevention half, stopping a role session from producing that outcome in
+  the first place.
