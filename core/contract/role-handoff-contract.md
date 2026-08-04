@@ -799,11 +799,24 @@ v2's coding-only scope gate to the whole system.
   `test/`, and everything under `docs/issue-<n>/` EXCEPT the two phase-1
   homes — `proposals/**` and the role's own research subtree
   `reports/<role>/**`. A role session's writes to that surface are refused
-  while its `issue-<n>/<role>` PR lacks one of the two Approve signals
-  above — including while no PR exists at all, which is what makes "open
-  the proposal PR first" enforced rather than customary. The record file
-  `reports/<role>.md` is on the execution surface: a document-producing
-  role's deliverable waits for the Approve exactly as code does.
+  while its `issue-<n>/<role>` subject lacks one of the two Approve signals
+  above. Once the single-account signal is live as an issue comment, this
+  refusal no longer requires a PR to be open, or to have ever existed at
+  all — the comment path (above) resolves from the issue alone, and the
+  branch's two-PR practice makes "no PR open right now" an expected gap
+  between phase 1's merge and phase 2's PR creation, not a denial (see the
+  two-account path above, and `core/hooks/approval-gate.sh`). This retires
+  an earlier claim that "open the proposal PR first" was mechanically
+  enforced rather than customary; it no longer is, once an Approve signal
+  is live. What still bounds a role's work in that gap is not a PR
+  precondition: it is the approved proposal's own frozen scope (`files:`,
+  "What will be done" / "Out of scope" above) — a role exceeding it is a
+  rulebook violation this gate does not check mechanically — and the
+  unconditional, separate merge decision on whatever PR the work
+  eventually reaches, where a human reviews the actual diff before
+  accepting it. The record file `reports/<role>.md` is on the execution
+  surface: a document-producing role's deliverable waits for the Approve
+  exactly as code does.
 - **Later entries are unaffected.** The precondition binds a role's first
   entry into execution on a subject. A later role-entry on a subject whose
   PR already carries the Approve — a fix for a finding, a qa regression —
