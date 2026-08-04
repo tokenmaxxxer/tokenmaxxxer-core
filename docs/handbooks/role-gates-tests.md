@@ -25,6 +25,17 @@ the record is committed in the same commit as the code it describes, so a
 sha it would cite does not exist yet when the file is written. See
 `docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md`.
 
+`record-fields-gate.sh` also runs a second, independently-scoped check
+(issue-128) against both a role's own `reports/<role>.md` write and any
+`docs/issue-<n>/proposals/*.md` write (a proposal is a different artifact
+kind, so it does not run the five §20 checks above — only this narrower
+check applies to it): any `sha:` line whose value is a bracket placeholder
+(`^<.*>$`, e.g. `sha: <set at commit>`) is denied. Per contract §1's
+same-commit convention, an `upstream` entry whose `path` lands in the same
+commit as the citing record or proposal is written as the literal
+`sha: same-commit` instead — a value the check allows through, same as a
+real commit sha.
+
 `stub-check.sh` is checked against synthetic rulebook trees: a clean tree
 passes, a reintroduced vendored copy of any of the five canon files (the
 three gates, `parse-check.sh`, and `stub-check.sh` itself) is caught, a real

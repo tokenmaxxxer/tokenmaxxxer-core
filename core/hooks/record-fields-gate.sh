@@ -10,6 +10,14 @@ trap __fc EXIT
 # section. Whenever loop_state is non-terminal, additionally require a
 # next-steps section and an open-finding resolution path.
 #
+# issue-128: a second, independently-scoped check applies to both a role's
+# own record above AND docs/issue-<n>/proposals/*.md (a different artifact
+# kind — a proposal write does not run the five checks above). It denies
+# any `sha:` line whose value is a bracket placeholder (`^<.*>$`, e.g.
+# `<set at commit>`). Per contract §1's same-commit convention, an
+# upstream path landing in the same commit as the citing document is
+# written as the literal `sha: same-commit`, never a placeholder.
+#
 # Promoted to core canon (issue-66). The issue-66 survey found this file
 # NOT to be pure role-token substitution like trailer-gate.sh/
 # handbook-trigger-gate.sh: per-rulebook copies had diverged in message
@@ -107,6 +115,7 @@ try:
 
     root = posixpath.normpath(os.environ["RF_ROOT"].replace("\\", "/"))
     RECORDS_RE = re.compile(r'^docs/issue-[0-9]+/reports/%s\.md$' % re.escape(role))
+    PROPOSALS_RE = re.compile(r'^docs/issue-[0-9]+/proposals/.*\.md$')
     TERMINAL = set(os.environ["RF_TERMINAL"].split())
 
     def resolve(p):
@@ -133,8 +142,10 @@ try:
     if not (r.startswith(root + "/")):
         sys.exit(0)
     rel = r[len(root):].lstrip("/")
-    if not RECORDS_RE.match(rel):
-        sys.exit(0)  # not this role's own record — not this gate's business
+    is_record = bool(RECORDS_RE.match(rel))
+    is_proposal = bool(PROPOSALS_RE.match(rel))
+    if not (is_record or is_proposal):
+        sys.exit(0)  # neither this role's own record nor a proposal — not this gate's business
 
     current = None
     if os.path.isfile(r):
@@ -156,6 +167,22 @@ try:
             "from the tool input (tool=%r). Write the full record with Write, or use an "
             "Edit/MultiEdit whose old_string matches, so §20 fields can be checked." % (rel, tool)
         )
+
+    def placeholder_shas(text):
+        return [m.group(1).strip() for m in re.finditer(r'^\s*sha:\s*(<[^\n]*>)\s*$', text, re.M)]
+
+    def deny_placeholder(bad):
+        deny(
+            "sha: %s is a bracket placeholder, not a resolvable value (issue-128). Per contract "
+            "§1's same-commit convention, write `sha: same-commit` when `path` lands in this same "
+            "commit; use the real commit sha once it exists." % bad[0]
+        )
+
+    if is_proposal and not is_record:
+        bad = placeholder_shas(new_text)
+        if bad:
+            deny_placeholder(bad)
+        sys.exit(0)
 
     low = new_text.lower()
 
@@ -183,6 +210,10 @@ try:
             "must state what was done, why, the concrete upstream basis, its own loop_state, "
             "and open findings." % ", ".join(missing)
         )
+
+    bad = placeholder_shas(new_text)
+    if bad:
+        deny_placeholder(bad)
 
     if role in ("coding", "implementation"):
         m_cur = re.search(r'^\s*code_under_review:\s*(.+?)\s*$', new_text, re.M)
