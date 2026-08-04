@@ -6,6 +6,11 @@
 # Injected only when CLAUDE_ROLE is set: a session on-the-record did not spawn is
 # not a role session, and the orchestrator's or user's own session needs no
 # behavioral directive. Kill switch: CORE_OFF=1.
+#
+# Anti-bloat criterion for this heredoc's own growth: mirror a contract rule
+# here only once a gate has been observed repeatedly catching a session on
+# it — an anticipated-but-unobserved friction point is not, by itself,
+# grounds for a new bullet (issue-122).
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "directive.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
@@ -108,6 +113,10 @@ cat <<EOF
   per-issue trees docs/issue-<n>/ holding those same six buckets. Your
   record for a subject is docs/issue-<n>/reports/${role}.md; you write only
   your own record area, never another role's.
+- A commit that stages any docs/issue-<n>/** work must use git commit -m
+  and carry a Subject: issue-<n> trailer naming that issue (contract v3
+  s13), one commit per subject — the same requirement trailer-gate.sh
+  already enforces mechanically at commit time.
 - Headless/single-shot (no later turn for an async completion
   notification to land in): never end a turn having delegated work — any
   Agent/Task-style subagent dispatch, backgrounded or not — whose result
