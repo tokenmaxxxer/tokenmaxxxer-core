@@ -252,6 +252,17 @@ run allow bash-wrapper-command-git-log-foreign-issue Bash '{"command":"command g
 # both before and after the fix (the misread was fail-closed only).
 run deny  bash-wrapper-timeout-git-rm-foreign-issue  Bash '{"command":"timeout 30 git rm -r docs/issue-49/reports"}'
 
+# git's own global value-taking flags (issue-124, R2): `_git_subcommand`
+# had no notion that some of git's own global flags (`-C <dir>`, `-c
+# <name>=<value>`) take a separate, space-joined value token, so
+# `git -C /tmp log` read `/tmp` as the subcommand instead of `log` -- not
+# in GIT_READ_SUBCOMMANDS, so a wrapper-free `git -C` read was
+# misclassified as a write candidate (over-block only).
+run allow bash-git-c-flag-log-foreign-issue Bash '{"command":"git -C /tmp log --oneline -- docs/issue-49"}'
+# negative-space sibling: a `git -C ...` WRITE segment stays denied, both
+# before and after -- the misread was fail-closed only.
+run deny  bash-git-c-flag-rm-foreign-issue  Bash '{"command":"git -C /tmp rm -r docs/issue-49/reports"}'
+
 # --- quoted-pipe segment-split blindness, and cd read-classification -----
 # (issue-88): SEGMENT used to split on any bare `|`/`;` with no
 # quote-awareness, so a quoted BRE OR pattern like `grep -n "A\|B"` cut

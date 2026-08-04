@@ -214,6 +214,14 @@ headof bash 'timeout 30 bash -c x' \
   "gate_head_of: timeout's own bare DURATION arg is skipped, not mistaken for the head"
 headof bash 'nohup bash -c x' \
   "gate_head_of: nohup resolves through to bash"
+headof git 'timeout -s KILL 30 git log' \
+  "gate_head_of: timeout's own -s value-taking flag no longer swallows the bare DURATION slot"
+headof git 'nice -n 10 git log' \
+  "gate_head_of: nice's own -n value-taking flag resolves through to git"
+headof git 'env -u FOO git log' \
+  "gate_head_of: env's own -u value-taking flag resolves through to git"
+headof git 'xargs -I fmt git log' \
+  "gate_head_of: xargs's own -I value-taking flag (space-separated) resolves through to git"
 
 wrapperhead() { # <want:head-or-empty> <cmdline> <needle> <name>
   got="$(python3 -c "
