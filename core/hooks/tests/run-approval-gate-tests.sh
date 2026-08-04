@@ -167,6 +167,14 @@ run allow bash-cd-then-read-own-reports nopr x cmd='cd docs/issue-7/reports/codi
 # negative-space sibling: a cd-headed line that really writes must still
 # deny.
 run deny  bash-cd-then-write-src        nopr x cmd='cd docs/issue-7 && echo x > src/app.py'
+# issue-124 R1: the read-only early-allow head check used raw
+# cmdline.strip().split()[0], with no TRANSPARENT-wrapper resolution, so a
+# wrapped read missed the READ_ONLY_HEADS shortcut and fell through to the
+# slower candidate scan with no PR to authorize it (over-block only).
+run allow bash-wrapper-timeout-grep-read nopr x cmd='timeout 30 grep -rn foo src/app.py'
+# negative-space sibling: a same-wrapper write must still deny, unchanged
+# before/after -- the misread was fail-closed only, never a hole.
+run deny  bash-wrapper-timeout-write     nopr x cmd='timeout 30 sh -c \"echo hi > src/app.py\"'
 # NOTE: this harness's run() builds tinput via naive printf '%s' with no
 # JSON-escaping, so a cmd= value carrying a literal `"` must pre-escape it
 # to `\"` (and any literal `\` to `\\`) here so the constructed JSON stays

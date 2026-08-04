@@ -220,7 +220,52 @@ covering the extra-argument wrapper shape (`timeout`) and an
 argument-less pre-issue-98 wrapper shape (`command`);
 `bash-wrapper-timeout-git-rm-foreign-issue` pins the reverse direction
 (`deny`, unchanged before and after) — a wrapper-prefixed git *write*
-segment still denies. The pre-existing `git -C <dir> <subcommand>`
-global-flag misread (`git -C /tmp log` still reads `/tmp` as the
-subcommand) is untouched — `-C` is a `git`-own flag, not a
-`TRANSPARENT`-wrapper prefix, out of issue-114's scope.
+segment still denies. The `git -C <dir> <subcommand>` global-flag misread
+named in the prior paragraph (`git -C /tmp log` reading `/tmp` as the
+subcommand) was left untouched by issue-114 on purpose — `-C` is a
+`git`-own flag, not a `TRANSPARENT`-wrapper prefix, out of that issue's
+scope — but is no longer an open gap: it is closed by issue-124/R2, below.
+
+Also covers a `git`-own global-value-flag misread (issue-124, R2 —
+`docs/issue-114/reports/execution-observation.md` `## Verdict 4`, R2):
+`_git_subcommand` had no notion that some of git's own global flags take a
+separate, space-joined value token, so `git -C /tmp log` read `/tmp` as the
+subcommand instead of `log` — not in `GIT_READ_SUBCOMMANDS`, so the segment
+was misclassified as a write candidate (an over-block, not a hole — the
+fail-closed direction was already the case before this fix). Fixed with a
+new module-level tuple `GIT_GLOBAL_VALUE_FLAGS = ("-C", "-c")` — the two
+global flags `git`'s own synopsis documents as space-separated; the
+`=`-joined long forms (`--git-dir=`, `--work-tree=`, `--namespace=`,
+`--config-env=`) already resolved correctly with no code change, since an
+`=`-joined flag never introduces an extra positional token for the loop to
+misread — and rewriting `_git_subcommand`'s loop to walk
+`gate_lib.gate_trailing_words(segment)` by index, skipping one extra word
+whenever the current word is in `GIT_GLOBAL_VALUE_FLAGS`, the same
+`skip_extra` shape `_resolve_transparent` itself already uses, scoped to
+this function only. `bash-git-c-flag-log-foreign-issue` pins the fix
+(`allow`, subcommand now correctly read as `log`); its negative-space
+sibling `bash-git-c-flag-rm-foreign-issue` pins that a `git -C ... rm`
+write stays denied, unchanged before and after.
+
+Also covers, as this gate's fail-closed consumer, a `TRANSPARENT`-wrapper
+own-value-flag misread fixed at its source in `gate_lib._resolve_transparent`
+(issue-124, R3 — `docs/issue-114/reports/execution-observation.md`
+`## Verdict 4`, R3): the flag-skip loop treated every `-`-prefixed token as
+self-contained, so a `TRANSPARENT` wrapper's own value-taking flag (e.g.
+`timeout -s KILL 30 git log`) stole the wrapper's bare-positional slot and
+resolved the head to the wrong token (`"30"`, not `"git"`) — here, that
+means a wrapper-and-git-own-flag-prefixed read fell through to
+`return True` in `_segment_is_failing` (unresolved head, write candidate)
+even though `_git_subcommand`'s own R2 fix above is correct once the head
+actually resolves to `"git"`. Fixed in `core/hooks/lib/gate-lib.py` by
+adding `TRANSPARENT_FLAG_TAKES_ARG` — a per-wrapper table of the four
+`TRANSPARENT` members with a documented own value-taking flag
+(`nice -n`/`--adjustment`, `env -u`/`--unset`, `timeout -s`/`--signal`,
+`xargs -I`) — consulted in `_resolve_transparent`'s inner loop before the
+existing `skip_extra`/bare-flag branches get a chance at the flag's value
+token. `board-gate.sh` carries no code change for R3 (the fix is entirely
+in `gate-lib.py`, this file's own shared primitive), but the R2 test cases
+above already exercise the corrected resolver transitively; R3 itself is
+pinned directly by new `headof` cases in `run-gate-lib-tests.sh` (see that
+harness) since `_resolve_transparent`/`gate_head_of` is where the defect
+and the fix both live.
