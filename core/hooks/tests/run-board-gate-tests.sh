@@ -263,6 +263,22 @@ run allow bash-git-c-flag-log-foreign-issue Bash '{"command":"git -C /tmp log --
 # before and after -- the misread was fail-closed only.
 run deny  bash-git-c-flag-rm-foreign-issue  Bash '{"command":"git -C /tmp rm -r docs/issue-49/reports"}'
 
+# write-direction pin for a TRANSPARENT wrapper's own value-taking flag
+# (issue-124 R3, closed out by issue-132 F1): _resolve_transparent only
+# returns a head/trailing-words pair -- it has no allow/deny concept -- so
+# R3's fix cannot be pinned from a write angle inside run-gate-lib-tests.sh
+# (its four `headof` cases are read-shaped only, `... git log`). The
+# allow/deny verdict for a `git`-headed segment is computed one layer up,
+# here in board-gate.sh's _segment_is_failing, so the write-direction pin
+# belongs in this file. `-s KILL` (unlike the bare-duration
+# bash-wrapper-timeout-git-rm-foreign-issue sibling above) forces
+# TRANSPARENT_FLAG_TAKES_ARG["timeout"]'s flag+value branch, the exact
+# branch R3 added -- stays denied, unchanged before and after (the misread
+# was fail-closed only, both pre- and post-fix: pre-fix the flag's value
+# token derails head resolution to a non-"git" word, which still falls
+# through to deny by default).
+run deny  bash-wrapper-timeout-s-git-rm-foreign-issue Bash '{"command":"timeout -s KILL 30 git rm -r docs/issue-49/reports"}'
+
 # --- quoted-pipe segment-split blindness, and cd read-classification -----
 # (issue-88): SEGMENT used to split on any bare `|`/`;` with no
 # quote-awareness, so a quoted BRE OR pattern like `grep -n "A\|B"` cut
