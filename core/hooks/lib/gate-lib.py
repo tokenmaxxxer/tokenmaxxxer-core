@@ -199,6 +199,19 @@ TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin",
 # word skipped beyond its own flags to reach the command it actually runs.
 TRANSPARENT_TAKES_ARG = ("timeout",)
 
+# The subset of TRANSPARENT members with a documented own value-taking
+# flag in common shell usage (gate_wrapper_head_before's own docstring
+# below names these four shapes). A wrapper's own flag value must be
+# consumed before the generic bare-flag/skip_extra walk below gets a
+# chance at it, or the value token is misread as the wrapped command's
+# own bare positional (or worse, as the head itself).
+TRANSPARENT_FLAG_TAKES_ARG = {
+    "nice": ("-n", "--adjustment"),
+    "env": ("-u", "--unset"),
+    "timeout": ("-s", "--signal"),
+    "xargs": ("-I",),
+}
+
 
 def _resolve_transparent(segment):
     """Walk `segment`'s words through TRANSPARENT.
@@ -223,6 +236,9 @@ def _resolve_transparent(segment):
         i = 1
         while i < len(words):
             tok = words[i]
+            if tok in TRANSPARENT_FLAG_TAKES_ARG.get(w, ()):
+                i += 2
+                continue
             if tok.startswith("-") or "=" in tok.split("/")[0]:
                 i += 1
                 continue

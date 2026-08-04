@@ -183,17 +183,25 @@ GIT_READ_SUBCOMMANDS = ("log", "show", "diff", "status", "blame",
                         "rev-parse", "symbolic-ref", "describe", "shortlog",
                         "reflog")
 
+# git's own global flags that take a separate, space-joined value token
+# (per `git`'s synopsis): `-C <path>` and `-c <name>=<value>`. The
+# `=`-joined long flags (--git-dir=, --work-tree=, --namespace=,
+# --config-env=) need no entry here -- an `=`-joined flag never
+# introduces an extra positional token for the loop below to misread.
+GIT_GLOBAL_VALUE_FLAGS = ("-C", "-c")
+
 
 def _git_subcommand(segment):
     """The git subcommand a segment invokes, or "" if unresolved.
 
-    "" is deliberately not in GIT_READ_SUBCOMMANDS, so a bare `git`, or one
-    preceded only by argument-taking global flags (e.g. `-C <dir>`) this
-    function does not special-case, falls through to the normal write scan
-    — the safe direction, not a new hole.
+    "" is deliberately not in GIT_READ_SUBCOMMANDS, so a bare `git` falls
+    through to the normal write scan -- the safe direction, not a new hole.
 
     First non-flag word after the resolved head, same skip-leading-flags
-    idiom `_cd_target` uses for the analogous `cd`-argument case. Reads
+    idiom `_cd_target` uses for the analogous `cd`-argument case, plus a
+    skip of one extra word whenever that word is one of git's own
+    value-taking global flags (GIT_GLOBAL_VALUE_FLAGS) -- e.g. `-C /tmp`
+    -- so its value token isn't mistaken for the subcommand. Reads
     gate_lib.gate_trailing_words (issue-107) instead of re-splitting
     `segment` itself, so a wrapper prefix (`timeout 30 git log`) doesn't
     shift which word this scan lands on -- the same resolver
@@ -201,9 +209,16 @@ def _git_subcommand(segment):
     closing the sibling gap issue-107 left in gate_lib.gate_trailing_words's
     other caller).
     """
-    for w in gate_lib.gate_trailing_words(segment):
+    words = gate_lib.gate_trailing_words(segment)
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if w in GIT_GLOBAL_VALUE_FLAGS:
+            i += 2
+            continue
         if not w.startswith("-"):
             return w
+        i += 1
     return ""
 
 
