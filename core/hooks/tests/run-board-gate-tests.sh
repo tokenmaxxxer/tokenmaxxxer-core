@@ -238,6 +238,20 @@ run allow bash-git-rm-own-subtree         Bash '{"command":"git rm -r '$BOARD'/r
 # explicit `git show` regression case — log/diff already covered above.
 run allow bash-git-show-foreign-issue     Bash '{"command":"git show HEAD:docs/issue-49/reports/coding.md"}'
 
+# wrapper-prefixed git subcommand extraction (issue-114, Finding 1 of
+# docs/issue-107/reports/execution-observation.md): _git_subcommand used
+# to re-split the raw segment for its own argument, so a TRANSPARENT
+# wrapper prefix (e.g. `timeout 30`) shifted which word it read (the
+# wrapper's own argument, not the git subcommand) -- an over-block, since
+# gate_head_of already resolves the segment's head to "git" through the
+# same wrapper. Mirrors bash-wrapper-timeout-cd-relative-foreign /
+# bash-wrapper-command-cd-relative-foreign (issue-107, :304-305).
+run allow bash-wrapper-timeout-git-log-foreign-issue Bash '{"command":"timeout 30 git log --oneline -1 -- docs/issue-49"}'
+run allow bash-wrapper-command-git-log-foreign-issue Bash '{"command":"command git log --oneline -1 -- docs/issue-49"}'
+# reverse direction: a wrapper-prefixed git WRITE segment stays denied,
+# both before and after the fix (the misread was fail-closed only).
+run deny  bash-wrapper-timeout-git-rm-foreign-issue  Bash '{"command":"timeout 30 git rm -r docs/issue-49/reports"}'
+
 # --- quoted-pipe segment-split blindness, and cd read-classification -----
 # (issue-88): SEGMENT used to split on any bare `|`/`;` with no
 # quote-awareness, so a quoted BRE OR pattern like `grep -n "A\|B"` cut

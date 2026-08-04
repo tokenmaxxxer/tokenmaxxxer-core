@@ -196,3 +196,31 @@ uses instead of a second, independent one. `bash-wrapper-timeout-cd-relative-for
 and `bash-wrapper-command-cd-relative-foreign` pin the fix (`deny`),
 covering both the extra-argument wrapper shape (`timeout`) and an
 argument-less pre-issue-98 wrapper shape (`command`).
+
+Also covers a wrapper-prefixed `git` subcommand-extraction gap (issue-114,
+Finding 1 of `docs/issue-107/reports/execution-observation.md` — the
+sibling issue-107 itself left open when it closed the same class for
+`cd`): head detection (`gate_lib.gate_head_of`) correctly resolves a
+wrapped segment like `timeout 30 git log` to `git` through
+`gate_lib._resolve_transparent`'s wrapper walk, but `_git_subcommand` used
+to re-split the RAW segment (`segment.split()[1:]`) instead of reading
+that same walk's own trailing words, so it read the wrapper's own
+argument (`timeout`'s duration, or the wrapper word itself for an
+argument-less wrapper like `command`) instead of the real git subcommand.
+Neither is in `GIT_READ_SUBCOMMANDS`, so a wrapper-prefixed read-only
+`git` segment was misclassified as a write candidate — a fail-closed
+over-block only (a wrapper-prefixed git *write* segment stayed denied
+both before and after), not a security hole. Fixed by switching
+`_git_subcommand` to iterate `gate_lib.gate_trailing_words(segment)`
+instead of `segment.split()[1:]` — the same accessor issue-107 already
+built and `_cd_target` already consumes.
+`bash-wrapper-timeout-git-log-foreign-issue` and
+`bash-wrapper-command-git-log-foreign-issue` pin the fix (`allow`),
+covering the extra-argument wrapper shape (`timeout`) and an
+argument-less pre-issue-98 wrapper shape (`command`);
+`bash-wrapper-timeout-git-rm-foreign-issue` pins the reverse direction
+(`deny`, unchanged before and after) — a wrapper-prefixed git *write*
+segment still denies. The pre-existing `git -C <dir> <subcommand>`
+global-flag misread (`git -C /tmp log` still reads `/tmp` as the
+subcommand) is untouched — `-C` is a `git`-own flag, not a
+`TRANSPARENT`-wrapper prefix, out of issue-114's scope.
