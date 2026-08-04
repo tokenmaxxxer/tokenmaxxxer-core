@@ -268,4 +268,39 @@ in `gate-lib.py`, this file's own shared primitive), but the R2 test cases
 above already exercise the corrected resolver transitively; R3 itself is
 pinned directly by new `headof` cases in `run-gate-lib-tests.sh` (see that
 harness) since `_resolve_transparent`/`gate_head_of` is where the defect
-and the fix both live.
+and the fix both live. Also pinned from the write-verdict side, closing a
+gap the observation of PR #126 found (issue-132, F1):
+`bash-wrapper-timeout-s-git-rm-foreign-issue`, in this file, exercises a
+`TRANSPARENT` wrapper's own value-taking flag on a `git` *write* segment
+(`timeout -s KILL 30 git rm ...`) — `deny`, unchanged before and after,
+since a resolver-level misread here falls through to `_segment_is_failing`'s
+unresolved-head default-deny rather than opening a hole. The four
+`run-gate-lib-tests.sh` cases pin the resolver's read→head correctness;
+this case pins that the allow/deny verdict computed one layer up in
+`_segment_is_failing` stays correct (and fail-closed even if it weren't)
+once that head is consumed.
+
+**Accepted residual coverage (issue-132, B1/B2).** Two of this gate's flag
+tables cover a documented subset of their real surface, not its full
+surface, and both residues are fail-closed (over-block only, never a
+hole) — this is an accepted, intentionally-bounded limitation, not an
+unnoticed gap: (a) `GIT_GLOBAL_VALUE_FLAGS` (`board-gate.sh`, R2 above)
+covers `-C`/`-c` only; git also accepts several other global flags in the
+same space-joined form (e.g. `--namespace <ns>`) that this table does not
+recognize — an unrecognized global flag's value token can still derail
+subcommand extraction the same way `-C`/`-c` used to, defaulting to deny.
+(b) `TRANSPARENT_FLAG_TAKES_ARG` (`gate-lib.py`, R3 above) covers one
+documented own-value-taking flag per wrapper; `env`, `timeout`, and
+`xargs` each accept further value-taking flags the table does not list —
+same fail-closed consequence. Neither table is expanded speculatively
+here: the observed proposal that shipped R1-R3 already scoped both tables
+minimally on purpose ("adding speculative table entries for hypothetical
+future flags nobody has hit would be scope creep in the direction issue
+#124 is trying to close, not open"), and the independent observation of
+that delivery confirmed both residues as out-of-scope class facts, not a
+PR #126 defect. The **expansion trigger** for either table: a concrete
+command line that actually hits one of these uncovered shapes and is
+over-blocked in real use — mirroring this same handbook's own
+`gap-awk-comparison-over-block` convention above (kept visible rather than
+silently accepted). Until such a case exists, both residues stay
+documented here, not coded.
