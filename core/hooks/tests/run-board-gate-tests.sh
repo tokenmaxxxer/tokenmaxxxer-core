@@ -295,6 +295,14 @@ run allow bash-cd-relative-write-own-issue Bash '{"command":"cd docs/issue-3/rep
 # still denies even though the write's real target is /tmp, not docs/ —
 # a deliberate, named cost of the simpler existential tracker, not a bug.
 run deny  bash-cd-out-then-write-elsewhere Bash '{"command":"cd docs/issue-49 && cd /tmp && date > y.md"}'
+# issue-107 (#99 execution-observation Finding 1): _cd_target used to
+# re-split the raw segment (stripped.split()[1:]) instead of reading
+# gate_head_of's own resolver output, so a wrapper-prefixed cd read the
+# wrapper's own argument (timeout's duration, or the wrapper word itself
+# for an argument-less wrapper) instead of the cd target -- cd_tail was
+# never set and the write below reached allow() unadjudicated.
+run deny  bash-wrapper-timeout-cd-relative-foreign Bash '{"command":"timeout 30 cd docs/issue-49 && date > x.md"}'
+run deny  bash-wrapper-command-cd-relative-foreign Bash '{"command":"command cd docs/issue-49 && date > x.md"}'
 
 # --- FILE_REDIR quote-awareness (issue-94) ---------------------------------
 # FILE_REDIR used to run on raw segment text, so a `>` sitting INSIDE a

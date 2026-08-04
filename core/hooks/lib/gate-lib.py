@@ -245,6 +245,21 @@ def gate_head_of(segment):
     return _resolve_transparent(segment)[0]
 
 
+def gate_trailing_words(segment):
+    """The words in `segment` after its resolved head, in original order.
+
+    issue-107: board-gate.sh's `_cd_target` needs a `cd` segment's own
+    argument, which a wrapper prefix (`timeout 30 cd docs/issue-49`)
+    shifts to a different word index than a bare `cd`. Exposing
+    `_resolve_transparent`'s own trailing_words here lets `_cd_target`
+    extract the argument through the same command-start model
+    `gate_head_of` already uses to decide the segment IS a `cd`, instead
+    of re-splitting the raw segment and guessing the argument sits at a
+    fixed offset.
+    """
+    return _resolve_transparent(segment)[1]
+
+
 WRAPPER_HEADS = ("bash", "sh", "dash", "ksh", "zsh", "eval",
                  "python", "python3", "python2", "perl")
 
