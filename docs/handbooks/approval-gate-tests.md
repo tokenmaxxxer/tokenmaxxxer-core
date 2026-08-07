@@ -84,6 +84,16 @@ a second, independent head-resolution path in `approval-gate.sh` itself.
 sibling `bash-wrapper-timeout-write` pins that a same-wrapper write stays
 denied, unchanged before and after the fix.
 
+Also covers issue-138's fail-closed rc-remap fix: `approval-gate.sh`
+used to clear the EXIT trap (`trap - EXIT`) before propagating the
+python judge's own exit code, so an uncaught python error (rc=1) exited
+non-blocking instead of denying. `python3-internal-error` stubs a
+`python3` on `PATH` that unconditionally exits 1 and asserts the gate
+still exits 2 (deny), pinning the `_fc_rc`-style remap ported from
+`trailer-gate.sh`/`record-fields-gate.sh`. `empty-payload` pins that
+empty stdin (a delivery failure) denies rather than silently falling
+through the fast path to allow.
+
 Test-authoring note: this harness's `run()` builds the `Bash` tool's JSON
 `tinput` from a `cmd=` option via a plain `printf '%s'` substitution with
 no JSON-escaping. A `cmd=` value carrying a literal `"` must pre-escape it
