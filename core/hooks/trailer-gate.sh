@@ -131,6 +131,28 @@ if len(issues) > 1:
     deny("trailer-gate: this commit stages work for multiple issues (%s); one commit belongs to one subject (contract s13). Split the commit." % ", ".join(sorted(issues)))
 issue = sorted(issues)[0]
 
+# The standard multi-line commit idiom is `-m` wrapping a command
+# substitution around a quoted heredoc: `git commit -m "$(cat <<'EOF'
+# ...body...
+# EOF
+# )"`. shlex.split() has no notion of heredocs — it re-tokenizes the
+# heredoc body as if it were shell syntax, so a body containing an
+# unescaped double quote (e.g. a commit message quoting a path or
+# identifier) either aborts tokenization or silently mis-splits it.
+# The heredoc body is present verbatim in the command string; extract
+# it directly, anchored on the terminator line, before ever handing
+# the string to shlex.
+HEREDOC_RE = re.compile(
+    r'-m\s+"\$\(\s*cat\s+<<-?\s*([\'"]?)(\w+)\1\s*\n(.*?)\n[ \t]*\2[ \t]*\n?\s*\)"',
+    re.DOTALL,
+)
+heredoc_match = HEREDOC_RE.search(command)
+if heredoc_match:
+    joined = heredoc_match.group(3)
+    if not re.search(r"(?im)^\s*Subject:\s*" + re.escape(issue) + r"\s*$", joined):
+        deny("trailer-gate: this commit stages %s work but its message lacks the required `Subject: %s` trailer (contract s13). The trailer names the subject the staged record belongs to." % (issue, issue))
+    allow()
+
 try:
     tokens = shlex.split(command)
 except ValueError:

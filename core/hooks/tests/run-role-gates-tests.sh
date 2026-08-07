@@ -45,6 +45,17 @@ run_trailer allow "coding: commit w/ trailer allowed"    coding '"git commit -m 
 run_trailer deny  "product: commit w/o trailer denied"   product '"git commit -m x"'
 run_trailer allow "TRAILER_GATE_OFF disables the gate"   coding '"git commit -m x"' TRAILER_GATE_OFF=1
 
+# --- trailer-gate.sh: heredoc-supplied multi-line message (issue-151) ------
+# The standard multi-line commit idiom is `-m "$(cat <<'EOF' ...body... EOF)"`.
+# shlex.split() has no notion of heredocs and mis-parses a body containing an
+# unescaped double quote; the gate must extract the heredoc body directly.
+heredoc_args_with_trailer='"git commit -m \"$(cat <<'"'"'EOF'"'"'\nRename \\\"foo\\\" to \\\"bar\\\"\n\nSubject: issue-3\nEOF\n)\""'
+heredoc_args_without_trailer='"git commit -m \"$(cat <<'"'"'EOF'"'"'\nRename \\\"foo\\\" to \\\"bar\\\"\n\nno trailer here\nEOF\n)\""'
+run_trailer allow "coding: heredoc -m with embedded quotes and trailer allowed (issue-151)" \
+  coding "$heredoc_args_with_trailer"
+run_trailer deny  "coding: heredoc -m with embedded quotes, no trailer, still denied (issue-151)" \
+  coding "$heredoc_args_without_trailer"
+
 # --- record-fields-gate.sh: role-scoped record path, role-labeled refusal --
 run_rf() { # <want> <name> <role> <file_path> <content-json> <extra-env...>
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"; shift 5
