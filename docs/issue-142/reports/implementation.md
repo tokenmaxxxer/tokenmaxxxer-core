@@ -113,6 +113,67 @@ That sweep, plus wiring `compliance-check.sh` into each rulebook's own CI,
 needs its own plan (a separate proposal per the issue's fix direction) —
 it is not partially done by this PR and must not be read as such.
 
+## Review response (PR #145)
+
+Two blockers raised on the first review round, both closed in this commit:
+
+**(1) Canon check did not detect a re-introduction.** Repro before the fix:
+appended the old fail-open case block (`case "${WARRANT_OFF:-}" in
+""|0|false|no|off) ;; *) exit 0 ;; esac`) to `warrant/hooks/state.sh` and
+ran `compliance-check.sh warrant/hooks` — `rc=0`, only
+`hunt-guard.sh`/`scope-gate.sh` even appeared in the output. Two compounding
+gaps: (a) the script only ever collected PreToolUse-wired hooks, so
+`state.sh` (a SessionStart hook) was never scanned at all; (b) the existing
+kill-switch check only fires when `gate_kill_switch_active` is *absent* from
+the file, so even a scanned file with the idiom re-appended alongside its
+already-migrated call would pass. Fixed both: `compliance-check.sh` now
+collects registered scripts from every hooks.json event block, not
+PreToolUse only, and a new check matches the literal `*) exit 0 ;;` branch
+shape directly, independent of what else the file contains. Re-ran the same
+repro after the fix: `rc=1`, `compliance-check: FAIL —
+.../warrant/hooks/state.sh:` naming the hand-rolled case branch and the
+canonical replacement (`gate_kill_switch_active`, gate-lib.sh) — matching
+the issue's acceptance criterion verbatim. Re-ran `compliance-check.sh`
+against `warrant/hooks`, `terse/hooks`, `scout/hooks`, and `core/hooks`
+with `state.sh` reverted to confirm no new false positive (all `ok`), and
+`run-gate-lib-tests.sh` (58/58, including the compliance-check group).
+
+**(2) Kill-switch migration was unproven.** The record's original "Effect
+verification" section ran scope-gate once with no `WARRANT_OFF` set at all
+and against a payload the gate ALLOWed either way — it never proved the
+gate can genuinely DENY, so the on/off values were never actually
+distinguished. Re-verified with a payload the gate genuinely denies: a
+scratch repo with a proposal `status: approved` and `files: [foo.txt]`,
+then a `Write` to `bar.txt` (outside the frozen set). Results:
+`WARRANT_OFF` unset → deny (rc=2, "outside the write set"); `1`, `true`,
+`yes`, `on` → allow (rc=0, gate disabled) — the only four values that
+should disable it; `0`, `off`, `typo`, `"OFF "` (trailing space) → deny
+(rc=2, gate stays ACTIVE) — confirming the fixed narrow disabling set
+(`gate_kill_switch_active`, gate-lib.sh:66-73) actually holds at the gate
+that consumes it, not just in the library function's own unit tests.
+
+**Hunt before landing**: dispatched warrant-hunter (stance: assume this
+guard goes silent when its own input is malformed) against the two
+compliance-check.sh edits above. Finding: the new `*) exit 0 ;;` regex was
+anchored to one physical line (`^\s*\*\)\s*exit\s+0\s*;;`) and silently
+missed the identical idiom written across separate lines (`*)` / `exit 0`
+/ `;;` each on their own line) — a shape at least as common as the
+one-liner in hand-written case statements. Fixed by joining the file onto
+one line first (`tr '\n' ' ' | grep -qE ...`) before matching. Verified:
+appended a multi-line fail-open case block to `warrant/hooks/state.sh`,
+confirmed `rc=1` naming the file, reverted, confirmed `compliance-check.sh`
+still reports `ok` on all of `warrant/hooks`, `core/hooks`, `terse/hooks`,
+`scout/hooks`, and re-ran `run-gate-lib-tests.sh` (58/58).
+
+**Fleet status, stated plainly again**: the two fixes above extend
+`compliance-check.sh`'s detection surface; they do not touch the 43
+rulebook repos. Those repos remain outside this write set and still carry,
+unswept: C1's 14 directive scripts, C3's two Bash-bypassable gates, C4's
+106 `mktemp -d` test scripts, and C5's 9 `install.sh`
+(`plugin update ... || true`) — unchanged from the "Out of scope" section
+above. This PR closes the detection gap and proves the one migration
+already in the write set; it does not close the fleet.
+
 ## What did not work
 
 None.
