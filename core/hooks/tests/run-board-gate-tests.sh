@@ -391,6 +391,17 @@ run deny  sed-w-cmd-foreign               Bash '{"command":"sed -n '\''/x/w '$BO
 run deny  gap-awk-comparison-over-block   Bash '{"command":"awk '\''$1 > 5 {print}'\'' '$BOARD'/reports/review.md"}'
 run allow sed-plain-read-foreign          Bash '{"command":"sed -n 1,40p '$BOARD'/reports/review.md"}'
 
+# --- issue-149: URL false positives on the docs/ tail extractor -----------
+# An external URL whose path contains /docs/ is not a repository path; the
+# own_hits regex used to sever at the URL's own `:` and misclassify the
+# post-scheme remainder as a docs-tail candidate.
+run allow url-docs-path-1                 Bash '{"command":"curl https://code.claude.com/docs/en/hooks.md"}'
+run allow url-docs-path-2                 Bash '{"command":"curl http://example.com/docs/api/v1.md"}'
+# negative-space siblings: a genuine out-of-bucket repository write must
+# still deny, both as a direct Write and via the Bash own_hits path.
+run deny  url-docs-negative-write         Write '{"file_path":"docs/en/hooks.md","content":"x"}'
+run deny  url-docs-negative-issue         Write '{"file_path":"docs/issue-1/notabucket/x.md","content":"x"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
