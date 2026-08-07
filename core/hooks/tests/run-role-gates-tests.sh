@@ -108,6 +108,45 @@ run_rf deny  "proposal sha bracket+trailing-prose denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit> -- fix later\n"'
 
+# --- record-fields-gate.sh: single deny lists every violation (issue-140) --
+run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>
+  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
+  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="/tmp" \
+      /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+  rc=$?
+  got=0
+  [ "$rc" = 2 ] && got="$(printf '%s' "$out" | grep -o ';' | wc -l | tr -d ' ')" && got=$((got + 1))
+  report "$want" "$got" "$name"
+}
+run_rf_count 4 "one deny lists all 4 missing sections (issue-140)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: landed\n"'
+
+run_rf deny "phase-2-complete with -/_ variants still requires §20 fields" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: phase_2_complete\n"'
+run_rf allow "phase-2-complete (normalized) treated as terminal (issue-140)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: phase_2_complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "closed loop_state treated as terminal (issue-140)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: closed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "done loop_state treated as terminal (issue-140)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: done\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "complete loop_state treated as terminal (issue-140)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+
+out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"loop_state: landed\n"}}' \
+    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+case "$out" in
+  *'"what was done"'*'"why"'*) msg_ok=1 ;;
+  *) msg_ok=0 ;;
+esac
+report 1 "$msg_ok" "deny message names the accepted literal strings (issue-140)"
+
 # --- handbook-trigger-gate.sh: role-labeled refusal ------------------------
 run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   want="$1"; name="$2"; role="$3"; shift 3
