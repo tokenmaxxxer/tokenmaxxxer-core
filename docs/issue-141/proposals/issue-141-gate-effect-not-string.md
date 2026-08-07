@@ -87,6 +87,56 @@ commands, no shell metacharacters, 2s timeout) that its own failure
 surface stays smaller than the bug it fixes, unlike whole-command
 execution.
 
+**D1 — reopened again after review round 2 (2026-08-07): allowlist
+admitted behaviors, not just names.** The scoped allowlist above named
+three commands but did not constrain their arguments or where the three
+coreutils would live on `PATH` during resolution. Two holes, both
+closed here rather than deferred to the build:
+
+1. *`cat` with a file operand is a read primitive, not a heredoc reader.*
+   `cat` admitted unconditionally lets `$(cat ~/.gitconfig)` or
+   `$(cat /etc/passwd)` pass the allowlist — the gate itself then reads
+   that file, and the resolved (file) content flows into the trailer
+   check and, on a deny, into the deny message written to the session
+   log and event file. That is an arbitrary-file-to-log path opened by
+   the gate meant to prevent bypass. **Chosen fix:** the allowlist admits
+   `cat` only with **zero operands** (heredoc/pipe stdin only — no
+   filename argument of any form, including `-`). `printf` and `echo`
+   are likewise argument-shape-checked rather than admitted wholesale:
+   their arguments must be a literal format/string plus data (no `-`
+   flags that open files, no argument containing `/` since a real
+   heredoc payload never needs one to serve as a commit message).
+   Considered instead: allow `cat` with operands but restrict it to a
+   fixed set of paths. Rejected — the idiom this exists to support
+   (`$(cat <<'EOF' ... EOF)`) never needs a file operand at all, so
+   admitting file operands only widens the attack surface for zero
+   legitimate gain.
+2. *A `PATH`-directory allowlist is only as strong as the directory's
+   own write permissions.* The gate runs inside the role session's own
+   process tree; if the directory holding the three allowlisted
+   coreutils sits anywhere the session can write (workspace, `$TMPDIR`,
+   a directory the gate creates fresh under either), the session can
+   drop its own executable named `cat`/`printf`/`echo` ahead of the real
+   ones on that `PATH`, and the allowlist degrades to an allowlist of
+   *names* the gate blindly trusts, not of *behaviors*. **Chosen fix:**
+   drop the PATH-directory approach entirely. Resolve each of the three
+   binaries to its absolute system path once, at gate-script load time,
+   via `command -v cat`/`command -v printf`/`command -v echo` restricted
+   to a fixed, non-session-writable candidate list (`/bin`, `/usr/bin` —
+   the standard coreutils locations on the CI/session base image), and
+   invoke those absolute paths directly inside the `timeout 2s bash -c`
+   subshell with `PATH` set to empty (`env -i PATH= timeout 2s bash -c
+   '...'` with the three resolved absolute paths substituted verbatim
+   into the trusted wrapper script, not looked up by bare name at
+   resolution time). This is cleaner than assembling and shipping a
+   restricted `PATH` directory, as the reviewer suggested, and removes
+   the writable-directory hole structurally rather than by convention.
+   A dedicated test shadows `cat` on the session's `PATH` (a shell
+   script named `cat` placed earlier on `PATH` than the real binary,
+   printing a sentinel) and asserts the gate's resolved trailer check
+   still reflects the *real* `cat`'s output, not the shadow's — proving
+   resolution bypasses session `PATH` rather than trusting it.
+
 **D2 — considered, rejected:** scope the gate to the `git commit` segment
 only and skip judging staged state entirely when a `git add` precedes it
 in the same compound command (i.e., trust that the add will do its job).
@@ -124,10 +174,14 @@ harness internals.
 - `trailer-gate.sh`: before `shlex.split`, scan the raw command's
   `-m`/`--message` argument text for `$(`, a backtick, or a `<<`
   here-doc marker. If found, apply the allowlist check described in
-  Rationale: only `cat`/`printf`/`echo` invocations, no other command
-  name, no `;`/`&&`/`|`/file-redirection inside the expression. If the
-  expression passes, resolve it via `timeout 2s bash -c` with `PATH`
-  restricted to those three coreutils and check the *resolved* string
+  Rationale: only `cat` (zero operands), `printf`, and `echo`
+  (argument-shape-checked, no `-`-flag or `/`-containing arguments)
+  invocations, no other command name, no `;`/`&&`/`|`/file-redirection
+  inside the expression. If the expression passes, resolve the three
+  binaries to absolute system paths (`command -v` restricted to
+  `/bin`,`/usr/bin`) once at load time, then evaluate the expression via
+  `env -i PATH= timeout 2s bash -c` invoking those absolute paths — never
+  a restricted-`PATH`-directory shim — and check the *resolved* string
   for the trailer. If it fails the allowlist or the resolution times
   out, route to the existing "cannot be verified statically" deny branch
   (reworded to name the detected construct) instead of calling
@@ -153,6 +207,22 @@ harness internals.
   by invoking each gate script with a crafted JSON payload on stdin
   against a scratch git repo, asserting exit code and (for D3) that no
   deny message contains an unexpanded `${`.
+- `test_trailer_gate.sh` adds two cases for the holes closed above: (a)
+  `$(cat ~/.gitconfig)`/`$(cat /etc/passwd)`-shaped `-m` expressions are
+  DENIED via the allowlist branch, never executed; (b) with a shell
+  script named `cat` placed earlier on the test session's `PATH` than
+  the real binary, the gate's resolved trailer check still reflects the
+  real `cat`'s output — proving resolution uses the absolute-path lookup
+  done at load time, not the session `PATH`.
+- Phase-2 record (`docs/issue-141/reports/implementation.md`) adds,
+  per on-the-record#298: which commit-message shapes that pass on `main`
+  today start being DENIED once this lands (the allowlist is strictly
+  narrower than "anything shlex could not previously resolve was denied
+  anyway," but any `-m` expression using a command outside
+  `cat`/`printf`/`echo`, or `cat` with an operand, that previously
+  happened to slip past a shlex quirk, now denies explicitly); and the
+  observed wall-clock cost of the `timeout 2s bash -c` resolution path
+  on the real issue-280 heredoc idiom (not just the 2s worst case).
 
 ## Out of scope
 
@@ -190,3 +260,10 @@ harness internals.
   by handbook-trigger-gate.sh.
 - `grep -r '\${' <captured deny output>` across both gates' test
   fixtures returns nothing.
+- A `-m` expression of the form `$(cat <path>)` (any operand, including
+  `~/.gitconfig`, `/etc/passwd`, or `-`) is DENIED by trailer-gate.sh via
+  the allowlist branch — the gate never opens the named file.
+- With a shadow `cat` placed ahead of the real binary on the test
+  session's `PATH`, the gate's resolved trailer check still matches the
+  real `cat`'s output, not the shadow's — proving binary resolution does
+  not trust session `PATH`.
