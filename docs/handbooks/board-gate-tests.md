@@ -313,3 +313,41 @@ unconditionally exits 1 and asserts the gate still exits 2 (deny), the
 same `_fc_rc`-style remap `trailer-gate.sh`/`record-fields-gate.sh`
 already carried. `empty-payload` pins that empty stdin denies rather
 than silently falling through the `*docs*` fast path to allow.
+
+**issue-149: URL false positive on the docs/ tail extractor.** The
+`own_hits` regex in the `Bash` candidate-builder branch and
+`_docs_relative_tail` shared no concept of "this token names an external
+resource" -- either function found the substring `docs/` anywhere in a
+token, so an external URL whose path happens to contain that substring
+(e.g. `code.claude.com` under a scheme) got its post-substring remainder
+extracted and classified against the six standing buckets, which it
+predictably failed, denying a plain read of an external page. Cause: the
+`own_hits` char class (`[\w./~$-]`) excluded `:`, so the greedy prefix
+match before the substring severed at the URL's own scheme colon
+(`https:`), landing the match on the host-plus-path remainder and
+producing a tail that reads as an unrecognized top-level docs component.
+Fixed by widening the char class to `[\w./~$:-]` (so a scheme is captured
+as part of the match instead of being severed) and adding a URL
+classifier inside `_docs_relative_tail`: a token matching
+`^[A-Za-z][A-Za-z0-9+.-]*://`, or containing `://` before its first
+docs-substring occurrence, returns `""` immediately -- the same "no
+docs-token here" result the function already returns when no such
+substring is present at all. No new allow path was added; the token
+simply stops being a candidate. Pinned by `url-docs-path-1`/
+`url-docs-path-2` (the issue's own two repro URLs, both `allow`) and the
+negative-space siblings `url-docs-negative-write`/`url-docs-negative-issue`
+(genuine out-of-bucket repository writes, both `deny`, unchanged) proving
+the fix narrows classification without loosening the deny.
+
+Scope item 2 of issue-149 surveyed the same find-anywhere root cause for
+other false-positive shapes and reported, without fixing, two further
+cases and one examined-and-ruled-out path: (1) a directory name that
+merely *ends in* the docs component (e.g. `mydocs/x.md`) still matches
+the plain substring search the same way; (2) a docs-shaped substring
+inside a quoted literal that names no path at all (e.g. a grep pattern or
+commit message) still becomes a candidate, since `own_hits` runs on raw
+segment text rather than a quote-stripped view; (3) the `cd`-tracking
+path was examined and found not to carry the URL false positive (a `cd`
+to a URL is not a real shell operation) -- it carries case (1) only, not
+a new shape. See the issue-149 proposal's Out of scope section for the
+full survey.
