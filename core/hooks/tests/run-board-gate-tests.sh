@@ -410,5 +410,37 @@ garbage() {
 garbage deny  garbage-mentioning-docs 'not json docs/issue-3/reports/qa.md'
 garbage allow garbage-unrelated       'not json at all'
 
+# --- issue-138: fail-closed trap must survive rc propagation --------------
+# empty stdin (delivery failure) must deny outright, never fall through to
+# the fast path's exit 0.
+empty_payload() {
+  mktd; git init -q "$td"
+  printf '' | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report deny "$got" "empty-payload"
+}
+empty_payload
+
+# a python3 that dies with an internal error (rc=1, e.g. an import/compat
+# failure) must remap to exit 2 (deny), not exit 1 — Claude Code treats a
+# non-2 hook exit as non-blocking (the header's fail-closed promise).
+internal_error() {
+  mktd; git init -q "$td"
+  stubdir="$(mktemp -d)"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$stubdir/python3"
+  chmod +x "$stubdir/python3"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/qa.md","content":"x"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=qa PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  rm -rf "$td" "$stubdir"
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  report deny "$got" "python3-internal-error"
+}
+internal_error
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

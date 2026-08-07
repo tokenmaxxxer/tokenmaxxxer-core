@@ -304,3 +304,12 @@ over-blocked in real use — mirroring this same handbook's own
 `gap-awk-comparison-over-block` convention above (kept visible rather than
 silently accepted). Until such a case exists, both residues stay
 documented here, not coded.
+
+Also covers issue-138's fail-closed rc-remap fix: `board-gate.sh` used
+to clear the EXIT trap before propagating the python judge's own exit
+code, so an uncaught python error (rc=1) exited non-blocking instead of
+denying. `python3-internal-error` stubs a `python3` on `PATH` that
+unconditionally exits 1 and asserts the gate still exits 2 (deny), the
+same `_fc_rc`-style remap `trailer-gate.sh`/`record-fields-gate.sh`
+already carried. `empty-payload` pins that empty stdin denies rather
+than silently falling through the `*docs*` fast path to allow.

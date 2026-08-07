@@ -31,6 +31,8 @@ payload="$(cat 2>/dev/null || true)"
 
 [ -n "${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
 
+[ -n "$payload" ] || { echo "gh-guard.sh: refused — empty tool-use payload on stdin; cannot evaluate the gh guard." >&2; exit 2; }
+
 # Fast path: only Bash calls mentioning gh/git (or another HTTP client
 # capable of reaching the same REST/GraphQL endpoints) are adjudicated.
 case "$payload" in
@@ -153,4 +155,8 @@ PY
 CORE_PAYLOAD="$payload" python3 -c "$CORE_GH_GUARD"
 rc=$?
 trap - EXIT
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+  echo "gh-guard.sh: refused — fail-closed: internal error (gate judge exited $rc)" >&2
+  exit 2
+fi
 exit "$rc"
