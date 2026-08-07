@@ -24,8 +24,9 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "handbook-trigger-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
+self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
 role="${CLAUDE_ROLE:-}"
-deny() { echo "${role:-handbook-trigger-gate}: refused — $*" >&2; exit 2; }
+deny() { echo "${role:-handbook-trigger-gate}: refused — $* (gate: $self_path)" >&2; exit 2; }
 
 gate_kill_switch_active "${HANDBOOK_TRIGGER_GATE_OFF:-}" || exit 0
 
@@ -42,15 +43,16 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§21 handbook-trigger cannot be judged)."
 
-HT_PAYLOAD="$payload" HT_ROOT="$root" HT_ROLE="$role" python3 <<'PY'
+HT_PAYLOAD="$payload" HT_ROOT="$root" HT_ROLE="$role" HT_SELF="$self_path" python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    import json, os, posixpath, re, subprocess, sys
+    import json, os, posixpath, re, shlex, subprocess, sys
 
     role = os.environ.get("HT_ROLE", "").strip() or "handbook-trigger-gate"
+    self_path = os.environ.get("HT_SELF", "") or "handbook-trigger-gate.sh"
 
     def deny(m):
-        sys.stderr.write("%s: refused — %s\n" % (role, m)); sys.exit(2)
+        sys.stderr.write("%s: refused — %s (gate: %s)\n" % (role, m, self_path)); sys.exit(2)
 
     raw = os.environ.get("HT_PAYLOAD", "")
     try:
@@ -83,7 +85,70 @@ try:
     r = git("diff", "--cached", "--name-only")
     if r is None or r.returncode != 0:
         deny("could not read the staged file set (`git diff --cached`); failing closed on §21.")
-    staged = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    staged = set(ln.strip() for ln in r.stdout.splitlines() if ln.strip())
+
+    # D2 (issue-141): PreToolUse denies the whole Bash call before it runs,
+    # so for `git add <paths> && git commit ...` the `git add` never
+    # executes and the staged-set read above reflects the PRE-add state.
+    # Project forward: for every `git add` segment (split on &&/;/|) that
+    # precedes the `git commit` segment, resolve its pathspec with
+    # `git add --dry-run --` (no actual staging side effect) and union the
+    # result into the judged set. A pathspec that can't be resolved
+    # statically (e.g. it depends on shell/variable expansion) gets its
+    # own distinctly-worded deny instead of being silently ignored or
+    # reusing the genuine-violation message.
+    commit_m = re.search(r'\bgit\b[^\n;&|]*\bcommit\b(?!-)', cmd)
+    if commit_m:
+        segments = re.split(r'&&|;|\|', cmd[:commit_m.start()])
+        for seg in segments:
+            seg = seg.strip()
+            am = re.match(r'^git\s+add\b(.*)$', seg)
+            if not am:
+                continue
+            argstr = am.group(1)
+            if re.search(r'\$|`', argstr):
+                deny(
+                    "this commit is preceded by `git add%s` whose pathspec depends on "
+                    "shell/variable expansion, so the staged set it would produce cannot be "
+                    "projected statically; the handbook-trigger obligation cannot be judged "
+                    "(§21). Stage explicit paths, or run `git add` as a separate step first."
+                    % argstr
+                )
+            try:
+                add_toks = shlex.split(argstr)
+            except ValueError:
+                deny(
+                    "this commit is preceded by `git add%s`, whose arguments could not be "
+                    "tokenized to project the staged set it would produce; the handbook-trigger "
+                    "obligation cannot be judged (§21)." % argstr
+                )
+            # `--` ends option parsing; every token after it is a pathspec
+            # even if it starts with `-` (e.g. a file literally named
+            # `-setup.sh`). Dropping such tokens unconditionally would
+            # silently exclude them from the projected staged set.
+            pathspecs = []
+            seen_dashdash = False
+            for t in add_toks:
+                if not seen_dashdash and t == "--":
+                    seen_dashdash = True
+                    continue
+                if not seen_dashdash and t.startswith("-"):
+                    continue
+                pathspecs.append(t)
+            if not pathspecs:
+                continue
+            dr = git("add", "--dry-run", "--", *pathspecs)
+            if dr is None:
+                deny(
+                    "could not run `git add --dry-run` to project the staged set that "
+                    "`git add%s` would produce; failing closed on §21." % argstr
+                )
+            for ln in dr.stdout.splitlines():
+                ln = ln.strip()
+                m = re.match(r"^add '(.+)'$", ln)
+                if m:
+                    staged.add(m.group(1))
+
     if not staged:
         sys.exit(0)
 
@@ -124,12 +189,12 @@ try:
         "unit of work." % (path, kind)
     )
 except Exception as _fc_e:  # fail-closed-on-internal-error
-    _fc_sys.stderr.write("handbook-trigger-gate.sh: fail-closed: internal error: %r\n" % (_fc_e,))
+    _fc_sys.stderr.write("handbook-trigger-gate.sh: fail-closed: internal error: %r (gate: %s)\n" % (_fc_e, os.environ.get("HT_SELF", "handbook-trigger-gate.sh")))
     _fc_sys.exit(2)
 PY
 _fc_rc=$?  # fail-closed-on-internal-error
 if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
-  echo "${role:-handbook-trigger-gate}: refused — fail-closed: internal error (judge exited $_fc_rc)" >&2
+  echo "${role:-handbook-trigger-gate}: refused — fail-closed: internal error (judge exited $_fc_rc) (gate: $self_path)" >&2
   exit 2
 fi
 exit "$_fc_rc"
