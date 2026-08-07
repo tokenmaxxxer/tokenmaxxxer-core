@@ -48,6 +48,7 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 [ -n "${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
 
 payload="$(cat 2>/dev/null || true)"
+[ -n "$payload" ] || { echo "approval-gate.sh: refused — empty tool-use payload on stdin; cannot evaluate the approval gate." >&2; exit 2; }
 
 # Fast path before python3: only execution-surface writes are adjudicated.
 case "$payload" in
@@ -313,4 +314,8 @@ PY
 CORE_PAYLOAD="$payload" python3 -c "$CORE_APPROVAL_GATE"
 rc=$?
 trap - EXIT
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+  echo "approval-gate.sh: refused — fail-closed: internal error (gate judge exited $rc)" >&2
+  exit 2
+fi
 exit "$rc"

@@ -45,6 +45,7 @@ set -uo pipefail
 gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 payload="$(cat 2>/dev/null || true)"
+[ -n "$payload" ] || { echo "board-gate.sh: refused — empty tool-use payload on stdin; cannot evaluate the board gate." >&2; exit 2; }
 
 # Fast path, in shell, before python3 is ever started: this gate runs on
 # every tool call and python3 startup costs ~50ms. `docs` is the
@@ -525,4 +526,8 @@ PY
 CORE_PAYLOAD="$payload" python3 -c "$CORE_BOARD_GATE"
 rc=$?
 trap - EXIT
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+  echo "board-gate.sh: refused — fail-closed: internal error (gate judge exited $rc)" >&2
+  exit 2
+fi
 exit "$rc"
