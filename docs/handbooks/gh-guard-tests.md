@@ -116,3 +116,13 @@ pin the fix. The same pass also found `perl`'s own code-execution flag is
 `-c`-shaped-flag-only check missed perl entirely despite `perl` being a
 named `WRAPPER_HEADS` member; fixed with a `perl`-specific `-e`-shaped
 flag check, pinned by `wrapper-perl-e`.
+
+Also covers issue-138's fail-closed rc-remap fix: `gh-guard.sh` used to
+clear the EXIT trap before propagating the python judge's own exit code,
+so an uncaught python error (rc=1) exited non-blocking instead of
+denying. `python3-internal-error` stubs a `python3` on `PATH` that
+unconditionally exits 1 and asserts the gate still exits 2 (deny), the
+same `_fc_rc`-style remap `trailer-gate.sh`/`record-fields-gate.sh`
+already carried. `empty-payload` pins that empty stdin, for a role
+session, denies rather than silently falling through the fast path to
+allow.

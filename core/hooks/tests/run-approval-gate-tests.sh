@@ -234,5 +234,40 @@ kill_switch() {
 }
 kill_switch
 
+# --- issue-138: fail-closed trap must survive rc propagation --------------
+# empty stdin (delivery failure) must deny, not fall through the fast path.
+empty_payload() {
+  mktd; git init -q "$td"
+  printf '' | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  rm -rf "$td"
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  report deny "$got" "empty-payload"
+}
+empty_payload
+
+# a python3 that dies with an internal error (rc=1) must remap to exit 2
+# (deny), not exit 1 — Claude Code treats a non-2 hook exit as non-blocking.
+internal_error() {
+  mktd; git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b issue-7/coding
+  mkdir -p "$td/docs/specs"
+  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  stubdir="$(mktemp -d)"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$stubdir/python3"
+  chmod +x "$stubdir/python3"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  rm -rf "$td" "$stubdir"
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  report deny "$got" "python3-internal-error"
+}
+internal_error
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

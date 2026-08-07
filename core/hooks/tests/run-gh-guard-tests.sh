@@ -127,5 +127,33 @@ run deny  wrapper-bash-c-plain-grep coding 'bash -c "grep -n '"'"'gh pr merge'"'
 # wrapper-head class fix adds a new detection path without undoing #94's
 # dequoting for non-wrapper heads.
 
+# --- issue-138: fail-closed trap must survive rc propagation --------------
+# empty stdin (delivery failure) must deny, not silently fall through the
+# fast path and exit 0.
+empty_payload() {
+  printf '' | env CLAUDE_ROLE=coding /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  if [ "$got" = deny ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "empty-payload" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=deny got=%s\n' "empty-payload" "$got"; fi
+}
+empty_payload
+
+# a python3 that dies with an internal error (rc=1, e.g. an import/compat
+# failure) must remap to exit 2 (deny), not exit 1 (Claude Code's
+# non-blocking code) — the fail-closed promise the header makes.
+internal_error() {
+  stubdir="$(mktemp -d)"
+  cat > "$stubdir/python3" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+  chmod +x "$stubdir/python3"
+  printf '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 7"}}' \
+    | env CLAUDE_ROLE=coding PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?; rm -rf "$stubdir"
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  if [ "$got" = deny ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "python3-internal-error" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=deny got=%s\n' "python3-internal-error" "$got"; fi
+}
+internal_error
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
