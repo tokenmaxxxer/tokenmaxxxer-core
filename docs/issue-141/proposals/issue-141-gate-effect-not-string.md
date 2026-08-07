@@ -38,24 +38,54 @@ stale gate copy from another session's scratchpad.
 
 ## Rationale
 
-**D1 — considered, rejected:** actually executing the given command
-inside a sandboxed `git` shim to observe the real resulting message, then
-reading it back. Rejected: the command can contain arbitrary side
-effects beyond the commit (rm, network calls, etc.); safely neutralizing
-everything except the final `git commit` invocation while still letting
-bash resolve `$(...)`/heredocs correctly is effectively re-implementing a
-bash sandbox inside a security gate — the failure surface of the fix
-would exceed the failure surface of the bug. **Chosen instead:** detect
-when the `-m`/`--message` argument contains an unresolved shell construct
-(`$(`, backtick, or a `<<` heredoc marker) that `shlex` cannot evaluate,
-and in that case take the gate's own pre-existing "cannot be verified
-statically" deny branch (currently reachable only via `-F`/editor) rather
-than proceeding to assert presence or absence from a string shlex
-half-parsed. This closes both the false-deny (issue-280 case) and the
-bypass (issue-30 case) with the same branch, and matches the gate's own
-documented fail-closed philosophy ("a commit whose message cannot be
-read statically... is DENIED") — it was already the right branch, just
-unreachable for this construct.
+**D1 — reopened after review (2026-08-07):** the first draft of this
+proposal denied every statically-unresolvable `-m` construct outright,
+which would have made the issue-280 heredoc commit DENIED — directly
+contradicting the acceptance criterion that the same commit be ALLOWED.
+PR #144 review caught the contradiction and asked for an explicit choice
+between (1) deny-everything-unresolvable, contract updated to say
+heredoc commits are no longer available, or (2) judge the resolved
+effect so the legitimate heredoc is ALLOWED and the source-text-only
+bypass is DENIED. Full sandboxed execution of the whole command (a `git`
+shim intercepting the eventual `commit` call) was rejected for the
+reason the first draft gave: the command can carry arbitrary side effects
+before that point (rm, network calls, etc.), and neutralizing everything
+except the final invocation is re-implementing a bash sandbox inside a
+security gate.
+
+**Chosen: (2), scoped to just the message argument, not the whole
+command.** Extract only the `-m`/`--message` argument's expression text
+(not the surrounding command) and, before evaluating it, run it through
+an allowlist: the expression must consist solely of `$(...)`/backtick
+substitutions and heredocs whose only invoked commands are from a fixed
+safe set (`cat`, `printf`, `echo` — no other command name, no
+`;`/`&&`/`|`/redirection-to-file inside the expression). An expression
+that passes the allowlist is evaluated with `timeout 2s bash -c` in a
+subshell with `PATH` restricted to a directory containing only those
+three coreutils (no network, no git, no filesystem mutation reachable),
+and the resulting resolved string is what gets checked for the
+`Subject:` trailer — not the raw source text. An expression that fails
+the allowlist (uses any other command, or times out) falls back to the
+gate's existing "cannot be verified statically" deny branch, unchanged
+from the first draft — fail-closed is preserved for anything the
+allowlist can't vouch for.
+
+This resolves both acceptance criteria at once: the issue-280 idiom
+(`$(cat <<'EOF' ... EOF)`, pure heredoc text, no side effects) passes the
+allowlist, resolves to its real message, and is judged on that — ALLOWED
+when the trailer is actually present in the resolved text. The issue-30
+shape (trailer sitting only in source text outside what the expression
+actually resolves to) is judged on the resolved text too, so a
+source-only trailer no longer passes — bypass closed. A message
+construct using any command outside the allowlist (e.g. embedding
+`$(curl ...)` or `$(git log ...)`) never gets executed by the gate at
+all — it falls to the same statically-unresolvable deny as before, so
+the gate never runs attacker-influenced commands beyond the three
+allowlisted coreutils. This is a narrower, auditable version of the
+sandboxed-shim idea the first draft rejected — narrow enough (three
+commands, no shell metacharacters, 2s timeout) that its own failure
+surface stays smaller than the bug it fixes, unlike whole-command
+execution.
 
 **D2 — considered, rejected:** scope the gate to the `git commit` segment
 only and skip judging staged state entirely when a `git add` precedes it
@@ -93,11 +123,17 @@ harness internals.
 
 - `trailer-gate.sh`: before `shlex.split`, scan the raw command's
   `-m`/`--message` argument text for `$(`, a backtick, or a `<<`
-  here-doc marker; if found, route directly to the existing "cannot be
-  verified statically" deny branch (reworded to name the detected
-  construct) instead of calling `shlex.split` and trusting its result.
-  Plain quoted literals (including ones containing escaped embedded
-  quotes) continue through the existing shlex + regex path unchanged.
+  here-doc marker. If found, apply the allowlist check described in
+  Rationale: only `cat`/`printf`/`echo` invocations, no other command
+  name, no `;`/`&&`/`|`/file-redirection inside the expression. If the
+  expression passes, resolve it via `timeout 2s bash -c` with `PATH`
+  restricted to those three coreutils and check the *resolved* string
+  for the trailer. If it fails the allowlist or the resolution times
+  out, route to the existing "cannot be verified statically" deny branch
+  (reworded to name the detected construct) instead of calling
+  `shlex.split` and trusting its result. Plain quoted literals (including
+  ones containing escaped embedded quotes) continue through the existing
+  shlex + regex path unchanged.
 - `handbook-trigger-gate.sh`: before reading `git diff --cached
   --name-only`, split the command on `&&`/`;`/`|`, find `git add`
   segments that precede the `git commit` segment, and for each resolvable
@@ -127,15 +163,28 @@ harness internals.
 - Any other gate in `core/hooks/` not named in the issue (board-gate.sh,
   approval-gate.sh, gh-guard.sh, record-fields-gate.sh) — out of scope
   even if they share superficially similar patterns.
+- Resolving message constructs that invoke anything beyond
+  `cat`/`printf`/`echo` (e.g. `$(curl ...)`, `$(git log ...)`, nested
+  command substitutions calling other tools). Those still deny via
+  "cannot be verified statically" — widening the allowlist is a separate
+  decision, not implied by this fix.
 
 ## How you'll know it worked
 
 - A crafted `git commit -m "$(cat <<'EOF' ... Subject: issue-280 ...
-  EOF)"` payload (real message carries the trailer) is ALLOWED by
+  EOF)"` payload (real message carries the trailer) passes the
+  cat/heredoc allowlist, resolves to its real message, and is ALLOWED by
   trailer-gate.sh.
-- The issue-30-shaped payload (trailer only in unresolved source text,
-  not in the actual would-be message) is DENIED by trailer-gate.sh, with
-  a message distinct from and not claiming "lacks the required trailer".
+- The issue-30-shaped payload (trailer sits only in source text outside
+  what the `-m` expression actually resolves to — e.g. in a shell
+  comment or unrelated part of the command, not in what `cat`/heredoc
+  emits) is judged on the resolved string, finds no trailer there, and
+  is DENIED by trailer-gate.sh with a message distinct from and not
+  claiming "lacks the required trailer" when the construct instead fails
+  the allowlist.
+- A payload whose `-m` expression invokes a command outside the
+  `cat`/`printf`/`echo` allowlist is never executed by the gate and is
+  DENIED via the "cannot be verified statically" branch.
 - `git add docs/handbooks/x.md && git commit -m "..."` payload where the
   handbook update is exactly what the pending add would stage is ALLOWED
   by handbook-trigger-gate.sh.
