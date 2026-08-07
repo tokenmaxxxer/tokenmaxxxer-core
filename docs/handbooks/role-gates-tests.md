@@ -58,6 +58,22 @@ same-commit convention, an `upstream` entry whose `path` lands in the same
 commit as the citing record or proposal is written as the literal
 `sha: same-commit` instead.
 
+`trailer-gate.sh` extracts a heredoc-supplied `-m` message
+(`git commit -m "$(cat <<'EOF' ...body... EOF)"` — the standard idiom for a
+multi-line commit message) directly from the raw command string via a regex
+anchored on the heredoc terminator line, before ever handing the command to
+`shlex.split()` (issue-151). `shlex` has no concept of heredocs: it
+re-tokenizes the heredoc body as ordinary shell syntax, so a body containing
+an unescaped double quote — common in real commit messages quoting an
+identifier or path — either aborts tokenization (`ValueError`) or silently
+mis-splits the `-m` argument, in both cases losing the `Subject:` trailer the
+gate is checking for even though the trailer is present in the message. The
+heredoc-body regex sidesteps `shlex` entirely for this idiom; only commands
+that don't match it fall through to the pre-existing `shlex`-based `-m`/`-F`
+extraction. The trailer check itself (`Subject: issue-<n>` present/absent) is
+unchanged in both paths — a heredoc message missing the trailer is still
+denied.
+
 `stub-check.sh` is checked against synthetic rulebook trees: a clean tree
 passes, a reintroduced vendored copy of any of the five canon files (the
 three gates, `parse-check.sh`, and `stub-check.sh` itself) is caught, a real
