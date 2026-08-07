@@ -92,7 +92,7 @@ fi
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§20 field check cannot run)."
 
 RF_PAYLOAD="$payload" RF_ROOT="$root" RF_ROLE="$role" \
-RF_TERMINAL="${RECORD_FIELDS_TERMINAL_STATES:-landed}" \
+RF_TERMINAL="${RECORD_FIELDS_TERMINAL_STATES:-landed complete closed done delivered phase-2-complete}" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
@@ -200,53 +200,78 @@ try:
 
     missing = []
     if not has_any("what was done", "what i did", "## done", "work done", "summary of work"):
-        missing.append("what-was-done")
+        missing.append(
+            'what-was-done (accepted: "what was done", "what i did", "## done", '
+            '"work done", "summary of work")'
+        )
     if not has_any("why", "rationale", "reason:"):
-        missing.append("why")
+        missing.append('why (accepted: "why", "rationale", "reason:")')
     if not (has_any("upstream", "based on", "basis:")
             or re.search(r'\b[0-9a-f]{7,40}\b', new_text)
             or "docs/issue-" in new_text):
-        missing.append("upstream-basis")
+        missing.append(
+            'upstream-basis (accepted: "upstream", "based on", "basis:", a 7-40 char hex '
+            'commit sha, or a docs/issue-<n> path)'
+        )
     m_ls = re.search(r'^\s*loop_state:\s*([A-Za-z0-9_-]+)\s*$', new_text, re.M)
     if not m_ls:
-        missing.append("loop_state")
+        missing.append("loop_state (accepted: a line matching `loop_state: <value>`)")
     if not has_any("open findings", "open_findings", "open finding"):
-        missing.append("open-findings")
-
-    if missing:
-        deny(
-            "record is missing required section(s): %s. Per contract §20 every role record "
-            "must state what was done, why, the concrete upstream basis, its own loop_state, "
-            "and open findings." % ", ".join(missing)
+        missing.append(
+            'open-findings (accepted: "open findings", "open_findings", "open finding")'
         )
 
     bad = placeholder_shas(new_text)
     if bad:
-        deny_placeholder(bad)
+        missing.append(
+            "sha: %s is not `same-commit` or a 40-character hex commit sha (issue-128/133). "
+            "Per contract §1's same-commit convention, write `sha: same-commit` when `path` "
+            "lands in this same commit; otherwise use the real 40-character commit sha."
+            % bad[0]
+        )
 
     if role in ("coding", "implementation"):
         m_cur = re.search(r'^\s*code_under_review:\s*(.+?)\s*$', new_text, re.M)
         if m_cur and re.match(r'^[0-9a-f]{7,40}$', m_cur.group(1).strip()):
-            deny(
+            missing.append(
                 "code_under_review: '%s' is a bare commit sha, not a file list. Per "
                 "docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md, "
                 "this role's own record cites code_under_review as the reviewed file list — the "
-                "record's own commit sha does not exist yet when the file is written." % m_cur.group(1).strip()
+                "record's own commit sha does not exist yet when the file is written."
+                % m_cur.group(1).strip()
             )
 
-    loop_state = m_ls.group(1).strip().lower()
-    if loop_state not in TERMINAL:
-        open_missing = []
-        if not has_any("next steps", "next-steps", "next_steps"):
-            open_missing.append("next-steps")
-        if not has_any("resolution path", "resolution-path", "resolution_path"):
-            open_missing.append("open-finding-resolution-path")
-        if open_missing:
-            deny(
-                "record shows loop_state '%s' (work left open) but is missing: %s. Per §20, an "
-                "open-state record must additionally give next-steps and an open-finding "
-                "resolution path." % (loop_state, ", ".join(open_missing))
-            )
+    def norm_state(v):
+        v = re.sub(r'[-_]', '-', v.strip().lower())
+        # normalize across the digit boundary too, so "phase2-complete" and
+        # "phase2_complete" match "phase-2-complete" (issue-140 PR #143 feedback)
+        v = re.sub(r'([a-z])(\d)', r'\1-\2', v)
+        v = re.sub(r'(\d)([a-z])', r'\1-\2', v)
+        return v
+
+    if m_ls:
+        loop_state = m_ls.group(1).strip().lower()
+        terminal_norm = {norm_state(t) for t in TERMINAL if t}
+        if norm_state(loop_state) not in terminal_norm:
+            if not has_any("next steps", "next-steps", "next_steps"):
+                missing.append(
+                    "next-steps (required because loop_state '%s' is non-terminal — accepted "
+                    'terminal states: %s; accepted next-steps spellings: "next steps", '
+                    '"next-steps", "next_steps")' % (loop_state, ", ".join(sorted(TERMINAL)))
+                )
+            if not has_any("resolution path", "resolution-path", "resolution_path"):
+                missing.append(
+                    "open-finding-resolution-path (required because loop_state '%s' is "
+                    'non-terminal — accepted spellings: "resolution path", "resolution-path", '
+                    '"resolution_path")' % loop_state
+                )
+
+    if missing:
+        deny(
+            "record has %d unmet requirement(s): %s. Per contract §20 every role record must "
+            "state what was done, why, the concrete upstream basis, its own loop_state, and "
+            "open findings." % (len(missing), "; ".join(missing))
+        )
 
     sys.exit(0)
 except Exception as _fc_e:  # fail-closed-on-internal-error
