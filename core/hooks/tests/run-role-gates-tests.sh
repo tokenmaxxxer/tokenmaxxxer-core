@@ -139,6 +139,24 @@ run_rf allow "complete loop_state treated as terminal (issue-140)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
+# --- record-fields-gate.sh: full terminal-state spelling table (PR #143) ---
+# Pins every spelling from the PR #143 feedback comment's table, both
+# directions: accepted spellings stay accepted (allow), non-terminal
+# spellings stay non-terminal (deny).
+for spelling in landed complete closed done delivered \
+    phase-2-complete phase-2_complete Complete COMPLETE \
+    phase2-complete phase2_complete; do
+  run_rf allow "loop_state '$spelling' accepted as terminal (PR #143)" coding \
+    "docs/issue-3/reports/coding.md" \
+    "\"loop_state: $spelling\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\""
+done
+run_rf deny "loop_state 'in_progress' stays non-terminal (PR #143)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: in_progress\n"'
+run_rf allow "loop_state 'in_progress' allowed once next-steps present (PR #143)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: in_progress\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\n## next steps\nz\n\n## open finding resolution path\nnone\n"'
+
 out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"loop_state: landed\n"}}' \
     | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 case "$out" in

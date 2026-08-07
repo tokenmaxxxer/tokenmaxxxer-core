@@ -25,6 +25,19 @@ Fixed the record-fields-gate.sh staircase (#140):
    `phase-2-complete`'s `-`/`_` variants and `closed`/`done`/`complete`
    normalize to terminal without an env override; the deny message body
    contains the literal accepted strings.
+4. (PR #143 feedback) `norm_state()` normalized `-`/`_` but not the digit
+   boundary, so `phase2-complete`/`phase2_complete` still normalized to
+   `phase2-complete`, distinct from `phase-2-complete`, and were still
+   misclassified NON-TERMINAL — a large share of the issue's measured 87
+   terminal-state refusals per the feedback. Fixed by inserting `-` across
+   every letter/digit boundary in `norm_state()` (`phase2` -> `phase-2`)
+   before the terminal-state set test. Extended the pinning test to loop
+   over all 11 spellings from the feedback comment's table (`landed`,
+   `complete`, `closed`, `done`, `delivered`, `phase-2-complete`,
+   `phase-2_complete`, `Complete`, `COMPLETE`, `phase2-complete`,
+   `phase2_complete`) asserting each is accepted as terminal, plus a
+   non-terminal control (`in_progress`) pinned both denied-without and
+   allowed-with the required next-steps/resolution-path fields.
 
 ## Why
 
