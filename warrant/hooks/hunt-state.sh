@@ -18,13 +18,10 @@
 #
 # Kill switch: export WARRANT_OFF=1
 
-# Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
-# most tooling, but any non-empty value used to disable the hook — the kill switch
-# silently killed it on exactly the spelling meant to keep it alive.
-case "${WARRANT_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "hunt-state.sh: cannot source gate-lib.sh" >&2; exit 2; }
+gate_trap_fail_closed
+set -uo pipefail
+gate_kill_switch_active "${WARRANT_OFF:-}" || { trap - EXIT; exit 0; }
 
 # Root resolution is shared with hunt-guard.sh and must stay identical: the
 # project directory, normalized to the git top level when there is one. A
@@ -33,7 +30,7 @@ esac
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
 top="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
 [ -n "$top" ] && root="$top"
-[ -d "$root" ] || exit 0
+[ -d "$root" ] || { trap - EXIT; exit 0; }
 
 case "${1:-release}" in
   release)

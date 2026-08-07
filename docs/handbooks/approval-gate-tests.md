@@ -94,6 +94,15 @@ still exits 2 (deny), pinning the `_fc_rc`-style remap ported from
 empty stdin (a delivery failure) denies rather than silently falling
 through the fast path to allow.
 
+Also covers issue-142's C4 sweep: the `internal_error` case's scratch
+`python3` stub directory used to come from a raw `mktemp -d` call — the
+canon abolished after it destroyed a workspace (issue #57: a failed
+`mktemp -d` lets `cd ""` succeed in place, so `td` silently becomes the
+repo root and the later `rm -rf "$td"` deletes the checkout). Replaced
+with the `mktd` helper from `_tmp.sh` (now sourced at the top of this
+file), assigned to a separate `stubdir` so it does not collide with the
+case's own `td`. Mechanical, no behavior change; no new test cases.
+
 Test-authoring note: this harness's `run()` builds the `Bash` tool's JSON
 `tinput` from a `cmd=` option via a plain `printf '%s'` substitution with
 no JSON-escaping. A `cmd=` value carrying a literal `"` must pre-escape it
