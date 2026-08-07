@@ -69,6 +69,16 @@ while IFS= read -r hj; do
 done <<< "$hooks_jsons"
 gates="$(printf '%s\n' "$gates" | grep -v '^[[:space:]]*$' | sort -u || true)"
 
+# No hooks.json at all (a bare hooks/ directory, or a fixture/test-only tree)
+# is not the same as "registered and found to be empty" — falling through to
+# exit 0 in that case would let a script sit un-scanned forever simply because
+# nobody wired a hooks.json next to it yet. Fall back to every *.sh file
+# directly under $dir (non-recursive: this is the "no registration to read"
+# case, not a license to walk an arbitrary tree).
+if [ -z "$gates" ] && [ -z "$hooks_jsons" ]; then
+  gates="$(find "$dir" -maxdepth 1 -type f -name '*.sh' 2>/dev/null | sort -u || true)"
+fi
+
 if [ -z "$gates" ]; then
   echo "compliance-check: no PreToolUse-wired scripts found under $dir — nothing to check"
   exit 0
@@ -106,6 +116,28 @@ while IFS= read -r f; do
   # the kill switch being off — silently allowing everything.
   if grep -q 'gate-lib\.sh"$' "$f" && ! grep -qE 'gate-lib\.sh"[[:space:]]*\|\|' "$f"; then
     reasons+=("sources gate-lib.sh with no || guard on the same line — fail-open when core is unreachable (missing CLAUDE_PLUGIN_ROOT_CORE)")
+  fi
+
+  # issue-142/C2: a gate that writes scratch state to disk at request time
+  # (mktemp in its own hot path, not a test harness) false-DENIES every call
+  # under a sandbox whose platform tmp dir is unwritable — the erm-order-gate
+  # class. The canonical fix is to keep the gate's judge in-memory (stdin/heredoc
+  # to python3, as scope-gate.sh/hunt-guard.sh already do) instead of a scratch file.
+  if grep -qE '(^|[^A-Za-z_#])mktemp\b' "$f"; then
+    reasons+=("calls mktemp in the gate's own request-time path — false-DENIES under a sandbox with an unwritable platform tmp dir; pass the payload to python3 in-memory (heredoc/stdin) instead of a scratch file")
+  fi
+
+  # issue-142/C3: a gate that only recognizes tool_name Write/Edit/MultiEdit/
+  # NotebookEdit and never even mentions Bash is blind to the same target
+  # written through the Bash tool (echo/redirect, tee, sed -i) — verified live
+  # as an ALLOW on a gated path. gate_bash_write_targets (gate-lib.sh) is the
+  # canonical token-scan a gate adds to also see a Bash-based write; a gate
+  # that deliberately punts Bash writes to another gate says so in a comment,
+  # which this check treats as evidence of a considered decision, not a gap.
+  if grep -qE '"(Write|Edit|MultiEdit|NotebookEdit)"' "$f" \
+     && ! grep -q 'gate_bash_write_targets' "$f" \
+     && ! grep -qi 'bash' "$f"; then
+    reasons+=("recognizes Write/Edit/MultiEdit/NotebookEdit but never mentions Bash at all — likely bypassable via a Bash echo/redirect, tee, or sed -i onto the same gated path; add gate_bash_write_targets (gate-lib.sh) coverage or document why Bash writes are out of this gate's scope")
   fi
 
   if [ "${#reasons[@]}" -gt 0 ]; then

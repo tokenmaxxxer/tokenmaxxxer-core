@@ -20,15 +20,12 @@
 #
 # Kill switch: export WARRANT_OFF=1
 
-# Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
-# most tooling, but any non-empty value used to disable the hook — the kill switch
-# silently killed it on exactly the spelling meant to keep it alive.
-case "${WARRANT_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "hunt-guard.sh: cannot source gate-lib.sh" >&2; exit 2; }
+gate_trap_fail_closed
+set -uo pipefail
+gate_kill_switch_active "${WARRANT_OFF:-}" || { trap - EXIT; exit 0; }
 
-command -v python3 >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || { trap - EXIT; exit 0; }
 
 payload="$(cat)"
 
