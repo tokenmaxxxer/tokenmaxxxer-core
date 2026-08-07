@@ -27,10 +27,13 @@ the requirement is discoverable from the message alone.
 
 `RECORD_FIELDS_TERMINAL_STATES` defaults to
 `landed complete closed done delivered phase-2-complete` (widened from the
-former lone `landed`, issue-140), and `-`/`_` are normalized before the
-terminal-state membership test, so `phase_2_complete`,
-`phase-2_complete`, and `phase-2-complete` are all treated as the same
-terminal state.
+former lone `landed`, issue-140). Before the terminal-state membership
+test, `-`/`_` are normalized to `-`, and a `-` is also inserted across
+every letter/digit boundary (`phase2` -> `phase-2`), so
+`phase_2_complete`, `phase-2_complete`, `phase-2-complete`,
+`phase2-complete`, and `phase2_complete` all normalize to the same
+terminal state (PR #143 feedback on issue-140 — the digit-boundary gap
+left `phase2-complete`/`phase2_complete` misclassified as non-terminal).
 
 For `CLAUDE_ROLE` in `{"coding", "implementation"}` (the repo's known
 coding/implementation naming double), `record-fields-gate.sh` additionally

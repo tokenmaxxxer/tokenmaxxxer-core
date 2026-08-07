@@ -242,7 +242,12 @@ try:
             )
 
     def norm_state(v):
-        return re.sub(r'[-_]', '-', v.strip().lower())
+        v = re.sub(r'[-_]', '-', v.strip().lower())
+        # normalize across the digit boundary too, so "phase2-complete" and
+        # "phase2_complete" match "phase-2-complete" (issue-140 PR #143 feedback)
+        v = re.sub(r'([a-z])(\d)', r'\1-\2', v)
+        v = re.sub(r'(\d)([a-z])', r'\1-\2', v)
+        return v
 
     if m_ls:
         loop_state = m_ls.group(1).strip().lower()
