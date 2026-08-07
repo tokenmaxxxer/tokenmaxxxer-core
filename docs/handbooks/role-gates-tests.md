@@ -16,6 +16,22 @@ role-correctly-labeled refusals from the one canon file (`"${role}: refused
 `record-fields-gate.sh`'s `RECORD_FIELDS_TERMINAL_STATES` override changes
 which `loop_state` values count as terminal.
 
+`record-fields-gate.sh` accumulates every §20 violation on a write (missing
+sections, sha placeholder, bare-sha `code_under_review`, missing
+next-steps/resolution-path) into one list and denies once with the complete
+set, instead of exiting on the first violation found (issue-140 — a
+sequential-deny staircase measured at 8,157s across 337 refusals). The deny
+message also names the literal accepted strings for each missing section
+(e.g. `"what was done"`, `"what i did"`), not just the abstract label, so
+the requirement is discoverable from the message alone.
+
+`RECORD_FIELDS_TERMINAL_STATES` defaults to
+`landed complete closed done delivered phase-2-complete` (widened from the
+former lone `landed`, issue-140), and `-`/`_` are normalized before the
+terminal-state membership test, so `phase_2_complete`,
+`phase-2_complete`, and `phase-2-complete` are all treated as the same
+terminal state.
+
 For `CLAUDE_ROLE` in `{"coding", "implementation"}` (the repo's known
 coding/implementation naming double), `record-fields-gate.sh` additionally
 denies a write to that role's own record when `code_under_review:`'s
