@@ -301,6 +301,9 @@ def norm(p):
     return posixpath.normpath(p.replace("\\", "/"))
 
 
+URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
+
+
 def _docs_relative_tail(token):
     """The part of `token` after its first `docs/` component, once
     normalized — "" when `token` carries no `docs/` token of its own.
@@ -309,7 +312,16 @@ def _docs_relative_tail(token):
     performed inline, exposed here (issue-99) so the `cd`-tracking walk in
     the Bash candidate builder can reuse it to decide whether a `cd`
     target itself lands under `docs/`, not only to extract final hits.
+
+    issue-149: a token naming an external URL (a scheme prefix, or `://`
+    appearing before the first `docs/` hit) carries no repository docs-tail
+    of its own — its path component is not a repository path, so it is
+    treated the same as a token with no `docs/` substring at all.
     """
+    idx = token.find(DOCS)
+    scheme_idx = token.find("://")
+    if URL_SCHEME.match(token) or (scheme_idx >= 0 and (idx < 0 or scheme_idx < idx)):
+        return ""
     n = norm(token)
     idx = n.find(DOCS)
     if idx >= 0:
@@ -361,7 +373,7 @@ elif tool == "Bash":
                         if tail:
                             cd_tail = tail
                 continue
-            own_hits = re.findall(r"[\w./~$-]*%s[\w./-]*" % re.escape(DOCS), seg)
+            own_hits = re.findall(r"[\w./~$:-]*%s[\w./-]*" % re.escape(DOCS), seg)
             if own_hits:
                 candidates.extend(own_hits)
             elif cd_tail:
