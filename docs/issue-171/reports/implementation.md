@@ -568,3 +568,94 @@ The open findings resolve when a follow-up proposal + PR gives
 accessibility-rulebook, localization-rulebook, and
 capacity-planning-rulebook shows clean. Batch 1 does not close, and
 Batch 2 does not open, until then.
+
+## Session 6 — Batch 1 closes post-#185; Batches 2-4 first re-scan
+
+#185 (PR #186, merged to `main`) gave `compliance-check.sh`'s
+canon-duplication check the third classification for custom-by-convention
+`directive.sh`-named files — the fix session 5 identified as the
+remaining blocker. Merged `main` into this branch (clean merge, no
+conflicts besides restoring `.warrant-hunt.count`), then fresh-cloned
+(`--depth 1`) and re-scanned (`fleet-silent-failure-scan.sh` per-repo,
+not the full 43-repo `run-fleet-scan.sh`) the three repos still blocked
+in session 5: `accessibility-rulebook`, `localization-rulebook`,
+`capacity-planning-rulebook`.
+
+Result: all three now canon-duplication-clean. accessibility-rulebook is
+fully clean; localization-rulebook and capacity-planning-rulebook each
+still carry their own pre-existing `mktemp-footgun` finding, out of this
+rollout's canon scope (unchanged from session 5). **All 10 Batch 1 repos
+are canon-duplication-clean — Batch 1 closes.**
+
+Proceeded to the runbook's next step: per-batch re-scan of Batches 2-4
+(30 repos, first re-scan of each). Fresh-cloned and scanned all 30.
+Result: 8/10 Batch 2 repos, 7/11 Batch 3 repos, and 6/10 Batch 4 repos
+are already canon-duplication-clean (each still carrying its own
+pre-existing, out-of-scope finding — mostly `mktemp-footgun`, one
+`fail-open-on-internal-error`, two `dead-deny-branch`). The remaining
+10 repos across Batches 2-4 (`brand-design-rulebook`,
+`marketing-rulebook`, `risk-management-rulebook`,
+`ux-engineering-rulebook`, `refactoring-legacy-rulebook`,
+`growth-analytics-rulebook`, `api-design-rulebook`,
+`security-threat-model-rulebook`, `release-engineering-rulebook`,
+`implementation-rulebook`) still carry a **genuine** vendored canon
+file — mostly `directive.sh`, but `security-threat-model-rulebook` and
+`implementation-rulebook` on `parse-check.sh` instead, and
+`release-engineering-rulebook` on both. Unlike Batch 1's blocker, this
+is not a `compliance-check.sh` false positive: these repos simply have
+not had the rollout-unit steps (delete canon files, replace
+`directive.sh` with the stub) applied yet. Executing that rollout
+against sibling repos is outside this repo's write access (no push
+access — restated in the runbook's opening note); the next action is a
+rollout PR per straggler repo, same shape as Batch 0/1. Full detail and
+the exact per-repo finding lines are recorded in
+`docs/issue-171/reports/implementation/rollout-runbook.md`'s re-scan
+log (rows "Batch 1 (post-#185 re-scan)" through "Batch 4 — first
+re-scan") — the frozen write set for this PR.
+
+No commit or push was made to any sibling repo this session (same
+constraint as every prior session).
+
+## What did not work (session 6)
+
+- None — the #185 fix behaved exactly as session 5's open finding
+  predicted for the three Batch 1 stragglers.
+
+## Open findings (session 6)
+
+- **Blocking Batch 2 close:** brand-design-rulebook, marketing-rulebook
+  still carry a vendored `directive.sh` — rollout-unit steps 1-2 not yet
+  applied. Needs a rollout PR per repo (outside this repo's write
+  access).
+- **Blocking Batch 3 close:** risk-management-rulebook,
+  ux-engineering-rulebook, refactoring-legacy-rulebook,
+  growth-analytics-rulebook — same: vendored `directive.sh`, rollout not
+  yet applied.
+- **Blocking Batch 4 close:** api-design-rulebook (vendored
+  `directive.sh`), security-threat-model-rulebook (vendored
+  `parse-check.sh`), release-engineering-rulebook (vendored both
+  `parse-check.sh` and `directive.sh`), implementation-rulebook
+  (vendored `parse-check.sh`) — rollout not yet applied, or (for the
+  `parse-check.sh` cases) step 1's delete-list was incomplete for that
+  file in whatever partial rollout these repos already had.
+
+## Next steps
+
+- Open rollout PRs against the 10 straggler repos identified above
+  (brand-design-rulebook, marketing-rulebook, risk-management-rulebook,
+  ux-engineering-rulebook, refactoring-legacy-rulebook,
+  growth-analytics-rulebook, api-design-rulebook,
+  security-threat-model-rulebook, release-engineering-rulebook,
+  implementation-rulebook), applying the rollout-unit steps from this
+  runbook.
+- Re-run the fleet scan against Batches 2-4 once those PRs merge; each
+  batch closes only when all its repos are canon-duplication-clean.
+- Regenerate the Batch 1-4 roster programmatically from issue-171's
+  embedded finding-count table (still outstanding since session 1).
+
+## Resolution path
+
+Batches 2-4 close when a rollout PR lands against each of the 10
+straggler repos listed above (outside this repo's write access — a
+future orchestration dispatch, per this runbook), and a re-scan of each
+batch shows all repos canon-duplication-clean.
