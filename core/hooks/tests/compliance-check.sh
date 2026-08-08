@@ -26,6 +26,13 @@ if [ "${1:-}" = "--canon-duplication" ]; then
   [ -d "$target" ] || { echo "compliance-check: no such directory: $target" >&2; exit 2; }
   . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd -P)/gate-lib.sh"
   manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
+  # This repo's own root (three levels up from core/hooks/tests/), i.e. the
+  # tokenmaxxxer-core checkout this script itself ships from — never $target,
+  # the arbitrary rulebook path being scanned. Every non-directive.sh
+  # manifest entry's one canonical source lives somewhere under here
+  # (core/, warrant/, ... — this repo's own plugins), which is what a
+  # content-hash compare needs to hash AGAINST (issue-175).
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
   if [ -f "$manifest" ]; then
     names="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#')"
   else
@@ -65,9 +72,54 @@ if [ "${1:-}" = "--canon-duplication" ]; then
           echo "compliance-check: ok — no vendored '$name' under $target (sanctioned stub only)"
         fi
       else
-        echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
-        printf '%s\n' "$hits" >&2
-        rc=1
+        # Every other manifest entry: content hash vs its canonical
+        # in-repo source(s), per the issue's acceptance wording verbatim
+        # ("content hash vs core canon = vendored; different content
+        # under a matching name = role-specific, clean") — a name match
+        # alone (e.g. pricing-rulebook's own scope-gate.sh) is not enough
+        # (issue-175). A name can have more than one canonical source in
+        # this repo (parse-check.sh: core/terse/freelunch/scout each carry
+        # their own copy) — a hit vendors if it hashes identically to ANY
+        # of them.
+        # No */tests/* exclusion here (warrant-hunter finding, issue-175):
+        # compliance-check.sh, stub-check.sh, and parse-check.sh's own
+        # canonical sources live under core/hooks/tests/ itself — excluding
+        # that path silently emptied canon_hits for exactly those three
+        # manifest entries, so a byte-identical vendored copy of any of
+        # them went unflagged. $repo_root is already bounded to this repo
+        # (never $target), so nothing here can match the scanned rulebook.
+        canon_hits="$(find "$repo_root" -name "$name" -type f 2>/dev/null || true)"
+        vendored_hits=""
+        clean_hits=""
+        while IFS= read -r hit; do
+          [ -n "$hit" ] || continue
+          matched=0
+          if [ -n "$canon_hits" ]; then
+            while IFS= read -r canon; do
+              [ -n "$canon" ] || continue
+              if gate_content_hash_matches_canon "$hit" "$canon"; then
+                matched=1
+                break
+              fi
+            done <<< "$canon_hits"
+          fi
+          if [ "$matched" = 1 ]; then
+            vendored_hits="${vendored_hits}${vendored_hits:+$'\n'}${hit}"
+          else
+            clean_hits="${clean_hits}${clean_hits:+$'\n'}${hit}"
+          fi
+        done <<< "$hits"
+        if [ -n "$vendored_hits" ]; then
+          echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
+          printf '%s\n' "$vendored_hits" >&2
+          rc=1
+        fi
+        if [ -n "$clean_hits" ]; then
+          echo "compliance-check: ok — '$name' under $target differs in content from core canon (role-specific, not vendored)"
+        fi
+        if [ -z "$vendored_hits" ] && [ -z "$clean_hits" ]; then
+          echo "compliance-check: ok — no vendored '$name' under $target"
+        fi
       fi
     else
       echo "compliance-check: ok — no vendored '$name' under $target"

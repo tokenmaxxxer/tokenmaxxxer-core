@@ -232,6 +232,32 @@ Recorded here so a future issue can revisit the split-file option if a
 combination shape emerges that manifest-registration truly cannot
 express.
 
+**Two more registered shapes (issue-175):** `architecture-rulebook`
+(`unregistered-stub:` — a named helper-function call beyond the
+`core_role_directive` call) and `accessibility-rulebook`
+(`layered-directive:` — a second, layered `.` source line pulling in a
+sibling directive fragment ahead of `core_role_directive`). Both
+fixtures are constructed from the issue's own gap descriptions, not
+pulled from the real repos (no access to their literal `directive.sh`
+bytes) — an explicit, stated assumption
+(`docs/issue-175/proposals/2026-08-08-canon-duplication-full-manifest-and-stub-shapes.md`),
+same registry mechanism as every prior addition above.
+
+**Content-hash duplication check, full manifest (issue-175):**
+`--canon-duplication`'s filename-only match (every manifest entry except
+`directive.sh`) misclassified a role-specific file that happens to share
+a manifest name — e.g. `pricing-rulebook`'s own `scope-gate.sh` — as a
+vendored core copy. `directive.sh` alone kept its structural
+`gate_is_role_directive_stub` check (its content is *supposed* to differ
+per sanctioned stub, so hash-equality was never the right test for it);
+every other manifest entry now gets `gate_content_hash_matches_canon`
+(`gate-lib.sh`, sha256 compare): a hit is flagged only when it hashes
+identically to its canonical in-repo source, resolved under
+`compliance-check.sh`'s own repo root (never the scanned `$target`,
+excluding `*/tests/*`). `parse-check.sh` has more than one canonical
+copy in this repo (core/terse/freelunch/scout each carry their own) — a
+hit vendors if it matches any of them, not just one fixed source.
+
 ## Per-repo migration checklist
 
 For each of the 43 rulebook repos' A+ remediation issue:
