@@ -79,7 +79,8 @@ flat list without ever intersecting the contract.
 - `python3 core/hooks/tests/gate-prose-coverage-check.py .` — exit 0, zero
   violations (was 19 violations, all in `record-fields-gate.sh`, before the
   `directive.sh` edit).
-- `bash core/hooks/tests/run-role-gates-tests.sh` — 78 passed, 0 failed.
+- `bash core/hooks/tests/run-role-gates-tests.sh` — 79 passed, 0 failed
+  (78 before the before-landing hunt fix below, +1 regression pin after).
 - `bash core/hooks/tests/run-gate-prose-coverage-tests.sh` — 4 passed, 0
   failed (unchanged; the generic dict-key-shape fixture already covers the
   C3 reshape's extractor shape).
@@ -110,5 +111,21 @@ override file lands where the gate actually looks for it.
 
 ## Open findings
 
-None open. `resolved_findings:` — n/a, no findings were addressed to this
-role this phase.
+None open.
+
+`resolved_findings:`
+- addressed_to: implementation | requirement: before-landing warrant hunt
+  (issue-147, stance 0 — "assume the gate just touched is bypassable") |
+  verdict: Incorrect | evidence: `record-fields-gate.sh`'s per-kind
+  terminal-state resolution trusted a record's own self-declared `kind:`
+  frontmatter unconditionally, letting a `qa` role write `kind:
+  coding-record` in its own record and borrow `coding-record`'s
+  terminal-state set (`landed`) to skip the next-steps/resolution-path
+  requirement `qa-record`'s own terminal state (`verified-fixed`/
+  `not-a-defect`/`wont-fix`) would have required. | resolution: for a role
+  contract §2 names, the role->kind mapping is now authoritative and a
+  self-declared `kind:` is never consulted (only used as a fallback for a
+  role contract §2 does not name); regression-pinned in
+  `run-role-gates-tests.sh` ("hunt fix: qa record cannot borrow
+  coding-record's terminal state via a spoofed kind: field"). record:
+  `docs/reports/2026-08-08-hunt-announce-gate-literals-and-per-kind-terminal-states.md`.
