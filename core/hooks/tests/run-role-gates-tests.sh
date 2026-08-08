@@ -70,6 +70,27 @@ run_rf() { # <want> <name> <role> <file_path> <content-json> <extra-env...>
   [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
 }
 
+# Variant of run_rf that resolves root to this actual repo checkout instead
+# of /tmp (issue-147 C2 override-file fixtures need the gate's `root` to be
+# a directory they control, to place docs/specs/record-fields-terminal-
+# states.json where the gate will actually look for it -- CLAUDE_PROJECT_DIR
+# "/tmp" is not reliable for that purpose since the gate's own root-fallback
+# probes may resolve /tmp itself as root when a stray .git happens to live
+# there).
+RF_REPO_ROOT="$(cd "$HOOKS/../.." && pwd -P)"
+run_rf_root() { # <want> <name> <role> <file_path> <content-json>
+  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
+  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$RF_REPO_ROOT" \
+      /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  msg_ok=1
+  case "$got" in deny) case "$out" in "${role}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
+  report "$want" "$got" "$name"
+  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
+}
+
 run_rf deny  "coding record missing fields denied" coding \
   "docs/issue-3/reports/coding.md" '"# empty\n"'
 run_rf allow "coding record w/ all §20 fields allowed" coding \
@@ -80,10 +101,52 @@ run_rf allow "non-owning role write is not this gate'\''s business" coding \
 run_rf deny  "product-role open record missing next-steps denied" product \
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf allow "product-role scope-proposed treated as terminal via override" product \
+# issue-147 C2: RECORD_FIELDS_TERMINAL_STATES is retired (a SessionStart env
+# var never reaches this PreToolUse gate's own process); the working
+# override channel is a repo-committed config file the gate reads by path.
+RF_OVERRIDE_FILE="$RF_REPO_ROOT/docs/specs/record-fields-terminal-states.json"
+rm -f "$RF_OVERRIDE_FILE"
+printf '{"product-record": ["landed", "scope-proposed"]}\n' > "$RF_OVERRIDE_FILE"
+run_rf_root allow "product-role scope-proposed treated as terminal via override file (C2)" product \
   "docs/issue-3/reports/product.md" \
-  '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"' \
-  RECORD_FIELDS_TERMINAL_STATES="landed scope-proposed"
+  '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+rm -f "$RF_OVERRIDE_FILE"
+printf 'not valid json' > "$RF_OVERRIDE_FILE"
+run_rf_root deny "malformed override JSON denied loudly, not silently ignored (C2)" product \
+  "docs/issue-3/reports/product.md" \
+  '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+rm -f "$RF_OVERRIDE_FILE"
+printf '{"not-a-real-kind": ["x"]}\n' > "$RF_OVERRIDE_FILE"
+run_rf_root deny "override naming unrecognized kind denied loudly (C2)" product \
+  "docs/issue-3/reports/product.md" \
+  '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+rm -f "$RF_OVERRIDE_FILE"
+printf '{"product-record": ["bad state!"]}\n' > "$RF_OVERRIDE_FILE"
+run_rf_root deny "override naming unrecognized state spelling denied loudly (C2)" product \
+  "docs/issue-3/reports/product.md" \
+  '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+rm -f "$RF_OVERRIDE_FILE"
+# --- record-fields-gate.sh: per-kind terminal states, every kind in
+# contract §2 pinned (issue-147 C2 acceptance) ---
+rf_body() { printf 'loop_state: %s\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n' "$1"; }
+rf_json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$(rf_body "$1")"; }
+run_kind() { # <role> <terminal-state> <non-terminal-state>
+  local role="$1" terminal="$2" nonterm="$3"
+  run_rf allow "C2: $role record's own terminal state '$terminal' allowed" "$role" \
+    "docs/issue-3/reports/$role.md" "$(rf_json "$terminal")"
+  run_rf deny "C2: $role record's non-terminal state '$nonterm' denied w/o next-steps" "$role" \
+    "docs/issue-3/reports/$role.md" "$(rf_json "$nonterm")"
+}
+run_kind product      decided        scope-proposed
+run_kind coding        landed         approved
+run_kind qa            verified-fixed observed
+run_kind feasibility   verdict        probing
+run_kind ux-design     reviewed       drafting
+run_kind review        reported       auditing
+run_kind verify        cleared        reproducing
+run_kind ops           steady         rollout
+run_kind reflect       round-done     reflecting
+
 run_rf deny  "implementation record code_under_review bare sha denied (issue-100)" implementation \
   "docs/issue-3/reports/implementation.md" \
   '"loop_state: landed\n\ncode_under_review: 0123456789abcdef0123456789abcdef01234567\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
@@ -223,30 +286,39 @@ run_rf_count 4 "one deny lists all 4 missing sections (issue-140)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: landed\n"'
 
+# issue-147 C2: the flat six-spelling terminal list (#140) had EMPTY
+# intersection with contract §2's real per-kind vocabulary and is retired.
+# coding-record's only contract-defined terminal state is `landed` (build-
+# proposal's own vocabulary, which coding-record shares per §2's table) --
+# "complete"/"closed"/"done"/"delivered"/"phase-2-complete" were never
+# contract-correct terminal states for it and are now correctly denied as
+# non-terminal (requiring next-steps), closing the gap the issue-147 C2
+# section documents.
 run_rf deny "phase-2-complete with -/_ variants still requires §20 fields" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: phase_2_complete\n"'
-run_rf allow "phase-2-complete (normalized) treated as terminal (issue-140)" coding \
+run_rf deny "phase-2-complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: phase_2_complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf allow "closed loop_state treated as terminal (issue-140)" coding \
+run_rf allow "phase-2-complete allowed once next-steps present (C2)" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: phase_2_complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\n## next steps\nz\n\n## resolution path\nnone\n"'
+run_rf deny "closed is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: closed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf allow "done loop_state treated as terminal (issue-140)" coding \
+run_rf deny "done is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: done\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf allow "complete loop_state treated as terminal (issue-140)" coding \
+run_rf deny "complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
-# --- record-fields-gate.sh: full terminal-state spelling table (PR #143) ---
-# Pins every spelling from the PR #143 feedback comment's table, both
-# directions: accepted spellings stay accepted (allow), non-terminal
-# spellings stay non-terminal (deny).
-for spelling in landed complete closed done delivered \
-    phase-2-complete phase-2_complete Complete COMPLETE \
-    phase2-complete phase2_complete; do
-  run_rf allow "loop_state '$spelling' accepted as terminal (PR #143)" coding \
+# --- record-fields-gate.sh: per-kind terminal-state table (issue-147 C2) --
+# For coding-record, only `landed` (and its case/digit-normalized variants)
+# is a contract-defined terminal state; every other PR #143 spelling is now
+# correctly non-terminal (pinned above), which supersedes that table.
+for spelling in landed Landed LANDED; do
+  run_rf allow "loop_state '$spelling' accepted as terminal (C2, coding-record)" coding \
     "docs/issue-3/reports/coding.md" \
     "\"loop_state: $spelling\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\""
 done
@@ -294,6 +366,12 @@ run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
 run_ht deny  "coding: package.json w/o handbook denied" coding package.json -- '"git commit -m x"'
 run_ht allow "coding: package.json w/ handbook allowed" coding package.json docs/handbooks/x.md -- '"git commit -m x"'
 run_ht deny  "product: package.json w/o handbook denied" product package.json -- '"git commit -m x"'
+# issue-147 C3: OP_PATTERNS reshaped tuple-list -> dict-key; pin that the
+# reshape changed no matching behavior for the other trigger patterns.
+run_ht deny  "coding: Dockerfile w/o handbook denied (C3 reshape)" coding Dockerfile -- '"git commit -m x"'
+run_ht allow "coding: Dockerfile w/ handbook allowed (C3 reshape)" coding Dockerfile docs/handbooks/x.md -- '"git commit -m x"'
+run_ht deny  "coding: .env w/o handbook denied (C3 reshape)" coding .env -- '"git commit -m x"'
+run_ht deny  "coding: setup.sh w/o handbook denied (C3 reshape)" coding setup.sh -- '"git commit -m x"'
 
 # --- stub-check.sh: absence-based for gates, structural for directive.sh --
 mktd

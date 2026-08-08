@@ -152,25 +152,31 @@ try:
     if not staged:
         sys.exit(0)
 
-    OP_PATTERNS = [
-        (re.compile(r'(^|/)package\.json$'), "dependency manifest"),
-        (re.compile(r'(^|/)package-lock\.json$'), "dependency lockfile"),
-        (re.compile(r'(^|/)pyproject\.toml$'), "dependency manifest"),
-        (re.compile(r'(^|/)requirements[^/]*\.txt$'), "dependency manifest"),
-        (re.compile(r'(^|/)go\.mod$'), "dependency manifest"),
-        (re.compile(r'(^|/)Cargo\.toml$'), "dependency manifest"),
-        (re.compile(r'(^|/)Gemfile$'), "dependency manifest"),
-        (re.compile(r'(^|/)Dockerfile$'), "container/build config"),
-        (re.compile(r'(^|/)docker-compose\.ya?ml$'), "container/build config"),
-        (re.compile(r'\.env(\.[A-Za-z0-9_.-]+)?$'), "environment config"),
-        (re.compile(r'(^|/)migrations?/'), "database migration"),
-        (re.compile(r'(^|/)\.github/workflows/'), "CI/deploy workflow"),
-        (re.compile(r'(^|/)(deploy|setup|run|install)[^/]*\.sh$'), "run/setup/deploy script"),
-    ]
+    # issue-147 C3: keyed on the human-readable trigger token (the literal
+    # #146's gate-prose-coverage-check.py dict-key extractor picks up as a
+    # needle directive.sh must state), not the raw regex source -- a tuple
+    # list has no shape any of the checker's three extractors recognize, so
+    # this trigger set could drift from the injected prose with nothing
+    # catching it (the same silent-drift shape #140 left behind for C2).
+    OP_PATTERNS = {
+        "package.json": re.compile(r'(^|/)package\.json$'),
+        "package-lock.json": re.compile(r'(^|/)package-lock\.json$'),
+        "pyproject.toml": re.compile(r'(^|/)pyproject\.toml$'),
+        "requirements.txt": re.compile(r'(^|/)requirements[^/]*\.txt$'),
+        "go.mod": re.compile(r'(^|/)go\.mod$'),
+        "Cargo.toml": re.compile(r'(^|/)Cargo\.toml$'),
+        "Gemfile": re.compile(r'(^|/)Gemfile$'),
+        "Dockerfile": re.compile(r'(^|/)Dockerfile$'),
+        "docker-compose.yml": re.compile(r'(^|/)docker-compose\.ya?ml$'),
+        ".env": re.compile(r'\.env(\.[A-Za-z0-9_.-]+)?$'),
+        "migrations/": re.compile(r'(^|/)migrations?/'),
+        ".github/workflows/": re.compile(r'(^|/)\.github/workflows/'),
+        "deploy/setup/run/install script": re.compile(r'(^|/)(deploy|setup|run|install)[^/]*\.sh$'),
+    }
 
     op_hits = []
     for f in staged:
-        for rx, kind in OP_PATTERNS:
+        for kind, rx in OP_PATTERNS.items():
             if rx.search(f):
                 op_hits.append((f, kind))
                 break
