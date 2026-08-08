@@ -81,7 +81,14 @@ if [ "${1:-}" = "--canon-duplication" ]; then
         # this repo (parse-check.sh: core/terse/freelunch/scout each carry
         # their own copy) — a hit vendors if it hashes identically to ANY
         # of them.
-        canon_hits="$(find "$repo_root" -name "$name" -type f -not -path '*/tests/*' 2>/dev/null || true)"
+        # No */tests/* exclusion here (warrant-hunter finding, issue-175):
+        # compliance-check.sh, stub-check.sh, and parse-check.sh's own
+        # canonical sources live under core/hooks/tests/ itself — excluding
+        # that path silently emptied canon_hits for exactly those three
+        # manifest entries, so a byte-identical vendored copy of any of
+        # them went unflagged. $repo_root is already bounded to this repo
+        # (never $target), so nothing here can match the scanned rulebook.
+        canon_hits="$(find "$repo_root" -name "$name" -type f 2>/dev/null || true)"
         vendored_hits=""
         clean_hits=""
         while IFS= read -r hit; do
