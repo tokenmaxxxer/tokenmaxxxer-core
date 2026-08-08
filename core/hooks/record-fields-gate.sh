@@ -184,10 +184,29 @@ try:
         # stance 0, issue-153): re.match anchors at text[0] only, so an
         # unstripped BOM before the fence made the anchor fail and the scan
         # region silently fall back to empty, skipping every sha: line.
+        #
+        # issue-157 F1: a document with no leading `---` fence at all used
+        # to fall back to an *empty* scan region -- every sha: line in it
+        # went uninspected, so the exact placeholder spellings issue-128/133
+        # exist to deny went straight through. The anchor is attempted again
+        # against a leading-whitespace-stripped copy of the text (tolerating
+        # an incidental leading blank line the same way the BOM strip above
+        # tolerates a leading byte-order mark, so genuinely fenced documents
+        # are not misclassified as fence-less), and only when that also
+        # fails to match does the fallback scan the full, original,
+        # unstripped text instead of an empty region -- restoring the
+        # pre-#154 whole-document scan for that shape only. A document that
+        # has a real leading fence is completely unaffected: the first
+        # match attempt succeeds and `region` is the frontmatter block
+        # exactly as before (issue-157 after-proposal hunt, stance 0: the
+        # first-draft fix matched the anchor against the raw, unstripped
+        # text, which is byte-exact-position-0 stricter than "has a fence"
+        # and falsely denied a conforming document merely preceded by one
+        # stray leading blank line).
         if text.startswith('\ufeff'):
             text = text[1:]
-        fm = re.match(r'^---[ \t]*\r?\n(.*?\n)^---[ \t]*\r?$', text, re.M | re.S)
-        region = fm.group(1) if fm else ""
+        fm = re.match(r'^---[ \t]*\r?\n(.*?\n)^---[ \t]*\r?$', text.lstrip(), re.M | re.S)
+        region = fm.group(1) if fm else text
         bad = []
         for m in re.finditer(r'^\s*sha:[ \t]*(.*)$', region, re.M):
             # horizontal whitespace only after the field name, so the
