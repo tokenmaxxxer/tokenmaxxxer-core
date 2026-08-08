@@ -43,6 +43,13 @@ dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)}"
 [ -d "$dir" ] || { echo "stub-check: no such directory: $dir" >&2; exit 2; }
 rc=0
 
+# repo_root, computed the same way compliance-check.sh does (three levels
+# up from core/hooks/tests/), used below to exclude hits that are already
+# living at their own canonical core/hooks/ location — a real hit there is
+# this repo's canon source, not a vendored copy (issue-183).
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+canon_home="$repo_root/core/hooks"
+
 # CANON_GATES is derived from canon-manifest.txt (one filename per line,
 # next to this script) rather than hardcoded, so a future promotion (a new
 # core/hooks.json entry, or a new promoted test-harness script) adds one
@@ -50,7 +57,15 @@ rc=0
 # 2, general-rule half).
 manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
 if [ -f "$manifest" ]; then
-  CANON_GATES="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#' | tr '\n' ' ')"
+  # directive.sh is excluded here even though it is a manifest entry: it is
+  # the one entry with "keep a stub" semantics (docs/handbooks/canon-rollout.md
+  # step 3, issue-173) — a correctly-rolled-out rulebook still has a file
+  # literally named directive.sh, so the absence-based loop below would flag
+  # every sanctioned stub as a vendored copy before the structural check
+  # further down ever runs. It is handled exclusively by that structural
+  # check (issue-180), the same carve-out compliance-check.sh's
+  # --canon-duplication mode already applies for the same reason.
+  CANON_GATES="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#' | grep -vx 'directive.sh' | tr '\n' ' ')"
 else
   echo "stub-check: WARN — canon-manifest.txt not found at $manifest, falling back to built-in list" >&2
   CANON_GATES="trailer-gate.sh record-fields-gate.sh handbook-trigger-gate.sh parse-check.sh stub-check.sh"
@@ -63,6 +78,24 @@ for name in $CANON_GATES; do
   # canon by definition and is excluded by callers pointing $dir at a
   # rulebook's plugin root, not at this repo).
   hits="$(find "$dir" -maxdepth 3 -name "$name" -type f 2>/dev/null || true)"
+  if [ -n "$hits" ]; then
+    filtered=""
+    while IFS= read -r hit; do
+      [ -n "$hit" ] || continue
+      real="$(cd "$(dirname "$hit")" 2>/dev/null && pwd -P)/$(basename "$hit")"
+      # Exact-match only, against $name's actual canonical location(s) —
+      # a nested subtree under core/hooks/ (e.g. a vendored copy stashed
+      # at core/hooks/vendor/some-rulebook/hooks/$name) is a real drift
+      # hit, not this file's own canon source, so a broad prefix match
+      # would wrongly exclude it (issue-183 before-landing hunt).
+      case "$real" in
+        "$canon_home/$name"|"$canon_home/tests/$name"|"$canon_home/lib/$name") ;;
+        *) filtered="$filtered
+$real" ;;
+      esac
+    done <<< "$hits"
+    hits="$(printf '%s\n' "$filtered" | grep -v '^[[:space:]]*$' || true)"
+  fi
   if [ -n "$hits" ]; then
     echo "stub-check: FAIL — vendored copy of core canon file '$name' found:" >&2
     printf '%s\n' "$hits" >&2

@@ -116,30 +116,58 @@ gate_budget_exceeded() {
 # directive.sh structural check (issue-173) so compliance-check.sh's
 # --canon-duplication filename-match scan can distinguish a sanctioned
 # per-repo directive.sh stub (source role-directive.sh, call
-# core_role_directive, nothing else beyond registered canon-forms.txt
-# shapes) from a genuinely vendored full copy, without a second,
+# core_role_directive, nothing else beyond a small set of structural line
+# categories) from a genuinely vendored full copy, without a second,
 # independently-maintained copy of this classification. Returns 0 (is a
 # sanctioned stub) or 1 (not); prints the fail reason to stdout on a 1
-# return, prints nothing on a 0 return. canon-forms.txt is resolved next
-# to this library's caller-known test dir, same path stub-check.sh uses:
-# core/hooks/tests/canon-forms.txt relative to this file's own directory.
+# return, prints nothing on a 0 return.
+#
+# issue-180: replaces the earlier canon-forms.txt regex-table approach
+# (three rounds of literal per-repo pattern rows — #78, #173, #175,
+# #177 — each still left real Batch-1 repos scanning dirty; see
+# docs/issue-180/reports/implementation/survey.md) with a structural
+# line classifier. Every remaining "other" line (after the existing
+# blank/comment/shebang/role-directive.sh-mention/core_role_directive-
+# mention/bare-assignment exclusions) must fall into one of:
+#   1. a `.`/`source` line whose argument's basename (after stripping
+#      the directory portion, tolerating arbitrary nested quoting and
+#      $(...) command substitution before the final path component) is
+#      exactly gate-lib.sh or role-directive.sh — with an optional
+#      trailing `|| { ...; exit N; }` or `|| exit N` fallback.
+#      Basename-anchored, not a substring-anywhere test, so a lookalike
+#      target such as gate-lib.sh.backdoor/inject.sh fails
+#      (after-proposal warrant-hunt finding,
+#      docs/reports/2026-08-08-hunt-canon-forms-real-bytes.md). Capped
+#      to one gate-lib.sh match and one role-directive.sh match per file
+#      (issue-177's shape: at most one of each). Deviation from the
+#      approved proposal text (docs/issue-180/reports/implementation.md
+#      "## Rationale for deviations"): the proposal also names a
+#      standalone "sibling *-directive.sh basename" acceptance in this
+#      category; dropped here because a bare `. "<name>-directive.sh"`
+#      source line with no preceding gate-lib.sh/loop context is exactly
+#      the shape the pre-existing "non-gate-lib source line still
+#      rejected" regression fixture exists to catch, and generalizing it
+#      would silently reopen that gap. The one real shape needing a
+#      sibling-directive.sh source (sales-rulebook's fragment loop)
+#      still passes via category 4's variable-based test-and-source
+#      line, which never needs a literal sibling filename.
+#   2. a line calling exactly one gate_<name> function (the gate_*
+#      word-count cap below still applies — issue-177 semicolon-chain
+#      hunt fix), optionally followed by `|| exit N` — accepted only
+#      once a category-1 gate-lib.sh source line has already matched
+#      earlier in the file, since a gate_* call before anything defines
+#      it cannot be a real export (closes the second half of the same
+#      hunt finding: an attacker-defined gate_evil sourced from a
+#      non-canon file can no longer piggyback on a call-site-only test).
+#   3. a set -e / set -euo pipefail-family preamble line.
+#   4. for/do/done/in loop-syntax keyword lines (sales-rulebook's
+#      fragment-loop shape, #78/#83) — narrow: only these four keyword
+#      lines, not a generic loop-body allowance.
+# Any line matching none of these ⇒ fail, same "regrown boilerplate"
+# message shape as before.
 gate_is_role_directive_stub() {
   local f="$1"
   [ -f "$f" ] || { echo "no such file: $f"; return 1; }
-
-  local forms_manifest
-  forms_manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tests" 2>/dev/null && pwd -P)/canon-forms.txt"
-  local -a CANON_FORM_PATTERNS=()
-  local -a CANON_FORM_NAMES=()
-  if [ -f "$forms_manifest" ]; then
-    while IFS= read -r line; do
-      case "$line" in
-        ''|'#'*) continue ;;
-      esac
-      CANON_FORM_NAMES+=("${line%%:*}")
-      CANON_FORM_PATTERNS+=("${line#*:}")
-    done < "$forms_manifest"
-  fi
 
   local fail_reason=""
   grep -qE 'role-directive\.sh["'"'"']?[[:space:]]*$|role-directive\.sh"' "$f" \
@@ -151,47 +179,82 @@ gate_is_role_directive_stub() {
   if [ -z "$fail_reason" ]; then
     local other
     other="$(grep -vE '^[[:space:]]*(#.*)?$|^#!|role-directive\.sh|core_role_directive|^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null || true)"
-    if [ -n "$other" ] && [ "${#CANON_FORM_PATTERNS[@]}" -gt 0 ]; then
-      local still_other="" oline matched i name gate_word_count
-      # gate-lib-source/gate-call (issue-177): capped at one matching line
-      # each — architecture-rulebook's real shape has exactly one of each
-      # (gate-lib.sh:14-15); an uncapped generalization would let an
-      # unbounded chain of look-alike lines through past the mandatory
-      # header, a shape no real Batch-1 repo has (after-proposal hunt
-      # finding, docs/reports/2026-08-08-hunt-canon-forms-real-bytes.md).
-      local gate_lib_source_hits=0 gate_call_hits=0
+    if [ -n "$other" ]; then
+      local still_other="" oline gate_word_count basename_part
+      local gate_lib_hits=0 role_directive_hits=0 saw_gate_lib_source=0 gate_call_hits=0
       while IFS= read -r oline; do
         [ -n "$oline" ] || continue
-        matched=0
-        # A semicolon-joined chain of gate_* calls on one physical line
-        # (e.g. `gate_a x; gate_b y; gate_c z`) would otherwise hide an
-        # unbounded chain from the one-match-per-line cap below, since
-        # that cap counts physical lines, not statements (before-landing
-        # hunt finding, issue-177). Count `gate_<name>` word occurrences
-        # directly and reject a line with more than one.
-        gate_word_count="$(printf '%s' "$oline" | grep -oE '\bgate_[A-Za-z_][A-Za-z0-9_]*\b' | wc -l)"
-        if [ "$gate_word_count" -gt 1 ]; then
+
+        # Category 3: set -e family preamble.
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*set[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)'; then
+          continue
+        fi
+
+        # Category 4: narrow fragment-loop syntax (sales-rulebook's
+        # approved shape, #78/#83) — for/in header (optionally
+        # backslash-continued), quoted sibling-path continuation lines,
+        # do/done keyword lines, and the var-based test-and-source body
+        # line. Kept minimal: these five line shapes only, not a
+        # generic loop-body allowance.
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in([[:space:]].*)?\\?[[:space:]]*$'; then
+          continue
+        fi
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*(do|done)[[:space:]]*$'; then
+          continue
+        fi
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*"[^"]+"[[:space:]]*\\?[[:space:]]*$'; then
+          continue
+        fi
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*\[[[:space:]]+-f[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"[[:space:]]+\][[:space:]]+&&[[:space:]]+\.[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"([[:space:]]+2>/dev/null)?[[:space:]]*$'; then
+          continue
+        fi
+
+        # Category 1: `.`/source line, basename-anchored target check.
+        # Extract the final /<name>.sh (or bare <name>.sh with no
+        # leading slash) component of the line's non-fallback portion,
+        # ignoring everything up to and including the last `/` inside
+        # the quoted-or-unquoted argument — this is what tolerates
+        # nested quoting/$(...) in the directory portion while still
+        # anchoring on the actual filename, not a substring match
+        # anywhere in the line.
+        if printf '%s' "$oline" | grep -qE '^[[:space:]]*\.[[:space:]]+'; then
+          basename_part="$(printf '%s' "$oline" | grep -oE '[A-Za-z0-9_-]+\.sh' | tail -1)"
+          case "$basename_part" in
+            gate-lib.sh)
+              gate_lib_hits=$((gate_lib_hits + 1))
+              if [ "$gate_lib_hits" -le 1 ] \
+                && printf '%s' "$oline" | grep -qE '^[[:space:]]*\.[[:space:]]+.*gate-lib\.sh["'"'"']?([[:space:]]*\|\|[[:space:]]*(\{[^}]*\}|exit[[:space:]]+[0-9]+))?[[:space:]]*$'; then
+                saw_gate_lib_source=1
+                continue
+              fi
+              ;;
+            role-directive.sh)
+              role_directive_hits=$((role_directive_hits + 1))
+              if [ "$role_directive_hits" -le 1 ] \
+                && printf '%s' "$oline" | grep -qE '^[[:space:]]*\.[[:space:]]+.*role-directive\.sh["'"'"']?([[:space:]]*\|\|[[:space:]]*(\{[^}]*\}|exit[[:space:]]+[0-9]+))?[[:space:]]*$'; then
+                continue
+              fi
+              ;;
+          esac
           still_other="${still_other}${still_other:+$'\n'}${oline}"
           continue
         fi
-        for ((i = 0; i < ${#CANON_FORM_PATTERNS[@]}; i++)); do
-          if printf '%s' "$oline" | grep -qE "${CANON_FORM_PATTERNS[$i]}"; then
-            name="${CANON_FORM_NAMES[$i]}"
-            case "$name" in
-              gate-lib-source)
-                gate_lib_source_hits=$((gate_lib_source_hits + 1))
-                [ "$gate_lib_source_hits" -gt 1 ] && continue
-                ;;
-              gate-call)
-                gate_call_hits=$((gate_call_hits + 1))
-                [ "$gate_call_hits" -gt 1 ] && continue
-                ;;
-            esac
-            matched=1
-            break
-          fi
-        done
-        [ "$matched" = 1 ] || still_other="${still_other}${still_other:+$'\n'}${oline}"
+
+        # Category 2: exactly one gate_<name> call, only once a
+        # gate-lib.sh source line has already matched earlier in the
+        # file. A semicolon-joined chain of gate_* calls on one
+        # physical line (e.g. `gate_a x; gate_b y`) would hide an
+        # unbounded chain from a per-line cap, so count gate_<name>
+        # word occurrences directly and reject a line with more than
+        # one (issue-177 before-landing hunt finding).
+        gate_word_count="$(printf '%s' "$oline" | grep -oE '\bgate_[A-Za-z_][A-Za-z0-9_]*\b' | wc -l)"
+        if [ "$gate_word_count" = 1 ] && [ "$saw_gate_lib_source" = 1 ] && [ "$gate_call_hits" = 0 ] \
+          && printf '%s' "$oline" | grep -qE '^[[:space:]]*gate_[A-Za-z_][A-Za-z0-9_]*([[:space:]].*)?(\|\|[[:space:]]*exit[[:space:]]+[0-9]+)?[[:space:]]*$'; then
+          gate_call_hits=$((gate_call_hits + 1))
+          continue
+        fi
+
+        still_other="${still_other}${still_other:+$'\n'}${oline}"
       done <<< "$other"
       other="$still_other"
     fi

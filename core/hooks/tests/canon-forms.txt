@@ -1,42 +1,10 @@
-# Registered directive.sh combination shapes (issue-78). One entry per
-# line: name:pattern-description, mirroring canon-manifest.txt's plain-line
-# convention. stub-check.sh classifies each non-blank/non-comment/
-# non-assignment line of a directive.sh against the union of these shapes;
-# a line matching any registered pattern is not "regrown boilerplate".
-#
-# single-call: the original shape — the only non-blank/non-comment/
-# non-assignment line is the one core_role_directive call.
-single-call:^[[:space:]]*core_role_directive[[:space:]]
-#
-# fragment-loop: sales-rulebook's approved (issue-10) directive-fragment
-# combination — a bash array of fragment names, a `for frag in ...; do`
-# loop iterating it, and the loop's `done` terminator, in addition to the
-# core_role_directive call itself.
-fragment-loop:^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=\(
-fragment-loop:^[[:space:]]*for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+
-fragment-loop:^[[:space:]]*done[[:space:]]*$
-#
-# fragment-loop body rows (issue-83): sales-rulebook's real (not toy)
-# fragment-loop directive.sh spreads its `for ... in` argument list across
-# backslash-continued lines instead of one array literal, puts `do` on its
-# own line, and its loop body is a test-and-source row
-# (`[ -f "$frag" ] && . "$frag" 2>/dev/null`), not a bare `core_role_directive`
-# call — none of which the original header/footer-only patterns above cover.
-fragment-loop:^[[:space:]]*"[^"]+"[[:space:]]*\\?[[:space:]]*$
-fragment-loop:^[[:space:]]*do[[:space:]]*$
-fragment-loop:^[[:space:]]*\[[[:space:]]+-f[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"[[:space:]]+\][[:space:]]+&&[[:space:]]+\.[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"([[:space:]]+2>/dev/null)?[[:space:]]*$
-#
-# gate-lib-source / gate-call (issue-177): architecture-rulebook's real
-# repo shape, transcribed from the actual bytes of
-# architecture-rulebook@da8565d615d9fb6c18487c9b338fa8b60bdf1120's
-# architecture/hooks/directive.sh, lines 14-15 (replaces #175's
-# assumption-built unregistered-stub, which matched no real Batch-1 repo —
-# see docs/issue-177/reports/implementation/survey.md). Line 14 sources
-# gate-lib.sh with an optional `|| { ...; exit N; }` fallback; line 15
-# calls one of gate-lib.sh's exported `gate_*` functions with an optional
-# `|| exit N` fallback. gate_is_role_directive_stub (core/hooks/lib/
-# gate-lib.sh) caps each pattern to at most one matching line per file —
-# expressed there, not here, since a flat per-line regex list has no way
-# to count occurrences across a file (see that function's comment).
-gate-lib-source:^[[:space:]]*\.[[:space:]]+"[^"]*gate-lib\.sh"([[:space:]]*\|\|[[:space:]]*\{[^}]*\})?[[:space:]]*$
-gate-call:^[[:space:]]*gate_[A-Za-z_][A-Za-z0-9_]*[[:space:]].*(\|\|[[:space:]]*exit[[:space:]]+[0-9]+)?[[:space:]]*$
+# directive.sh shape classification (issue-78/#173/#175/#177) used to
+# live here as a regex table, consumed at runtime by
+# gate_is_role_directive_stub (core/hooks/lib/gate-lib.sh). Removed by
+# issue-180: three rounds of per-repo pattern rows (#78, #173, #175,
+# #177) each still left real Batch-1 fleet-scan repos scanning dirty
+# (docs/issue-180/reports/implementation/survey.md). Replaced with a
+# structural per-line classifier built directly into
+# gate_is_role_directive_stub — see that function's comment. Nothing
+# else in this repo reads this file; it is kept only so a future
+# canon-drift mechanism has an obvious, already-registered home.
