@@ -268,6 +268,18 @@ wrapperhead bash 'timeout -s KILL 30 bash -c "gh pr merge 5"' 'gh pr merge' \
 wrapperhead bash 'nice -n 10 bash -c "gh pr merge 5"' 'gh pr merge' \
   "gate_wrapper_head_before: nice -n 10 (value-taking flag) -> bash"
 
+# --- group: gate_budget_exceeded (issue-63) -------------------------------
+mark budget-exceeded
+budgexc() { # <want:exceeded|not-exceeded> <started> <cap> <now> <name>
+  ( . "$LIB"; gate_budget_exceeded "$2" "$3" "$4" ); rc=$?
+  got=$([ $rc = 0 ] && echo exceeded || echo not-exceeded)
+  report "$1" "$got" "$5"
+}
+budgexc exceeded     1000 60  1200 "gate_budget_exceeded: 200s elapsed > 60s cap -> exceeded"
+budgexc not-exceeded 1000 120 1050 "gate_budget_exceeded: 50s elapsed < 120s cap -> not exceeded"
+budgexc not-exceeded ""   60  1200 "gate_budget_exceeded: malformed started -> fail-open not-exceeded"
+budgexc not-exceeded 1000 bad 1200 "gate_budget_exceeded: malformed cap -> fail-open not-exceeded"
+
 # --- record-fields-gate.sh end-to-end: the confirmed core bug, fixed ----
 mark record-fields-gate-e2e
 rf() { # <want> <name> <role> <file_path> <content-json>
