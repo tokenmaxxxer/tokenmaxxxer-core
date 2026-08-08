@@ -311,6 +311,81 @@ for entry in write_set:
     if relative == entry or relative.startswith(entry.rstrip("/") + "/"):
         allow()
 
+# issue-187: a hook-script edit outside the frozen write set is a class of
+# its own. Blanket-denying it regardless of content only rewards the
+# scratchpad-write + `mv` workaround (#476's exact lesson) — a legitimately
+# scoped edit still needs a way to prove its content is safe. Content-
+# inspect this one narrow class instead of denying on path alone; every
+# other path keeps today's content-blind write-set behavior.
+HOOK_SCRIPT_RE = re.compile(r"(^|/)hooks/[^/]+\.sh$")
+UNSAFE_HOOK_CONTENT = [
+    (re.compile(r"\|\s*(sudo\s+)?(ba)?sh\b"), "piping into a shell"),
+    (re.compile(r"\b(curl|wget)\b[^\n]*\|\s*(sudo\s+)?(ba)?sh\b"),
+     "piping a download into a shell"),
+    (re.compile(r"\brm\s+-[A-Za-z]*[rR][A-Za-z]*(\s|$)"), "recursive delete"),
+    (re.compile(r"\bsudo\b"), "privilege escalation"),
+    # `trap - EXIT` (restore the default action) is the project-wide
+    # sanctioned early-exit idiom every gate script uses on its own kill
+    # switch/success path (`{ trap - EXIT; exit 0; }`) — flagging it would
+    # deny ordinary hook maintenance, not catch anything unsafe. The
+    # actually dangerous shape is disarming a trap by IGNORING the signal
+    # (`trap '' EXIT` / `trap -- '' EXIT`) rather than restoring it —
+    # that permanently silences whatever cleanup/fail-closed behavior the
+    # trap existed to run, with no exit to follow it.
+    (re.compile(r"\btrap\s+(--\s+)?''\s+EXIT\b"), "disabling a trap by ignoring EXIT"),
+    (re.compile(r"gate_kill_switch_active[^\n]*\|\|\s*(:|true)\b"),
+     "short-circuiting a gate's kill-switch check"),
+]
+
+
+def hook_edit_content():
+    if tool == "Write":
+        content = tool_input.get("content")
+        return content if isinstance(content, str) else None
+    if tool == "Edit":
+        content = tool_input.get("new_string")
+        return content if isinstance(content, str) else None
+    if tool == "MultiEdit":
+        edits = tool_input.get("edits")
+        if not isinstance(edits, list):
+            return None
+        parts = []
+        for e in edits:
+            if not isinstance(e, dict):
+                return None
+            new_string = e.get("new_string")
+            if not isinstance(new_string, str):
+                return None
+            parts.append(new_string)
+        return "\n".join(parts)
+    return None
+
+
+if HOOK_SCRIPT_RE.search(relative):
+    content = hook_edit_content()
+    if content is not None:
+        unsafe_reason = None
+        for pattern, why in UNSAFE_HOOK_CONTENT:
+            if pattern.search(content):
+                unsafe_reason = why
+                break
+        if unsafe_reason is None:
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "permissionDecisionReason":
+                    "warrant: `%s` is outside the write set frozen by %s, but content-inspected as a "
+                    "hook-script edit — no denylist pattern matched, so it is allowed directly instead "
+                    "of forcing a scratchpad + mv workaround." % (relative, proposal_path),
+            }}))
+            sys.exit(0)
+        print(
+            "warrant: refused — `%s` is a hook-script edit outside the write set frozen by %s, and its "
+            "proposed content matched a denylist pattern (%s). Hook edits are content-inspected, not "
+            "blanket-denied, but unsafe content still refuses." % (relative, proposal_path, unsafe_reason),
+            file=sys.stderr)
+        sys.exit(2)
+
 print(
     "warrant: refused — `%s` is outside the write set frozen by %s.\n"
     "Approved paths: %s\n"

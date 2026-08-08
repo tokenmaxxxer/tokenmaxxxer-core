@@ -347,6 +347,57 @@ negative-space siblings `url-docs-negative-write`/`url-docs-negative-issue`
 (genuine out-of-bucket repository writes, both `deny`, unchanged) proving
 the fix narrows classification without loosening the deny.
 
+**issue-187: comment/echoed text is not a write target.** `own_hits`
+scanned a failing `Bash` segment's full raw text, so a `docs/issue-N`
+-shaped string sitting only in an ECHOED comment (e.g. `echo "see
+docs/issue-3/x.md for context" > /tmp/notes.txt`) was misread as a write
+candidate even though the real redirect target was `/tmp/notes.txt`.
+Fixed by `_write_target_windows(seg, stripped)`: for a failing segment
+whose failure reason is a real (outside-quotes) `FILE_REDIR` match or a
+`tee` head, `own_hits` now scans only the actual write-target window —
+the text immediately following the redirect operator, or `tee`'s own
+trailing non-flag arguments — instead of the whole segment. Every other
+failing reason (git write subcommands, subshells, in-place edits, and
+`READ_UNLESS_INPLACE`'s own raw quote-blind redirect scan for `awk`/`sed`,
+where the matched argument IS the real target and
+`gap-awk-comparison-over-block`'s accepted over-block already depends on
+the full-segment scan) keeps scanning the whole segment, unchanged.
+`bash-echo-comment-not-target` and `bash-tee-comment-not-target` pin the
+fix (`allow`: a comment mentioning a foreign record no longer denies a
+write elsewhere); their negative-space siblings
+`bash-echo-comment-real-target` and `bash-tee-comment-real-target` pin
+that a real write into a foreign record through the same echo/redirect or
+echo/tee shape still denies. `gate_lib.gate_dequote` collapses each
+quoted span to a single space rather than preserving its length, so the
+window extractor slices the write-target tail from the dequoted text
+itself (not the original segment) to keep match offsets aligned.
+
+Also issue-187: `warrant/hooks/scope-gate.sh`'s frozen-write-set gate
+gained a content-inspect carve-out for `hooks/*.sh` paths (this handbook
+covers `board-gate.sh`'s own sibling fix above; see
+`core/hooks/tests/run-scope-gate-tests.sh` for the scope-gate coverage,
+run from `run-all.sh`'s `scope gate (warrant)` section). A hook-script
+edit outside the frozen write set no longer denies on path alone — its
+proposed content is checked against a small denylist (piping into a
+shell, `curl`/`wget` piped into a shell, `rm -rf`, `sudo`, disabling a
+trap by ignoring `EXIT` (`trap '' EXIT`), short-circuiting a gate's kill
+switch check) and only a hit still denies; every other path keeps the
+content-blind write-set behavior unchanged.
+
+A before-landing warrant-hunt (stance 1) found the first version of this
+denylist too broad: `trap - EXIT` (restore-default) is the project-wide
+sanctioned early-exit idiom every gate script's own kill-switch/success
+path uses (`{ trap - EXIT; exit 0; }`), so writing a hook edit whose
+content merely reproduces another gate's own shipped source (the hunt's
+repro used `core/hooks/gh-guard.sh` verbatim) was denied as "disabling a
+gate's fail-closed trap" — defeating the carve-out's own purpose. Fixed
+by narrowing the rule to the actually-dangerous shape: disarming a trap
+by IGNORING the signal (`trap '' EXIT` / `trap -- '' EXIT`, which
+silences whatever the trap existed to run with no exit to follow it),
+never the sanctioned restore-then-exit idiom. `hook-write-disables-trap`
+pins the narrowed rule (`deny`); its negative-space sibling
+`hook-write-standard-early-exit` pins the sanctioned idiom now allowing.
+
 Scope item 2 of issue-149 surveyed the same find-anywhere root cause for
 other false-positive shapes and reported, without fixing, two further
 cases and one examined-and-ruled-out path: (1) a directory name that
