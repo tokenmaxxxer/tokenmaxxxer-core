@@ -70,30 +70,50 @@ ROLE_HANDBOOK=docs/handbooks/coding.md
 core_role_directive
 DIRECTIVE
 
-# architecture-rulebook (issue-175 gap 1): "an unregistered stub shape" —
-# the core_role_directive call plus one named helper-function call, a
-# shape neither single-call nor fragment-loop covers. Fixture constructed
-# from the issue's own gap description (no access to the real repo);
-# stated assumption per docs/issue-175/proposals/
-# 2026-08-08-canon-duplication-full-manifest-and-stub-shapes.md.
-unregistered_stub_file="$td/unregistered-stub-directive.sh"
-cat > "$unregistered_stub_file" <<'DIRECTIVE'
+# architecture-rulebook real bytes (issue-177): transcribed verbatim from
+# architecture-rulebook@da8565d615d9fb6c18487c9b338fa8b60bdf1120's real
+# architecture/hooks/directive.sh lines 14-16 — replaces #175's
+# assumption-built unregistered-stub fixture, which matched no real
+# Batch-1 repo (docs/issue-177/reports/implementation/survey.md).
+gate_lib_real_file="$td/gate-lib-real-directive.sh"
+cat > "$gate_lib_real_file" <<'DIRECTIVE'
 #!/usr/bin/env bash
 . "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/role-directive.sh"
 ROLE_NAME=architecture
 ROLE_SUBJECT_PREFIX=subject
 ROLE_HANDBOOK=docs/handbooks/architecture.md
+. "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/gate-lib.sh" || { echo "architecture-directive.sh: cannot source gate-lib.sh" >&2; exit 0; }
+gate_kill_switch_active "${ARCHITECTURE_CYCLE_OFF:-}" || exit 0
 core_role_directive
-architecture_directive_extra
 DIRECTIVE
 
-# accessibility-rulebook (issue-175 gap 2): "no layered-directive
-# allowlist" — a second, layered source line pulling in a sibling
-# directive fragment ahead of core_role_directive, distinct from
-# sales-rulebook's array/for-loop fragment-loop combination. Same
-# stated-assumption basis as unregistered_stub_file above.
-layered_directive_file="$td/layered-directive-directive.sh"
-cat > "$layered_directive_file" <<'DIRECTIVE'
+# genuinely vendored full copy (issue-177 proposal constraint): a
+# directive.sh chaining three gate_* calls beyond the mandatory header —
+# no real Batch-1 repo has more than one gate-lib-source line or more
+# than one gate_* call line, so this must still fail via the new
+# gate_is_role_directive_stub one-line-each cap (after-proposal hunt
+# finding, docs/reports/2026-08-08-hunt-canon-forms-real-bytes.md).
+vendored_chain_file="$td/vendored-chain-directive.sh"
+cat > "$vendored_chain_file" <<'DIRECTIVE'
+#!/usr/bin/env bash
+. "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/role-directive.sh"
+ROLE_NAME=architecture
+ROLE_SUBJECT_PREFIX=subject
+ROLE_HANDBOOK=docs/handbooks/architecture.md
+. "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/gate-lib.sh" || { echo "cannot source gate-lib.sh" >&2; exit 0; }
+gate_kill_switch_active "${ARCHITECTURE_CYCLE_OFF:-}" || exit 0
+gate_trap_fail_closed
+gate_kill_switch_active "${ANOTHER_OFF:-}" || exit 0
+core_role_directive
+DIRECTIVE
+
+# non-gate-lib source line (issue-177): a `.`-sourced sibling fragment
+# that is NOT gate-lib.sh — proves the structural rule stays narrow and
+# does not accept an arbitrary source line as a stand-in for #175's
+# falsified layered-directive shape (no real repo bytes support that
+# shape passing).
+non_gate_lib_source_file="$td/non-gate-lib-source-directive.sh"
+cat > "$non_gate_lib_source_file" <<'DIRECTIVE'
 #!/usr/bin/env bash
 . "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/role-directive.sh"
 ROLE_NAME=accessibility
@@ -106,8 +126,9 @@ DIRECTIVE
 run_case pass "fragment-loop directive.sh (issue-10 shape) accepted" "$frag_loop_file"
 run_case fail "regrown boilerplate directive.sh still rejected"       "$malformed_file"
 run_case pass "single-call directive.sh (built-in shape) still accepted" "$single_call_file"
-run_case pass "architecture-rulebook unregistered-stub shape accepted (issue-175)" "$unregistered_stub_file"
-run_case pass "accessibility-rulebook layered-directive shape accepted (issue-175)" "$layered_directive_file"
+run_case pass "architecture-rulebook real gate-lib-source/gate-call shape accepted (issue-177)" "$gate_lib_real_file"
+run_case fail "chained gate_* calls beyond one-line-each cap still rejected (issue-177)" "$vendored_chain_file"
+run_case fail "non-gate-lib source line still rejected (issue-177)" "$non_gate_lib_source_file"
 
 rm -rf "$fixtures_td"
 
