@@ -16,6 +16,14 @@ REPO = Path(__file__).resolve().parent.parent
 
 def run_hook(script, payload, env=None, cwd=None):
     full_env = dict(os.environ)
+    # warrant/hooks/*.sh source core/hooks/lib/gate-lib.sh via
+    # ${CLAUDE_PLUGIN_ROOT_CORE:-<script-relative fallback>}. The fallback
+    # assumes gate-lib.sh sits next to the sourcing script (true for
+    # core/hooks/*.sh, false for warrant/hooks/*.sh — its actual home is
+    # core/hooks/lib/). The real harness always sets CLAUDE_PLUGIN_ROOT_CORE,
+    # so a bare checkout without it fails closed (denies everything) instead
+    # of exercising the hook at all. Set it here to match production.
+    full_env.setdefault("CLAUDE_PLUGIN_ROOT_CORE", str(REPO / "core"))
     full_env.update(env or {})
     proc = subprocess.run(
         ["bash", str(REPO / script)],
