@@ -1,7 +1,7 @@
 ---
 code_under_review:
   - docs/issue-171/reports/implementation/rollout-runbook.md
-loop_state: open
+loop_state: build_complete
 ---
 
 # Fleet canon rollout — phase 2 execution (issue-171)
@@ -784,3 +784,117 @@ clean. The per-repo work is done and locally verified; only the merge +
 fleet-level re-scan step remains, outside this session's authority
 (merging sibling-repo PRs is a human/reviewer action, not something this
 session does unilaterally against its own opened PRs).
+
+## Session 8 — final fleet re-scan post-merge; all batches closed; canon-duplication 0/43
+
+All 10 straggler rollout PRs from session 7 confirmed MERGED (operator
+action, outside this session's merge authority): brand-design #19,
+marketing #16, risk-management #19, ux-engineering #19,
+refactoring-legacy #19, growth-analytics #16, api-design #16,
+security-threat-model #19, release-engineering #42, implementation #73.
+
+Ran `core/hooks/tests/run-fleet-scan.sh` (full 43-repo fresh-clone
+fleet scan, no `--org` override) against current `main` of every
+rulebook repo. Result: `total=43 clean=7 with-findings=36
+clone-failed=0 blocked=0`.
+
+Filtered the 36 finding rows against `canon-duplication`: **zero**
+matches. Every remaining finding across the 36 rows is
+`mktemp-footgun`, `fail-open-on-internal-error`, `dead-deny-branch`, or
+`swallowed-errors` — the four out-of-canon-scope classes the runbook's
+batch table has documented as pre-existing since session 5 (each
+non-canon finding was already present and named, per repo, in the
+Batch 1-4 first-re-scan rows before this rollout ever touched that
+repo). issue-171's own acceptance text scopes the rollout to the
+canon-duplication defect class specifically (vendored canon files,
+un-stubbed `directive.sh`); the other four classes are #168-scan
+findings this rollout was never scoped to fix (confirmed against the
+proposal and runbook's stated frozen write set — no non-canon fix was
+ever in scope).
+
+### Final 43-repo canon-duplication table
+
+All 43 repos are canon-duplication-clean. `other-findings` lists
+pre-existing, out-of-scope classes only (not a defect of this
+rollout):
+
+| repo | canon-duplication | other findings (out of scope) |
+|---|---|---|
+| architecture-rulebook | clean | none (fully clean) |
+| market-analysis-rulebook | clean | none (fully clean) |
+| requirements-engineering-rulebook | clean | none (fully clean) |
+| pricing-rulebook | clean | none (fully clean) |
+| content-design-rulebook | clean | none (fully clean) |
+| marketing-rulebook | clean | none (fully clean) |
+| accessibility-rulebook | clean | none (fully clean) |
+| localization-rulebook | clean | mktemp-footgun |
+| capacity-planning-rulebook | clean | mktemp-footgun |
+| data-engineering-rulebook | clean | mktemp-footgun |
+| secure-coding-rulebook | clean | mktemp-footgun |
+| test-authoring-rulebook | clean | mktemp-footgun |
+| technical-feasibility-rulebook | clean | mktemp-footgun |
+| technical-writing-rulebook | clean | mktemp-footgun |
+| pr-communications-rulebook | clean | mktemp-footgun |
+| devrel-rulebook | clean | mktemp-footgun |
+| incident-response-rulebook | clean | mktemp-footgun |
+| brand-design-rulebook | clean | mktemp-footgun |
+| user-discovery-rulebook | clean | fail-open-on-internal-error |
+| observability-rulebook | clean | fail-open-on-internal-error |
+| legal-compliance-rulebook | clean | mktemp-footgun |
+| knowledge-management-rulebook | clean | mktemp-footgun |
+| issue-retrospective-rulebook | clean | mktemp-footgun |
+| performance-engineering-rulebook | clean | mktemp-footgun |
+| data-modeling-rulebook | clean | mktemp-footgun |
+| ml-engineering-rulebook | clean | mktemp-footgun |
+| conformance-review-rulebook | clean | mktemp-footgun |
+| defect-verification-rulebook | clean | fail-open-on-internal-error, mktemp-footgun |
+| risk-management-rulebook | clean | mktemp-footgun |
+| ux-engineering-rulebook | clean | mktemp-footgun |
+| refactoring-legacy-rulebook | clean | mktemp-footgun |
+| growth-analytics-rulebook | clean | mktemp-footgun |
+| finance-unit-economics-rulebook | clean | mktemp-footgun |
+| sales-rulebook | clean | mktemp-footgun, dead-deny-branch |
+| partnerships-bd-rulebook | clean | mktemp-footgun |
+| customer-support-rulebook | clean | mktemp-footgun |
+| product-discovery-rulebook | clean | mktemp-footgun, dead-deny-branch |
+| interaction-design-rulebook | clean | mktemp-footgun |
+| api-design-rulebook | clean | mktemp-footgun |
+| security-threat-model-rulebook | clean | mktemp-footgun |
+| release-engineering-rulebook | clean | mktemp-footgun |
+| implementation-rulebook | clean | mktemp-footgun |
+| execution-observation-rulebook | clean | swallowed-errors, mktemp-footgun |
+
+**43/43 canon-duplication-clean. Batches 1, 2, 3, and 4 are all
+closed.** issue-171's acceptance criterion (a full `run-fleet-scan.sh`
+run showing every repo canon-duplication-clean, per the runbook's
+canon-scoped rollout) is met.
+
+## What did not work (session 8)
+
+- None — the full fleet re-scan ran once and confirmed the expected
+  result on the first pass; no re-run or correction was needed.
+
+## Open findings (session 8)
+
+None blocking this rollout's own scope. The 36 repos' non-canon
+findings (`mktemp-footgun`, `fail-open-on-internal-error`,
+`dead-deny-branch`, `swallowed-errors`) remain open as separate,
+pre-existing defects outside issue-171's frozen write set and canon
+scope — tracked by the original #168 scan, not by this issue. A future
+issue scoped to those classes would need its own proposal.
+
+## Hunt (session 8)
+
+Before-landing dispatch skipped: docs-only fast path (every touched
+path in this commit is under `docs/`) — no separate hunt agent
+dispatched for this commit.
+
+## Next steps
+
+None for this issue — rollout complete, all batches closed. PR #172's
+body is being updated in this session to close issue-171 on merge.
+
+## Resolution path
+
+N/A — terminal. All batches closed, canon-duplication is 0/43
+fleet-wide, and the record's `loop_state` is `build_complete`.
