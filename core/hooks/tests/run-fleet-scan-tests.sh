@@ -80,6 +80,47 @@ else
   echo "SKIP   live 43-repo fleet run (gh/network unavailable in this environment)"
 fi
 
+# issue-173: --canon-duplication distinguishes a sanctioned per-repo
+# directive.sh stub (docs/handbooks/canon-rollout.md step 3) from a
+# genuinely vendored full copy, instead of flagging any file named
+# directive.sh on filename alone.
+stub_repo="$td/stub-rulebook"
+mkdir -p "$stub_repo/hooks"
+cat > "$stub_repo/hooks/directive.sh" <<'EOF'
+#!/usr/bin/env bash
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/role-directive.sh"
+core_role_directive \
+  "YOU DECIDE: ..." \
+  "USE WHEN: ..." \
+  "PRODUCES: ..." \
+  "HAND-OFF: ..."
+EOF
+out="$("$HERE/compliance-check.sh" --canon-duplication "$stub_repo" 2>&1)"
+rc=$?
+report 0 "$rc" "sanctioned directive.sh stub exits 0 under --canon-duplication"
+case "$out" in
+  *"vendored copy"*directive.sh*) report "no-vendored-flag" "vendored-flag-present" "sanctioned stub not flagged as vendored copy" ;;
+  *) report "no-vendored-flag" "no-vendored-flag" "sanctioned stub not flagged as vendored copy" ;;
+esac
+
+vendored_repo="$td/vendored-rulebook"
+mkdir -p "$vendored_repo/hooks"
+cat > "$vendored_repo/hooks/directive.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${DIRECTIVE_OFF:-}" in
+  1|true) exit 0 ;;
+esac
+echo "full pre-promotion directive body"
+EOF
+out="$("$HERE/compliance-check.sh" --canon-duplication "$vendored_repo" 2>&1)"
+rc=$?
+report 1 "$rc" "vendored full directive.sh exits non-zero under --canon-duplication"
+case "$out" in
+  *"vendored copy"*directive.sh*) report "vendored-flag" "vendored-flag" "vendored full directive.sh flagged as vendored copy" ;;
+  *) report "vendored-flag" "no-flag" "vendored full directive.sh flagged as vendored copy" ;;
+esac
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

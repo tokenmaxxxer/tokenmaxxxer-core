@@ -111,3 +111,67 @@ gate_budget_exceeded() {
   fi
   [ $((now - started)) -gt "$cap" ]
 }
+
+# gate_is_role_directive_stub <file> — extracted from stub-check.sh's
+# directive.sh structural check (issue-173) so compliance-check.sh's
+# --canon-duplication filename-match scan can distinguish a sanctioned
+# per-repo directive.sh stub (source role-directive.sh, call
+# core_role_directive, nothing else beyond registered canon-forms.txt
+# shapes) from a genuinely vendored full copy, without a second,
+# independently-maintained copy of this classification. Returns 0 (is a
+# sanctioned stub) or 1 (not); prints the fail reason to stdout on a 1
+# return, prints nothing on a 0 return. canon-forms.txt is resolved next
+# to this library's caller-known test dir, same path stub-check.sh uses:
+# core/hooks/tests/canon-forms.txt relative to this file's own directory.
+gate_is_role_directive_stub() {
+  local f="$1"
+  [ -f "$f" ] || { echo "no such file: $f"; return 1; }
+
+  local forms_manifest
+  forms_manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tests" 2>/dev/null && pwd -P)/canon-forms.txt"
+  local -a CANON_FORM_PATTERNS=()
+  if [ -f "$forms_manifest" ]; then
+    while IFS= read -r line; do
+      case "$line" in
+        ''|'#'*) continue ;;
+      esac
+      CANON_FORM_PATTERNS+=("${line#*:}")
+    done < "$forms_manifest"
+  fi
+
+  local fail_reason=""
+  grep -qE 'role-directive\.sh["'"'"']?[[:space:]]*$|role-directive\.sh"' "$f" \
+    || fail_reason="does not source core/hooks/lib/role-directive.sh"
+  if [ -z "$fail_reason" ]; then
+    grep -q 'core_role_directive' "$f" \
+      || fail_reason="never calls core_role_directive"
+  fi
+  if [ -z "$fail_reason" ]; then
+    local other
+    other="$(grep -vE '^[[:space:]]*(#.*)?$|^#!|role-directive\.sh|core_role_directive|^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null || true)"
+    if [ -n "$other" ] && [ "${#CANON_FORM_PATTERNS[@]}" -gt 0 ]; then
+      local still_other="" oline matched pat
+      while IFS= read -r oline; do
+        [ -n "$oline" ] || continue
+        matched=0
+        for pat in "${CANON_FORM_PATTERNS[@]}"; do
+          if printf '%s' "$oline" | grep -qE "$pat"; then
+            matched=1
+            break
+          fi
+        done
+        [ "$matched" = 1 ] || still_other="${still_other}${still_other:+$'\n'}${oline}"
+      done <<< "$other"
+      other="$still_other"
+    fi
+    if [ -n "$other" ]; then
+      fail_reason="has non-stub line(s), looks like regrown boilerplate: $(printf '%s' "$other" | head -1)"
+    fi
+  fi
+
+  if [ -n "$fail_reason" ]; then
+    echo "$fail_reason"
+    return 1
+  fi
+  return 0
+}
