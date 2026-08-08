@@ -297,6 +297,43 @@ def _cd_target(stripped):
     return ""
 
 
+def _write_target_windows(seg, stripped):
+    """The substrings of a failing segment worth scanning for a docs/
+    write target, or None when the whole segment must still be scanned.
+
+    issue-187: `own_hits` used to regex-scan a failing segment's full raw
+    text, so a `docs/issue-N`-shaped string sitting in an ECHOED comment
+    (`echo "see docs/issue-3/x.md for context" > /tmp/notes.txt`) was
+    misread as a write candidate even though the real redirect target is
+    `/tmp/notes.txt`. Narrowed to the actual write-target window: the text
+    right after a real (outside-quotes) redirection operator, or (for a
+    `tee` head) its trailing non-flag arguments. Left at None (whole
+    segment) for every other failing reason — git write subcommands,
+    subshells, in-place edits, and READ_UNLESS_INPLACE's own raw
+    quote-blind redirect scan (awk/sed treat their quoted program as live
+    code, not inert text, and `gap-awk-comparison-over-block`'s accepted
+    over-block already depends on the full-segment scan there) — where
+    the matched argument IS the real target, not commentary.
+    """
+    head = gate_lib.gate_head_of(stripped)
+    if head == "tee":
+        return [w for w in gate_lib.gate_trailing_words(stripped) if not w.startswith("-")]
+    if head in READ_UNLESS_INPLACE:
+        return None
+    if not gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
+        return None
+    # gate_dequote collapses each quoted span to a single space rather than
+    # preserving its length, so match offsets in `dequoted` do not line up
+    # with `seg` — the tail is sliced from `dequoted` itself, not `seg`.
+    windows = []
+    dequoted = gate_lib.gate_dequote(seg)
+    for m in FILE_REDIR.finditer(dequoted):
+        tail = dequoted[m.end():].split(None, 1)
+        if tail:
+            windows.append(tail[0])
+    return windows
+
+
 def norm(p):
     return posixpath.normpath(p.replace("\\", "/"))
 
@@ -373,7 +410,11 @@ elif tool == "Bash":
                         if tail:
                             cd_tail = tail
                 continue
-            own_hits = re.findall(r"[\w./~$:-]*%s[\w./-]*" % re.escape(DOCS), seg)
+            windows = _write_target_windows(seg, stripped)
+            scan_targets = [seg] if windows is None else windows
+            own_hits = []
+            for target in scan_targets:
+                own_hits.extend(re.findall(r"[\w./~$:-]*%s[\w./-]*" % re.escape(DOCS), target))
             if own_hits:
                 candidates.extend(own_hits)
             elif cd_tail:
