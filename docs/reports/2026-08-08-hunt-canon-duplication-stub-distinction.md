@@ -21,3 +21,37 @@ bash core/hooks/tests/run-all.sh 2>&1 | grep -i "fleet\|gate-lib"
 
 ### Expected
 Since the proposal's plan is to add coverage in `run-fleet-scan-tests.sh` for a shared classification function used by both `stub-check.sh` and `compliance-check.sh --canon-duplication`, that new coverage needs to actually run as part of the suite that catches regressions — which means `core/hooks/tests/run-all.sh` needs an added invocation line (`/bin/bash "$here/run-fleet-scan-tests.sh" | tail -2 || rc=1`, following the pattern of every other line in the file). The frozen write set does not list `run-all.sh`, so as written the build can add and pass new tests in `run-fleet-scan-tests.sh` while `run-all.sh` continues to report "ALL OK" whether or not those tests exist or fail.
+
+## before-landing — stance 3: assume this change and another plugin's rule cancel each other — find the pair
+
+Verdict: FINDING — stub-check.sh's own manifest-driven absence loop still unconditionally flags a sanctioned directive.sh stub as vendored drift (rc=1), immediately contradicted by the new gate_is_role_directive_stub structural check further down the same script, which prints "ok" for the identical file — one run of stub-check.sh emits both a FAIL and an ok verdict for the same file and exits non-zero despite the file being a correct stub.
+Kind: composition
+Seed: core/hooks/lib/gate-lib.sh (gate_is_role_directive_stub), core/hooks/tests/stub-check.sh, core/hooks/tests/compliance-check.sh --canon-duplication, core/hooks/tests/canon-manifest.txt (directive.sh entry)
+cap_seconds: 120
+tier: size:21-200-lines
+diff_stat_lines: ~21-200 (per dispatcher)
+started_at: 2026-08-08T19:28:10+09:00
+ended_at: 2026-08-08T19:29:23+09:00
+
+### Reproduce
+```
+mkdir -p /tmp/claude-1000/rb/hooks
+printf '%s\n' '#!/usr/bin/env bash' '. "$(dirname "$0")/../lib/role-directive.sh"' 'ROLE_A=1' 'ROLE_B=2' 'ROLE_C=3' 'ROLE_D=4' 'core_role_directive' > /tmp/claude-1000/rb/hooks/directive.sh
+chmod +x /tmp/claude-1000/rb/hooks/directive.sh
+bash core/hooks/tests/stub-check.sh /tmp/claude-1000/rb
+```
+
+### Observed
+```
+stub-check: FAIL — vendored copy of core canon file 'directive.sh' found:
+/tmp/claude-1000/rb/hooks/directive.sh
+  This file is now a core hook (core/hooks/hooks.json), fired for
+  every plugin install. A local copy is drift, not a stub — delete
+  it and drop the file's own hooks.json entry, if any (issue-66).
+...
+stub-check: ok — /tmp/claude-1000/rb/hooks/directive.sh is a role-directive stub
+```
+Script exits 1 (rc set by the first, unconditional loop) even though the dedicated directive.sh check that follows says the same file is a sanctioned stub. compliance-check.sh's --canon-duplication mode special-cases `directive.sh` in its manifest loop to call gate_is_role_directive_stub before flagging it (line ~56), but stub-check.sh's own manifest loop (`for name in $CANON_GATES`, lines ~59-75) has no such exclusion — it still matches directive.sh by filename alone via canon-manifest.txt, which lists directive.sh unconditionally. The later "structural check, not absence-based" block for directive.sh runs unconditionally too, but only ever adds to `rc`; it never un-sets the FAIL already recorded by the manifest loop above it.
+
+### Expected
+stub-check.sh's manifest loop should skip `directive.sh` (as compliance-check.sh's loop now does) since it is handled by the dedicated structural check that follows, so a sanctioned stub produces a single consistent "ok" verdict and exit 0, not a spurious FAIL alongside an ok for the same file.

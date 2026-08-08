@@ -37,6 +37,8 @@
 # Usage: stub-check.sh [hooks-dir]
 set -uo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd -P)/gate-lib.sh"
+
 dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)}"
 [ -d "$dir" ] || { echo "stub-check: no such directory: $dir" >&2; exit 2; }
 rc=0
@@ -74,23 +76,13 @@ for name in $CANON_GATES; do
 done
 
 # --- directive.sh: structural check, not absence-based ---------------------
-# CANON_FORMS is derived from canon-forms.txt (name:pattern-description
-# lines, next to this script): one or more registered directive.sh
-# combination shapes, each a set of extended-regex patterns any of which,
-# in addition to the built-in source/assignment/core_role_directive lines,
-# marks a line as sanctioned rather than regrown boilerplate (issue-78).
-# Missing manifest falls back to the single-call-only shape (no extra
-# patterns), matching CANON_GATES's own missing-manifest fallback pattern.
+# Classification is delegated to gate_is_role_directive_stub (gate-lib.sh,
+# issue-173): compliance-check.sh's --canon-duplication mode needs this
+# exact same check for its own directive.sh hits, so the logic lives in
+# one shared place both scripts call instead of two independently
+# maintained copies.
 forms_manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-forms.txt"
-CANON_FORM_PATTERNS=()
-if [ -f "$forms_manifest" ]; then
-  while IFS= read -r line; do
-    case "$line" in
-      ''|'#'*) continue ;;
-    esac
-    CANON_FORM_PATTERNS+=("${line#*:}")
-  done < "$forms_manifest"
-else
+if [ ! -f "$forms_manifest" ]; then
   echo "stub-check: WARN — canon-forms.txt not found at $forms_manifest, falling back to single-call-only shape" >&2
 fi
 
@@ -100,47 +92,11 @@ if [ -z "$directive_hits" ]; then
 else
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    fail_reason=""
-    grep -qE 'role-directive\.sh["'"'"']?[[:space:]]*$|role-directive\.sh"' "$f" \
-      || fail_reason="does not source core/hooks/lib/role-directive.sh"
-    if [ -z "$fail_reason" ]; then
-      grep -q 'core_role_directive' "$f" \
-        || fail_reason="never calls core_role_directive"
-    fi
-    if [ -z "$fail_reason" ]; then
-      # Structural cap: every non-blank/non-comment/non-shebang line in a
-      # real stub is either the source line, a plain variable assignment,
-      # or the one core_role_directive call. Anything else (a case
-      # statement, a guard test, a raw echo/cat, control flow) is exactly
-      # the boilerplate this promotion factored out regrowing locally.
-      other="$(grep -vE '^[[:space:]]*(#.*)?$|^#!|role-directive\.sh|core_role_directive|^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null || true)"
-      if [ -n "$other" ] && [ "${#CANON_FORM_PATTERNS[@]}" -gt 0 ]; then
-        # A registered combination shape (e.g. the fragment-array for-loop)
-        # is not boilerplate — filter out any remaining "other" line that
-        # matches at least one registered pattern before failing.
-        still_other=""
-        while IFS= read -r oline; do
-          [ -n "$oline" ] || continue
-          matched=0
-          for pat in "${CANON_FORM_PATTERNS[@]}"; do
-            if printf '%s' "$oline" | grep -qE "$pat"; then
-              matched=1
-              break
-            fi
-          done
-          [ "$matched" = 1 ] || still_other="${still_other}${still_other:+$'\n'}${oline}"
-        done <<< "$other"
-        other="$still_other"
-      fi
-      if [ -n "$other" ]; then
-        fail_reason="has non-stub line(s), looks like regrown boilerplate: $(printf '%s' "$other" | head -1)"
-      fi
-    fi
-    if [ -n "$fail_reason" ]; then
+    if fail_reason="$(gate_is_role_directive_stub "$f")"; then
+      echo "stub-check: ok — $f is a role-directive stub"
+    else
       echo "stub-check: FAIL — $f: $fail_reason" >&2
       rc=1
-    else
-      echo "stub-check: ok — $f is a role-directive stub"
     fi
   done <<< "$directive_hits"
 fi
