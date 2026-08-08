@@ -76,6 +76,12 @@ and this record), which is the warrant directive's docs-only fast path.
 Recorded here rather than left silent, per the same mandatory-skip-line
 shape the scout directive uses.
 
+Phase 2's landing is the same skip for the same reason, recorded so the
+skip is not read as covering only phase 1: the phase-2 write set is
+`docs/issue-157/reports/execution-observation.md` and this record —
+every path under `docs/`, no code, no test. Skip reason: **docs-only, no
+before-landing dispatch.**
+
 ## Dispatch-mode note
 
 `.warrant-hunt.count` does not exist in this worktree, so the rotation
