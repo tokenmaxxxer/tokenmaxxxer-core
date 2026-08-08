@@ -82,6 +82,13 @@ filename-match FAIL.
   `directive.sh` body (e.g. copying `scout/hooks/directive.sh`'s shape)
   still flags.
 
+- Wiring `run-fleet-scan-tests.sh` into `run-all.sh` — pre-existing gap
+  (warrant hunt, `docs/reports/2026-08-08-hunt-canon-duplication-stub-distinction.md`):
+  `run-all.sh` already did not invoke `run-fleet-scan-tests.sh` before this
+  proposal (introduced with that file in the #170/issue-168 work), so this
+  proposal's new red-green pair inherits that pre-existing gap rather than
+  creating it. Fixing the aggregate wiring is a separate, unrelated concern.
+
 ## Out of scope
 
 - Running the live `--canon-duplication` scan against any of the 43
