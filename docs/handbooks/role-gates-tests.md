@@ -70,6 +70,17 @@ than misread as denying whatever text starts the following line), and a
 legitimate value followed by a trailing YAML comment (`sha: same-commit  #
 landed same commit`) has the comment stripped before validation.
 
+A document with no leading frontmatter fence at all (after tolerating one
+incidental leading blank line or byte-order mark, the same tolerance
+already applied when locating a real fence) has its *entire text* scanned
+instead of being skipped (issue-157) — the fallback exists so a malformed
+or absent fence cannot silently disable the check for a document that was
+supposed to carry frontmatter but doesn't. The scanned frontmatter region
+itself ends at the *first* column-0 `---` line found after the opening
+fence, not the last (issue-157) — a stray `---` line appearing inside
+what was intended as frontmatter content truncates the scanned region
+there, and anything after it (including a `sha:` line) goes unscanned.
+
 `trailer-gate.sh` extracts a heredoc-supplied `-m` message
 (`git commit -m "$(cat <<'EOF' ...body... EOF)"` — the standard idiom for a
 multi-line commit message) directly from the raw command string via a regex
