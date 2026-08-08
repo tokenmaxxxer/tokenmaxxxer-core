@@ -29,7 +29,39 @@ command -v python3 >/dev/null 2>&1 || { trap - EXIT; exit 0; }
 
 payload="$(cat)"
 
-WARRANT_PAYLOAD="$payload" WARRANT_HUNT_MAX="${WARRANT_HUNT_MAX:-3}" python3 <<'PY'
+# Budget bound (issue-63): active on every tool call a hunter itself makes
+# (WARRANT_IN_HUNT=1 is set only around the hunter's own turn), independent
+# of tool type — runs before the Agent/Task/Workflow-only filtering below so
+# it is reachable for the hunter's Bash/Read/Grep/Glob/Write calls too, not
+# just its (disallowed) dispatch attempts.
+if [ "${WARRANT_IN_HUNT:-}" = "1" ]; then
+  root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null)"
+  root="${root:-${CLAUDE_PROJECT_DIR:-$(pwd)}}"
+  lock="$root/.warrant-hunt.lock"
+  if [ -f "$lock" ]; then
+    started=""; cap=""
+    read -r started cap _rest < "$lock" 2>/dev/null || true
+    # The lock is this guard's own bookkeeping, not untrusted external
+    # input — gate_budget_exceeded's fail-open convention is for the
+    # latter. A malformed cap/started here means the lock itself is
+    # corrupt, which is a state nothing else will surface; treat it as
+    # exceeded (fail closed) and say so loudly instead of falling through
+    # to gate_budget_exceeded's own silent not-exceeded default.
+    case "${started:-}${cap:-}" in
+      *[!0-9]*|"")
+        echo "warrant: hunt lock is corrupt (started='${started:-}' cap='${cap:-}') — treating as budget exceeded. Stop and return your finding (or nothing) now" >&2
+        exit 2
+        ;;
+    esac
+    if gate_budget_exceeded "$started" "$cap"; then
+      elapsed=$(( $(date +%s) - started ))
+      echo "warrant: hunt budget of ${cap}s exceeded (ran ${elapsed}s) — stop and return your finding (or nothing) now" >&2
+      exit 2
+    fi
+  fi
+fi
+
+WARRANT_PAYLOAD="$payload" WARRANT_HUNT_MAX="${WARRANT_HUNT_MAX:-3}" WARRANT_HUNT_CAP_SECONDS="${WARRANT_HUNT_CAP_SECONDS:-0}" python3 <<'PY'
 import json
 import os
 import posixpath
@@ -119,8 +151,9 @@ if used >= cap:
     sys.exit(2)
 
 try:
+    cap_seconds = os.environ.get("WARRANT_HUNT_CAP_SECONDS", "0")
     with open(lock, "w") as handle:
-        handle.write("%d %s\n" % (now, (prompt.splitlines() or [""])[0][:80]))
+        handle.write("%d %s %s\n" % (now, cap_seconds, (prompt.splitlines() or [""])[0][:80]))
     with open(count, "w") as handle:
         handle.write(str(used + 1) + "\n")
 except OSError as exc:
