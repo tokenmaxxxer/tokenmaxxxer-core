@@ -305,6 +305,14 @@ over-blocked in real use — mirroring this same handbook's own
 silently accepted). Until such a case exists, both residues stay
 documented here, not coded.
 
+Also covers issue-142's C4 sweep: the `internal_error` case's scratch
+`python3` stub directory used to come from a raw `mktemp -d` call,
+replaced with the `mktd` helper from `_tmp.sh`, assigned to a separate
+`stubdir` so it does not collide with the case's own `td`. Mechanical,
+no behavior change; no new test cases. See
+`docs/handbooks/approval-gate-tests.md` for the full rationale (shared
+across all four harnesses this sweep touched).
+
 Also covers issue-138's fail-closed rc-remap fix: `board-gate.sh` used
 to clear the EXIT trap before propagating the python judge's own exit
 code, so an uncaught python error (rc=1) exited non-blocking instead of

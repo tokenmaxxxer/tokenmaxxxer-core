@@ -117,6 +117,13 @@ pin the fix. The same pass also found `perl`'s own code-execution flag is
 named `WRAPPER_HEADS` member; fixed with a `perl`-specific `-e`-shaped
 flag check, pinned by `wrapper-perl-e`.
 
+Also covers issue-142's C4 sweep: the `internal_error` case's scratch
+`python3` stub directory used to come from a raw `mktemp -d` call,
+replaced with `mktd; stubdir="$td"` (this harness has no other `td` use in
+that case, unlike `run-approval-gate-tests.sh`/`run-board-gate-tests.sh`).
+Mechanical, no behavior change; no new test cases. See
+`docs/handbooks/approval-gate-tests.md` for the full rationale.
+
 Also covers issue-138's fail-closed rc-remap fix: `gh-guard.sh` used to
 clear the EXIT trap before propagating the python judge's own exit code,
 so an uncaught python error (rc=1) exited non-blocking instead of

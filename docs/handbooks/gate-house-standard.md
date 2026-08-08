@@ -262,3 +262,55 @@ standard itself, fixed in issue-75:
 Both fixes are additive — no public function's existing behavior changed,
 per this issue's own constraint — so re-pulling is a drop-in source-line
 and call-site update, not a rewrite.
+
+## Canon sweep of core's own remaining plugins + two new compliance checks (issue-142)
+
+A 2026-08-07 audit found the fail-open kill-switch idiom (the same bug
+class fixed in "The two bugs this issue fixed in core's own canon" above)
+still live in core's own `warrant` and `terse` plugins —
+`warrant/hooks/{scope-gate,hunt-guard,state,hunt-state,directive}.sh` and
+`terse/hooks/terse.sh` (plus `scout/hooks/directive.sh`, found by the same
+repo-wide grep though not in the issue's own enumerated list) had never
+been migrated off `case ... in ""|0|false|no|off) ;; *) exit 0 ;; esac`.
+All now source `gate-lib.sh` guarded and call `gate_kill_switch_active`,
+same as core's seven `core/hooks/*.sh` gates already did.
+
+`compliance-check.sh` gained two more checks, alongside the kill-switch/
+`replace_all`/unguarded-source checks above:
+
+- **C2 — runtime `mktemp` in a gate's own request-time path.** A gate that
+  calls `mktemp` outside a test harness writes scratch state to disk on
+  every invocation; under a sandbox whose platform tmp dir is unwritable,
+  the gate false-DENIES every call regardless of content (the
+  `erm-order-gate.sh` class from issue-142's survey). Flagged with
+  `grep -qE '(^|[^A-Za-z_#])mktemp\b'`; the canonical fix is passing the
+  payload to `python3` in-memory (heredoc/stdin), the pattern
+  `scope-gate.sh`/`hunt-guard.sh` already use.
+- **C3 — a Write/Edit-family gate that never mentions Bash at all.** A gate
+  that only recognizes `Write`/`Edit`/`MultiEdit`/`NotebookEdit` in
+  `tool_name` and has no `gate_bash_write_targets` coverage is bypassable
+  via the same target written through `Bash` (`echo`/redirect, `tee`,
+  `sed -i`). Flagged when the file matches
+  `"(Write|Edit|MultiEdit|NotebookEdit)"` but neither calls
+  `gate_bash_write_targets` nor mentions `bash` (case-insensitive) anywhere
+  — a gate that deliberately punts Bash writes elsewhere and says so in a
+  comment is treated as a considered decision, not a gap, and stays clean.
+
+Also closed a scanning gap the survey found: a hooks directory with no
+`hooks.json` at all (a bare tree, or a fixture-only tree) used to read as
+"registered and found empty" and exit 0 with nothing scanned. When no
+`hooks.json` exists AND the registration-based scan comes back empty, the
+scan now falls back to every `*.sh` file directly under the given
+directory (non-recursive — this is the "nothing to read a registration
+from" case, not a license to walk an arbitrary tree).
+
+**These two new checks are detection only, not a CI gate.**
+`compliance-check.sh` is a standalone script a repo's own CI or a human
+invokes; it does not run automatically on every write anywhere, in this
+repo or any other. It cannot turn an existing repo's checks red by itself
+landing here — that requires the repo to separately pick up this updated
+script AND already have it wired into a build-failing CI step. None of
+the 43 rulebook repos meet both conditions today (see the per-repo
+migration checklist above, still open per issue-142's own scope line);
+wiring `compliance-check.sh` into each rulebook's own CI is future work,
+not done by this sweep.

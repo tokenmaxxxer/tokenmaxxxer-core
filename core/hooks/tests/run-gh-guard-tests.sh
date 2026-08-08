@@ -3,6 +3,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 GATE="$HERE/../gh-guard.sh"
+. "$HERE/_tmp.sh"
 pass=0; fail=0
 run() { # want name role cmd
   printf '{"tool_name":"Bash","tool_input":{"command":%s}}' \
@@ -141,7 +142,7 @@ empty_payload
 # failure) must remap to exit 2 (deny), not exit 1 (Claude Code's
 # non-blocking code) — the fail-closed promise the header makes.
 internal_error() {
-  stubdir="$(mktemp -d)"
+  mktd; stubdir="$td"
   cat > "$stubdir/python3" <<'SH'
 #!/usr/bin/env bash
 exit 1
