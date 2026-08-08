@@ -50,6 +50,17 @@ outside `core/hooks/` (e.g. a temp dir) still flags.
   replacement work.
 - `compliance-check.sh` itself (already correct, unaffected).
 - Any change to `canon-manifest.txt`.
+- Pre-existing false-positives on OTHER rulebooks' own sanctioned
+  canonical copies (e.g. `terse/hooks/tests/parse-check.sh`,
+  `freelunch/`'s and `scout/`'s own copies) — a warrant hunt on this
+  proposal (`docs/reports/2026-08-08-hunt-stub-check-canon-source-exclusion.md`)
+  found `stub-check.sh` also filename-flags those as vendored, since
+  `compliance-check.sh`'s hash-based multi-canonical-source model
+  (lines 74-83) was never ported to `stub-check.sh`. This issue's
+  Acceptance is scoped to core's own canon-source tree only
+  (`bash core/hooks/tests/stub-check.sh core/hooks`); the multi-rulebook
+  case is a separate, pre-existing behavior this proposal does not
+  widen into.
 
 ## How you'll know it worked
 - `bash core/hooks/tests/stub-check.sh core/hooks` exits 0 with no FAIL
