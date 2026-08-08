@@ -26,6 +26,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 HOOKS="$(cd "$HERE/.." && pwd -P)"
 LIB="$HOOKS/lib/gate-lib.sh"
 LIBPY="$HOOKS/lib/gate-lib.py"
+. "$HERE/_tmp.sh"
 
 pass=0
 fail=0
@@ -287,7 +288,7 @@ report deny "$got" "record-fields-gate.sh: RECORD_FIELDS_GATE_OFF=banana stays a
 
 rfedit() { # <want> <name> <role> <file_path-on-disk-relative-content> <tool_name> <tool_input-json>
   want="$1"; name="$2"; role="$3"; content="$4"; tool="$5"; ti="$6"
-  td="$(mktemp -d)"
+  mktd
   fp="$td/docs/issue-3/reports/$role.md"
   mkdir -p "$(dirname "$fp")"
   printf '%s' "$content" > "$fp"
@@ -318,7 +319,7 @@ rfedit allow "record-fields-gate.sh: replace_all edit reconstructs to a passing 
 
 # --- compliance-check.sh: catches a synthetic hand-rolled violation ------
 mark compliance-check
-td="$(mktemp -d)"
+mktd
 cat > "$td/fixture-gate.sh" <<'EOF'
 #!/usr/bin/env bash
 case "${FIXTURE_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
@@ -334,7 +335,7 @@ report allow "$([ $rc = 0 ] && echo allow || echo deny)" \
 
 # --- stub-check.sh: gate-lib.sh/compliance-check.sh added to the manifest -
 mark stub-check-manifest
-td="$(mktemp -d)"
+mktd
 mkdir -p "$td/hooks/lib"
 cp "$HOOKS/lib/gate-lib.sh" "$td/hooks/lib/gate-lib.sh"
 out="$(bash "$HERE/stub-check.sh" "$td" 2>&1)"; rc=$?
@@ -344,7 +345,7 @@ rm -rf "$td"
 
 # --- group 7: missing-core -> guarded source must deny, not allow --------
 mark missing-core
-td="$(mktemp -d)"
+mktd
 out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"x"}}' \
     | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
       CLAUDE_PLUGIN_ROOT_CORE="$td/no-such-core" \

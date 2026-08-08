@@ -440,7 +440,7 @@ empty_payload
 # non-2 hook exit as non-blocking (the header's fail-closed promise).
 internal_error() {
   mktd; git init -q "$td"
-  stubdir="$(mktemp -d)"
+  repo_td="$td"; mktd; stubdir="$td"; td="$repo_td"
   printf '#!/usr/bin/env bash\nexit 1\n' > "$stubdir/python3"
   chmod +x "$stubdir/python3"
   printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/qa.md","content":"x"},"cwd":"%s"}' "$td" \

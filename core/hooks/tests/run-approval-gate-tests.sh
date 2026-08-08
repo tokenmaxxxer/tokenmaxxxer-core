@@ -256,7 +256,7 @@ internal_error() {
   mkdir -p "$td/docs/specs"
   cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
-  stubdir="$(mktemp -d)"
+  repo_td="$td"; mktd; stubdir="$td"; td="$repo_td"
   printf '#!/usr/bin/env bash\nexit 1\n' > "$stubdir/python3"
   chmod +x "$stubdir/python3"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
