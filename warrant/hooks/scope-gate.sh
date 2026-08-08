@@ -208,6 +208,31 @@ def withheld(command):
     return None
 
 
+# A6 (A4 fix): Bash is never checked against the write set, and the withhold
+# list only sees literal substrings (defeated by `F=-rf; rm $F`). Rather than
+# chase indirection forms, Bash stops being auto-approved by default: only a
+# narrow allowlist of commands provably read-only/inspection gets vouched
+# for. Everything else — including anything the gate cannot prove is
+# read-only — falls through to the normal permission prompt, same posture as
+# a `withheld()` match.
+SHELL_CHAIN = re.compile(r"[;&|`]|\$\(")
+SAFE_ARG = r"(?:\s+[^\s;&|`$]+)*"
+READONLY_ALLOW = [
+    re.compile(r"^git\s+(status|diff|log|show|branch|rev-parse|blame)" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^(ls|cat|pwd|echo|which|head|tail|wc|find|grep|file)" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^python3\s+-m\s+pytest" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^bash\s+\S+/(run-gate-lib-tests|run-role-gates-tests)\.sh" + SAFE_ARG + r"\s*$"),
+]
+
+
+def readonly_allowed(command):
+    if SHELL_CHAIN.search(command):
+        # Chaining can hide an unvetted second command; do not try to parse it.
+        return False
+    stripped = command.strip()
+    return any(pattern.match(stripped) for pattern in READONLY_ALLOW)
+
+
 if tool == "Bash":
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
@@ -229,6 +254,12 @@ if tool == "Bash":
             file=sys.stderr,
         )
         sys.exit(2)
+
+    if not readonly_allowed(command):
+        # Cannot prove this command is read-only/inspection-only, and it was
+        # never checked against the frozen write set — decline to vouch and
+        # let the normal permission prompt decide, rather than auto-approving.
+        allow()
 
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",

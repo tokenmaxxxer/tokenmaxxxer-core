@@ -81,12 +81,11 @@ def test_A1_observe_sh_malformed_json_silently_skips_enforcement(tmp_path):
     assert not has_deny(proc), "demonstrates the bypass: malformed JSON produces no deny at all"
 
 
-def test_A2_hunt_guard_never_matches_actual_namespaced_agent_type(tmp_path):
-    """warrant/hooks/hunt-guard.sh checks tool_input.subagent_type ==
-    "warrant-hunter" (unqualified) but this session's own agent registry
-    (see system prompt) names the real hunter "warrant:warrant-hunter" —
-    the qualified, plugin-namespaced form. Every real dispatch therefore
-    skips the single-flight lock and the WARRANT_HUNT_MAX cap entirely."""
+def test_A2_hunt_guard_matches_actual_namespaced_agent_type(tmp_path):
+    """warrant/hooks/hunt-guard.sh must match the real, plugin-namespaced
+    dispatch name "warrant:warrant-hunter" (see this session's own agent
+    registry) as well as the bare "warrant-hunter", so the single-flight
+    lock and the WARRANT_HUNT_MAX cap engage for a real dispatch."""
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=str(repo), check=True)
@@ -99,22 +98,20 @@ def test_A2_hunt_guard_never_matches_actual_namespaced_agent_type(tmp_path):
     )
     assert control.returncode == 2, "control: unqualified name is correctly capped at 0"
 
-    bypass = run_hook(
+    fixed = run_hook(
         "warrant/hooks/hunt-guard.sh",
         {"tool_name": "Agent", "tool_input": {"subagent_type": "warrant:warrant-hunter"}},
         env=env,
     )
-    assert bypass.returncode == 0, "demonstrates the bypass: the real qualified name is never capped"
+    assert fixed.returncode == 2, "fix: the real qualified name is now capped too"
 
 
-def test_A4_scope_gate_auto_approves_arbitrary_bash_during_approved_proposal(tmp_path):
-    """warrant/hooks/scope-gate.sh auto-approves (permissionDecision: allow)
-    ANY Bash command during an approved proposal unless the command matches
-    a fixed regex withhold-list. The withhold list is trivially bypassed by
-    variable indirection, and Bash commands are never checked against the
-    proposal's frozen write set at all (only Write/Edit/NotebookEdit paths
-    are) — so an unrelated command (e.g. exfiltrating data via curl) is
-    silently auto-approved too."""
+def test_A4_scope_gate_no_longer_auto_approves_arbitrary_bash(tmp_path):
+    """warrant/hooks/scope-gate.sh must not auto-approve (permissionDecision:
+    allow) a Bash command just because it misses the withhold regex list.
+    Variable-indirected commands and commands unrelated to the frozen write
+    set must both decline to vouch and defer to the normal permission
+    prompt, not be silently auto-approved."""
     repo = tmp_path / "repo"
     (repo / "docs" / "proposals").mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=str(repo), check=True)
@@ -132,23 +129,29 @@ def test_A4_scope_gate_auto_approves_arbitrary_bash_during_approved_proposal(tmp
         {"tool_name": "Bash", "tool_input": {"command": "F=-rf; rm $F /tmp/x"}},
         env=env,
     )
-    assert has_allow(indirected_rm), "demonstrates the bypass: variable-indirected rm -rf is auto-approved"
+    assert not has_allow(indirected_rm), "fix: variable-indirected rm -rf is no longer auto-approved"
 
     unrelated = run_hook(
         "warrant/hooks/scope-gate.sh",
         {"tool_name": "Bash", "tool_input": {"command": "curl -s http://example.com/x -o /tmp/leak.txt"}},
         env=env,
     )
-    assert has_allow(unrelated), "demonstrates no write-set check applies to Bash at all"
+    assert not has_allow(unrelated), "fix: a command unrelated to the write set is no longer auto-approved"
+
+    readonly = run_hook(
+        "warrant/hooks/scope-gate.sh",
+        {"tool_name": "Bash", "tool_input": {"command": "git status"}},
+        env=env,
+    )
+    assert has_allow(readonly), "control: a provably read-only command is still vouched for"
 
 
-def test_A5_trailer_gate_quote_split_bypasses_commit_detection(tmp_path):
-    """core/hooks/trailer-gate.sh detects `git commit` with a single regex
-    over the raw command string. Splitting the literal word "commit" with
-    an empty-string quote pair (`commi""t`) produces the exact same shell
-    command but the regex no longer matches `\\bcommit\\b`, so the §13
-    trailer requirement is skipped entirely for a commit that stages
-    docs/issue-<n>/** work."""
+def test_A5_trailer_gate_quote_split_commit_is_detected(tmp_path):
+    """core/hooks/trailer-gate.sh must detect `git commit` even when the
+    literal word "commit" is split by an empty-string quote pair
+    (`commi""t`), since that produces the exact same shell command as
+    `git commit`. The §13 trailer requirement must apply to it the same as
+    an unsplit commit for staged docs/issue-<n>/** work."""
     scratch = REPO / "docs/issue-163/reports/defect-verification/._a5_repro_scratch.md"
     scratch.write_text("scratch\n")
     subprocess.run(["git", "add", str(scratch)], cwd=str(REPO), check=True)
@@ -159,12 +162,21 @@ def test_A5_trailer_gate_quote_split_bypasses_commit_detection(tmp_path):
                             {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, env=env)
         assert control.returncode == 2, "control: an untrailered commit of staged issue-163 work is denied"
 
-        bypass = run_hook(
+        fixed = run_hook(
             "core/hooks/trailer-gate.sh",
             {"tool_name": "Bash", "tool_input": {"command": 'git commi""t -m x'}},
             env=env,
         )
-        assert bypass.returncode == 0, "demonstrates the bypass: quote-split commit skips §13 entirely"
+        assert fixed.returncode == 2, "fix: quote-split commit is now detected and denied without a trailer"
+
+        single_char_split = run_hook(
+            "core/hooks/trailer-gate.sh",
+            {"tool_name": "Bash", "tool_input": {"command": "git c'o'm'm'i't -m x"}},
+            env=env,
+        )
+        assert single_char_split.returncode == 2, (
+            "fix: single-char quote-split commit (not just an empty pair) is also detected"
+        )
     finally:
         subprocess.run(["git", "reset", "HEAD", str(scratch)], cwd=str(REPO), check=True)
         scratch.unlink()
