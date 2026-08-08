@@ -101,3 +101,30 @@ Not run against code (proposal-only stance); derived directly from the proposal'
 
 ### Expected
 Category 1 should require the source target to *be* `gate-lib.sh`/`role-directive.sh`/a sibling `*-directive.sh` (e.g. basename match after resolving quoting, not raw substring-of-argument), and category 2 should reject calls to `gate_*`-named functions that are not defined by the sourced canon files, or the design should state why call-target provenance is out of scope. As proposed, both gaps let an attacker-authored file achieve "sanctioned stub" classification while running arbitrary logic (here, credential exfiltration) inside what the gate is supposed to guarantee is inert boilerplate.
+
+## before-landing — stance 1: assume this change and another plugin's rule cancel each other — find the pair
+
+Verdict: FINDING — stub-check.sh's canon-forms.txt existence check now warns about a fallback ("single-call-only shape") that gate_is_role_directive_stub no longer implements, because the issue-180 rewrite deleted its canon-forms.txt read entirely.
+Kind: design-error
+Seed: git diff -- core/hooks/lib/gate-lib.sh core/hooks/tests/canon-forms.txt core/hooks/tests/run-stub-canon-forms-tests.sh docs/handbooks/fleet-scan-tests.md (current working tree, uncommitted)
+cap_seconds: 180
+tier: default
+diff_stat_lines: 248 insertions(+), 107 deletions(-) across 4 files
+started_at: 2026-08-08T00:00:00Z
+ended_at: 2026-08-08T00:20:00Z
+
+### Reproduce
+```
+cp -r <repo> /tmp/repo-copy
+rm -f /tmp/repo-copy/core/hooks/tests/canon-forms.txt
+bash /tmp/repo-copy/core/hooks/tests/stub-check.sh /tmp/repo-copy/core/hooks
+```
+
+### Observed
+```
+stub-check: WARN — canon-forms.txt not found at .../core/hooks/tests/canon-forms.txt, falling back to single-call-only shape
+```
+printed even though `gate_is_role_directive_stub` (post-issue-180, core/hooks/lib/gate-lib.sh) never reads canon-forms.txt at all any more — the function's structural line classifier (basename-anchored source / gate_* call / set -e / for-do-done) runs identically whether the file exists or not. `stub-check.sh`'s own `forms_manifest` variable (line 84) is computed, existence-checked, and then never passed to or consulted by `gate_is_role_directive_stub` — confirmed by grepping gate-lib.sh for `forms_manifest`/`canon-forms` (no hits inside the function body post-rewrite). Classification results (checked directly, both with and without the file present) are identical.
+
+### Expected
+Either the WARN text should be removed (there is no fallback left to warn about) or the check should be removed outright now that gate_is_role_directive_stub is file-independent — the current text asserts a code path ("falling back to single-call-only shape") that does not exist in the rewritten classifier, which will mislead an operator who deletes canon-forms.txt (now header-comment-only, issue-180) into thinking directive.sh classification degrades when it does not.
