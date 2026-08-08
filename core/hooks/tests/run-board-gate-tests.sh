@@ -402,6 +402,21 @@ run allow url-docs-path-2                 Bash '{"command":"curl http://example.
 run deny  url-docs-negative-write         Write '{"file_path":"docs/en/hooks.md","content":"x"}'
 run deny  url-docs-negative-issue         Write '{"file_path":"docs/issue-1/notabucket/x.md","content":"x"}'
 
+# --- issue-187: comment/echoed text is not a write target -----------------
+# `own_hits` used to scan a failing segment's full raw text, so a
+# docs/issue-N-shaped string sitting only in an ECHOED comment was
+# misread as a write candidate even though the real redirect target lay
+# elsewhere. Red: this exact shape used to deny before the fix.
+run allow bash-echo-comment-not-target    Bash '{"command":"echo \"see '$BOARD'/reports/review.md for context\" > /tmp/notes.txt"}'
+# negative-space sibling: a real write into the board through the same
+# echo/redirect shape must still deny.
+run deny  bash-echo-comment-real-target   Bash '{"command":"echo \"see /tmp/notes.txt for context\" > '$BOARD'/reports/review.md"}'
+# tee's own comment-vs-target split: piped text mentioning docs/issue-N
+# must not itself become the candidate; tee's own destination argument
+# still is.
+run allow bash-tee-comment-not-target     Bash '{"command":"echo \"see '$BOARD'/reports/review.md\" | tee /tmp/notes.txt"}'
+run deny  bash-tee-comment-real-target    Bash '{"command":"echo \"see /tmp/notes.txt\" | tee '$BOARD'/reports/review.md"}'
+
 # --- kill switch and fail-closed ------------------------------------------
 run allow kill-switch            Write '{"file_path":"docs/loose.md","content":"x"}' CORE_OFF=1
 
