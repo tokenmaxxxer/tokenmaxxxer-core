@@ -6,3 +6,9 @@ stub-check.sh
 gate-lib.sh
 gate-lib.py
 compliance-check.sh
+directive.sh
+hunt-guard.sh
+hunt-state.sh
+scope-gate.sh
+state.sh
+warrant-hunter.md
