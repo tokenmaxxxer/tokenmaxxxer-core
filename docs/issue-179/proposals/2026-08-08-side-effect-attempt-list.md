@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 files:
   - docs/issue-179/reports/defect-verification.md
   - tests/test_side_effect_round.py
@@ -139,4 +139,20 @@ stay green at the end.
 
 ## What did not work
 
-(none yet — phase 1 only)
+- Expected `run-role-gates-tests.sh` to be green going in (issue's acceptance
+  wording implies it should be) — it is not: 1/79 pre-existing failure
+  (`stub-check: real stub directive.sh passes`), traced to
+  `canon-manifest.txt` listing `directive.sh` in `stub-check.sh`'s generic
+  absence-based loop even though the file has its own later, correct
+  structural check. Recorded as attempt 9 (self-devised, surfaced by the
+  acceptance check itself) rather than silently working around it.
+- First pass at attempt 5's repro test asserted on `proc.stdout`;
+  `stub-check.sh`'s FAIL lines go to stderr (`>&2`), not stdout — assertion
+  failed until switched to `proc.stderr`.
+- Attempt 6's original hypothesis (comment/whitespace-only edits defeating
+  a content-hash comparison) doesn't apply: `directive.sh` never reaches a
+  hash comparison at all (routed to the structural check unconditionally,
+  by design). Found a stronger, more directly reachable variant instead: an
+  assignment-line (`VAR=$(...)`) is unconditionally excluded from scrutiny
+  regardless of its right-hand side, so a `curl | bash` disguised as an
+  assignment passes clean.
