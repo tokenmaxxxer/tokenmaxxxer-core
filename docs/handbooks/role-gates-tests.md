@@ -58,6 +58,18 @@ same-commit convention, an `upstream` entry whose `path` lands in the same
 commit as the citing record or proposal is written as the literal
 `sha: same-commit` instead.
 
+This check scans only the leading `---`-delimited YAML frontmatter block
+(issue-153) — the region the `upstream:`/`sha:` convention actually
+governs — not the whole document, so a record or proposal that *quotes* a
+non-conforming value outside frontmatter (a fenced example documenting
+this defect class, say) is not denied for it; the identical value written
+live inside the frontmatter's own `upstream:` entry is still denied. A
+`sha:` field present with no value on its own line is allowed (the
+pre-existing convention for an empty value, carved out explicitly rather
+than misread as denying whatever text starts the following line), and a
+legitimate value followed by a trailing YAML comment (`sha: same-commit  #
+landed same commit`) has the comment stripped before validation.
+
 `trailer-gate.sh` extracts a heredoc-supplied `-m` message
 (`git commit -m "$(cat <<'EOF' ...body... EOF)"` — the standard idiom for a
 multi-line commit message) directly from the raw command string via a regex

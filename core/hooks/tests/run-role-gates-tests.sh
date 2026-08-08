@@ -92,32 +92,71 @@ run_rf allow "implementation record code_under_review file list allowed (issue-1
   '"loop_state: landed\n\ncode_under_review: `a.sh`, `b.sh`\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
 # --- record-fields-gate.sh: same-commit sha placeholder check (issue-128) --
+# issue-153: these fixtures wrap the upstream/sha block in a `---`/`---`
+# frontmatter fence, matching every real record/proposal's actual shape
+# (confirmed against the corpus) — the sha check now scans only that
+# region, so a fixture without the fence would fall through the "no
+# frontmatter, nothing to check" path and pass vacuously regardless of
+# the value inside it.
 run_rf deny  "proposal sha bracket placeholder denied (issue-128)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n---\n"'
 run_rf allow "proposal sha: same-commit allowed (issue-128)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n"'
 run_rf allow "proposal sha real hex allowed (issue-128)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: 0123456789abcdef0123456789abcdef01234567\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: 0123456789abcdef0123456789abcdef01234567\n---\n"'
 run_rf deny  "record sha bracket placeholder denied despite complete §20 fields (issue-128)" coding \
   "docs/issue-3/reports/coding.md" \
-  '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n\n## open findings\nnone\n"'
+  '"---\nloop_state: landed\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n---\n\n## what was done\nx\n\n## why\ny\n\n## open findings\nnone\n"'
 run_rf allow "record sha: same-commit allowed (issue-128)" coding \
   "docs/issue-3/reports/coding.md" \
-  '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n\n## open findings\nnone\n"'
+  '"---\nloop_state: landed\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n\n## what was done\nx\n\n## why\ny\n\n## open findings\nnone\n"'
 
 # --- record-fields-gate.sh: sha allow-list red->green (issue-133) ----------
 run_rf deny  "proposal sha: HEAD denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
 run_rf deny  "proposal sha: TBD denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: TBD\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: TBD\n---\n"'
 run_rf deny  "proposal sha bracket+trailing-prose denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
-  '"upstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit> -- fix later\n"'
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit> -- fix later\n---\n"'
+
+# --- record-fields-gate.sh: sha scan scope + empty-value carve-out (issue-153) --
+run_rf deny  "F1 regression: bad value inside frontmatter's own entry still denied" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
+run_rf allow "F1 red->green: fenced-block quotation outside frontmatter allowed" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n\nbody quoting a bad value as an example:\n\n```\n    sha: HEAD\n```\n"'
+run_rf deny  "F1 no-trailing-newline: bad frontmatter value still denied (hunt finding)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---"'
+run_rf allow "F1 comment case: conforming value + trailing YAML comment allowed" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit  # landed same commit\n---\n"'
+run_rf allow "F2 red->green: value-less line followed by another entry allowed (carve-out)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha:\n  - path: other\n    sha: same-commit\n---\n"'
+
+f2_msg_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/proposals/2026-08-04-x.md","content":"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n  - path: other\n    sha: same-commit\n---\n"}}' \
+    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+case "$f2_msg_out" in
+  *"sha: HEAD is not"*) f2_msg_ok=1 ;;
+  *) f2_msg_ok=0 ;;
+esac
+report 1 "$f2_msg_ok" "F2 message-accuracy: denial names the offending line's own value (issue-153)"
+
+# before-landing hunt (issue-153, stance 0): a leading BOM made the
+# frontmatter anchor fail to match at all, silently emptying the scan
+# region and letting any sha value through — fixed by stripping a leading
+# BOM before anchoring; regression-pin it here.
+run_rf deny "before-landing hunt: leading BOM does not bypass the sha check (issue-153)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"﻿---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
 
 # --- record-fields-gate.sh: single deny lists every violation (issue-140) --
 run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>

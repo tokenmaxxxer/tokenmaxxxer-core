@@ -172,9 +172,30 @@ try:
         )
 
     def placeholder_shas(text):
+        # issue-153: scope the scan to the leading frontmatter block only
+        # (the region the `upstream:`/`sha:` convention actually governs),
+        # not the whole document -- a record or proposal quoting a
+        # non-conforming value outside frontmatter (e.g. inside a fenced
+        # example) must not be denied for it. The closing `^---...$`
+        # anchor matches end-of-line OR end-of-string (re.M), so a document
+        # whose content ends exactly at the closing fence with no trailing
+        # newline still yields the full frontmatter as the scan region. A
+        # leading BOM (U+FEFF) is stripped first (before-landing hunt,
+        # stance 0, issue-153): re.match anchors at text[0] only, so an
+        # unstripped BOM before the fence made the anchor fail and the scan
+        # region silently fall back to empty, skipping every sha: line.
+        if text.startswith('\ufeff'):
+            text = text[1:]
+        fm = re.match(r'^---[ \t]*\r?\n(.*?\n)^---[ \t]*\r?$', text, re.M | re.S)
+        region = fm.group(1) if fm else ""
         bad = []
-        for m in re.finditer(r'^\s*sha:\s*(.*)$', text, re.M):
-            v = m.group(1).strip()
+        for m in re.finditer(r'^\s*sha:[ \t]*(.*)$', region, re.M):
+            # horizontal whitespace only after the field name, so the
+            # captured value can never cross a line break (issue-153 F2);
+            # strip a trailing YAML comment before validating the value.
+            v = re.sub(r'[ \t]+#.*$', '', m.group(1)).strip()
+            if v == "":
+                continue  # issue-153 F2: a present, value-less line is carved out
             if v == "same-commit" or re.match(r'^[0-9a-f]{40}$', v):
                 continue
             bad.append(v)
