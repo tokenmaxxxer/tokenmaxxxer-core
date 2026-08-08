@@ -133,6 +133,14 @@ deliverables the approval unlocked.
   compliance-check hooks.json scan-scope 4/4, sibling-plugin parse-checks,
   freelunch observe 9/9) — the new mode is additive and does not touch the
   script's existing default-mode path.
+- Before-landing warrant hunt (stance 3, state nothing maintains) found
+  the mode's initial `-maxdepth 3` bound silently missed a vendored copy
+  nested one directory deeper than that under a `<rulebook-path>` root —
+  reproduced live, fixed by dropping the depth bound entirely (the mode's
+  contract is "arbitrary rulebook path," not a known hooks/-relative
+  layout `stub-check.sh`'s own bound assumes). Re-verified: the same
+  reproduction now exits 1 and reports the file; full suite re-run clean.
+  Record: `docs/reports/2026-08-08-hunt-role-agnostic-canon-boundary.md`.
 
 ## closed_checks
 
