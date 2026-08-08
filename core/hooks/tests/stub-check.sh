@@ -50,7 +50,15 @@ rc=0
 # 2, general-rule half).
 manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
 if [ -f "$manifest" ]; then
-  CANON_GATES="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#' | tr '\n' ' ')"
+  # directive.sh is excluded here even though it is a manifest entry: it is
+  # the one entry with "keep a stub" semantics (docs/handbooks/canon-rollout.md
+  # step 3, issue-173) — a correctly-rolled-out rulebook still has a file
+  # literally named directive.sh, so the absence-based loop below would flag
+  # every sanctioned stub as a vendored copy before the structural check
+  # further down ever runs. It is handled exclusively by that structural
+  # check (issue-180), the same carve-out compliance-check.sh's
+  # --canon-duplication mode already applies for the same reason.
+  CANON_GATES="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#' | grep -vx 'directive.sh' | tr '\n' ' ')"
 else
   echo "stub-check: WARN — canon-manifest.txt not found at $manifest, falling back to built-in list" >&2
   CANON_GATES="trailer-gate.sh record-fields-gate.sh handbook-trigger-gate.sh parse-check.sh stub-check.sh"
