@@ -7,7 +7,12 @@ loop_state: scope-proposed
 # Proposal — architecture record for the role-agnostic canon boundary (issue-66)
 
 See `docs/issue-66/reports/architecture/survey.md` for the full current-state
-survey this proposal is built on.
+survey this proposal is built on. That survey's scout skip record applies
+here too: scouting skipped, skip condition — no design decision open to an
+external field (this is a retroactive internal ADR judgment on
+already-implemented repo structure plus a component-boundary call against
+sibling issue #63, not a product-shaped decision with a comparable external
+category to benchmark against).
 
 ## Context
 
