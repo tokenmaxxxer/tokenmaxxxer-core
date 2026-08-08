@@ -219,6 +219,25 @@ still failed `stub-check.sh`. Three more `fragment-loop:` pattern lines
 in `canon-forms.txt` cover them, same registry mechanism, no new
 `stub-check.sh` logic.
 
+**gate-lib-source / gate-call (issue-177):** `unregistered-stub` and
+`layered-directive` (issue-175) were built from the issue's own gap
+wording, not real repo bytes, and #171's live Batch-1 scan showed they
+matched no real rulebook. Replaced with `gate-lib-source`/`gate-call`,
+transcribed from architecture-rulebook@da8565d615d9fb6c18487c9b338fa8b60bdf1120's
+real `architecture/hooks/directive.sh` lines 14-15 (source `gate-lib.sh`
+with an `|| { ...; exit N; }` fallback; call an exported `gate_*`
+function with an `|| exit N` fallback). `gate_is_role_directive_stub`
+(this file) caps each pattern to at most one matching line per file, so a
+file chaining an unbounded run of look-alike lines past the mandatory
+header still fails — a flat per-line regex list in `canon-forms.txt`
+alone cannot express that cap. Accessibility's `wcag-em-directive` and
+capacity-planning's four methodology-framing plugins are a structurally
+different class — standalone `directive.sh` files that never source
+`role-directive.sh` and never call `core_role_directive` — and fail
+`gate_is_role_directive_stub`'s first two checks before `canon-forms.txt`
+is ever consulted; no pattern here can reach them (see
+`docs/issue-177/reports/implementation/survey.md`).
+
 **Alternative considered and deferred:** defining the fragment-loop
 combination as a separate sourced *file* (splitting it out of
 `directive.sh` entirely) instead of teaching `stub-check.sh` to recognize
