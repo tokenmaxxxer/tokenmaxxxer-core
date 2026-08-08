@@ -175,3 +175,31 @@ gate_is_role_directive_stub() {
   fi
   return 0
 }
+
+# gate_content_hash_matches_canon <hit-file> <canon-file> (issue-175):
+# compliance-check.sh --canon-duplication's content-based test for every
+# manifest entry other than directive.sh (which keeps its own structural
+# gate_is_role_directive_stub path — its content is SUPPOSED to differ per
+# sanctioned stub, so hash-equality is never the right test for it). Per
+# the issue's acceptance wording: identical content = vendored (flag);
+# different content under a matching filename = role-specific, clean.
+# Returns 0 when the two files hash identically (vendored copy), 1
+# otherwise (content differs, or either file is unreadable — fail open
+# toward "not a match", matching this file's convention of never blocking
+# on a comparison it cannot actually make).
+gate_content_hash_matches_canon() {
+  local hit="$1" canon="$2"
+  [ -f "$hit" ] && [ -f "$canon" ] || return 1
+  local h1 h2
+  if command -v sha256sum >/dev/null 2>&1; then
+    h1="$(sha256sum "$hit" 2>/dev/null | awk '{print $1}')"
+    h2="$(sha256sum "$canon" 2>/dev/null | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    h1="$(shasum -a 256 "$hit" 2>/dev/null | awk '{print $1}')"
+    h2="$(shasum -a 256 "$canon" 2>/dev/null | awk '{print $1}')"
+  else
+    cmp -s "$hit" "$canon"
+    return $?
+  fi
+  [ -n "$h1" ] && [ -n "$h2" ] && [ "$h1" = "$h2" ]
+}
