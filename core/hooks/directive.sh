@@ -127,6 +127,32 @@ cat <<EOF
   directive (contract v3 s22).
 - The board is what is MERGED to main. An open PR is not yet on the board;
   read other roles' state from main, not from open PRs.
+- Your own record (contract §20) must state, in some accepted spelling: what
+  was done ("what was done", "what i did", "## done", "work done", "summary
+  of work" -- write a summary of work); why ("why", "rationale", "reason:");
+  the upstream basis ("upstream", "based on", "basis:", a 7-40 char hex
+  commit sha, or a
+  docs/issue-<n> path); its own current kind: and loop_state: line; and open
+  findings ("open findings", "open_findings", "open finding"). Whenever
+  loop_state is non-terminal for your record's kind, also state next steps
+  ("next steps", "next-steps", "next_steps") and an open-finding resolution
+  path ("resolution path", "resolution-path", "resolution_path"). A `sha:`
+  line's value must be exactly `same-commit` or a 40-character hex commit
+  sha (issue-128/133) — never a bracketed placeholder.
+- Terminal loop_state is per-kind, derived from contract §2, not one global
+  list: `product-record`->`decided`/`scope-approved`; `coding-record`->
+  `landed`; `qa-record`->`verified-fixed`/`not-a-defect`/`wont-fix`;
+  `feasibility-record`->`verdict`; `ux-design-record`->`reviewed`;
+  `review-record`->`reported`; `verify-record`->`cleared`; `ops-record`->
+  `steady`; `reflect-record`->`round-done`. A repo may override a kind's
+  terminal states via docs/specs/record-fields-terminal-states.json (a
+  {kind: [states]} JSON object); a malformed or unrecognized entry in that
+  file is refused loudly, never silently ignored.
+- A commit that stages an operational-surface file — package.json,
+  package-lock.json, pyproject.toml, requirements.txt, go.mod, Cargo.toml,
+  Gemfile, Dockerfile, docker-compose.yml, .env, migrations/,
+  .github/workflows/, or a deploy/setup/run/install script — is refused
+  (contract §21) unless the same commit also touches a docs/handbooks/ file.
 EOF
 
 trap - EXIT
