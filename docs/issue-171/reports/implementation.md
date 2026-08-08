@@ -283,7 +283,7 @@ No commit or push was made to any of the 43 sibling repos this session.
 - Regenerate the Batch 1-4 roster programmatically from issue-171's
   embedded finding-count table (still outstanding from session 1).
 
-## Resolution path
+## Resolution path (superseded — see session 3 below)
 
 The open findings resolve when a follow-up proposal + PR generalizes
 `compliance-check.sh --canon-duplication`'s content-based check to the
@@ -291,3 +291,91 @@ full manifest and closes the two `gate_is_role_directive_stub` gaps
 (missing `canon-forms.txt` shape; no layered-directive allowlist), and a
 re-run of the fleet scan against the four blocked Batch 1 repos shows
 clean. Batch 1 does not close, and Batch 2 does not open, until then.
+
+## Session 3 — post-#175 re-scan of the four blocked Batch 1 repos
+
+Issue #175 (content-hash canon-duplication for the full manifest + new
+`canon-forms.txt` stub shapes — `unregistered-stub`, `layered-directive`)
+merged to `main` (PR #176, commit `e0e172a`). This branch merged `main`
+to pick it up, then re-cloned and re-ran
+`core/hooks/tests/fleet-silent-failure-scan.sh` against all four repos
+that were blocking Batch 1 at the end of session 2.
+
+Result: all four still report a `canon-duplication` finding on their
+`directive.sh`. Reading each file's actual content shows why #175 did
+not close them:
+
+- `architecture-rulebook/architecture/hooks/directive.sh`: sources
+  `gate-lib.sh`, calls `gate_kill_switch_active`, then sources
+  `role-directive.sh` and calls `core_role_directive` — three non-blank/
+  non-comment lines beyond the call itself. #175's `unregistered-stub`
+  shape (`canon-forms.txt`) expects a single line matching
+  `^[A-Za-z_]+_directive_extra$`, built from a *stated assumption* about
+  this repo's shape (#175's own record says so — no access to the real
+  bytes at the time). The assumption does not match the real file, so
+  the false positive persists unchanged.
+- `accessibility-rulebook/wcag-em-directive/hooks/directive.sh`: same
+  pattern — #175's `layered-directive` shape (a `.` line matching
+  `*layered-directive.sh`) was also a constructed guess, not read from
+  this file, and does not match its actual source line.
+- `localization-rulebook`, `capacity-planning-rulebook`: same
+  `canon-duplication` class persists (unconfirmed per-file, consistent
+  with session 2); each also still carries its own `mktemp-footgun`
+  finding, unrelated to canon and out of this rollout's scope per the
+  runbook.
+
+No commit or push was made to any of the four sibling repos this
+session. `docs/issue-171/reports/implementation/rollout-runbook.md`'s
+re-scan log was updated with this round's results (Batch 0 confirmed
+clean; Batch 1's two already-clean repos and `pricing-rulebook`
+confirmed no-action; the four blocked repos' specific mismatch reasons
+recorded) — the frozen write set for this PR.
+
+## What did not work (session 3)
+
+- Expected #175's merge to close the two `gate_is_role_directive_stub`
+  gaps this record's session 2 flagged as blocking, and re-ran the fleet
+  scan against the same four repos expecting `clean`. All four still
+  fail: #175's new `canon-forms.txt` shapes were built from stated
+  assumptions about each repo's real content (documented as such in
+  #175's own record) rather than the real bytes, and the assumed
+  patterns do not match what these repos actually contain.
+
+## Open findings (session 3)
+
+- **Still blocking Batch 1, unchanged in kind, now confirmed against
+  real repo bytes:** `canon-forms.txt`'s `unregistered-stub` and
+  `layered-directive` patterns do not match `architecture-rulebook`'s
+  or `accessibility-rulebook`'s actual `directive.sh` content. A correct
+  fix needs the real file content transcribed into the pattern (or a
+  broader rule — e.g. "any additional lines that only source
+  `gate-lib.sh`/call its exported functions, or source a sibling
+  `*-directive.sh` file, are fine") rather than another guessed literal
+  pattern. Lives in `core/hooks/tests/canon-forms.txt` /
+  `core/hooks/lib/gate-lib.sh`, outside this PR's frozen write set.
+- `localization-rulebook` and `capacity-planning-rulebook`'s
+  canon-duplication hits remain unconfirmed per-file (same open item as
+  session 2) and their `mktemp-footgun` findings remain out of this
+  rollout's canon scope.
+
+## Next steps
+
+- Open a new follow-up proposal/issue (same pattern as #173, #175) that
+  fixes `canon-forms.txt`'s `unregistered-stub` and `layered-directive`
+  patterns against `architecture-rulebook`'s and `accessibility-rulebook`'s
+  actual `directive.sh` bytes (read directly from the real repos, not
+  reconstructed from the issue description) — and confirm
+  `localization-rulebook`/`capacity-planning-rulebook`'s per-file shape
+  while at it.
+- Re-run the fleet scan against all four once that lands; only then can
+  Batch 1 close and Batch 2 open.
+- Regenerate the Batch 1-4 roster programmatically from issue-171's
+  embedded finding-count table (still outstanding since session 1).
+
+## Resolution path
+
+The open findings resolve when a follow-up proposal + PR corrects
+`canon-forms.txt`'s two new shapes against the real `directive.sh` bytes
+of `architecture-rulebook` and `accessibility-rulebook`, and a re-run of
+the fleet scan against all four blocked Batch 1 repos shows clean. Batch
+1 does not close, and Batch 2 does not open, until then.

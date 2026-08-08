@@ -141,7 +141,8 @@ row delta to the log below after each run.
 
 | Batch | Re-scan date | New clean rows | Rows still finding (repo: reason) |
 |---|---|---|---|
-| (none run yet — phase 1 only) | | | |
+| Batch 0 | 2026-08-08 | content-design-rulebook (clean, post-#173) | — |
+| Batch 1 (partial) | 2026-08-08 | market-analysis-rulebook, requirements-engineering-rulebook (already clean); pricing-rulebook (no action needed — flagged file is not a duplicate) | accessibility-rulebook: layered-directive `wcag-em-directive/hooks/directive.sh` still misclassified after #175 (registered `layered-directive` shape in canon-forms.txt does not match this file's actual `.` source line); architecture-rulebook: `architecture/hooks/directive.sh` still misclassified after #175 (registered `unregistered-stub` shape does not match this file's actual two-`.`-source + `gate_kill_switch_active` shape — #175's shapes were constructed from a stated assumption, not the real repo bytes); localization-rulebook, capacity-planning-rulebook: canon-duplication still firing (same directive.sh class, unconfirmed per-file) plus each has its own mktemp-footgun finding, out of this rollout's canon scope |
 
 ## Exit criterion
 
