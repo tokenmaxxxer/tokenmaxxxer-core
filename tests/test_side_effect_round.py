@@ -67,16 +67,29 @@ def test_attempt6_directive_assignment_line_hides_command_injection_from_stub_ch
 
 
 def test_attempt5_stub_check_false_positives_on_its_own_canon_source_tree():
-    """stub-check.sh has no self-path exclusion (unlike compliance-check.sh,
-    lines ~29-30/85-86) when run with its own canon-source directory
-    (core/hooks) as the scan target: every core-canon file it is meant to
-    detect as a VENDORED COPY elsewhere is flagged as vendored in its own
-    real, canonical home. No shipped call site currently passes core/hooks
-    itself as the target (all real invocations use a rulebook's own
-    hooks dir or a temp dir), so this is latent, not live-triggered.
-    Severity: Low/advisory (issue-179 attempt 5).
-    """
+    """stub-check.sh now excludes hits under its own canon-source home
+    (repo_root/core/hooks), so the CANON_GATES filename-hit loop scans
+    clean (issue-183 fix for issue-179 attempt 5, previously
+    Low/advisory). directive.sh's separate structural check is
+    out-of-scope for this fix and is asserted unaffected, not clean."""
     proc = run_stub_check(REPO / "core" / "hooks")
+    assert "vendored copy of core canon file" not in proc.stderr
+    for name in (
+        "trailer-gate.sh",
+        "record-fields-gate.sh",
+        "handbook-trigger-gate.sh",
+        "parse-check.sh",
+        "stub-check.sh",
+    ):
+        assert f"ok — no vendored '{name}'" in proc.stdout
+
+
+def test_attempt5_stub_check_still_flags_real_vendored_copy(tmp_path):
+    """A real vendored copy outside core/hooks/ still flags (issue-183:
+    the canon-source exclusion must not blanket-suppress detection)."""
+    hooks_dir = tmp_path / "hooks"
+    hooks_dir.mkdir()
+    (hooks_dir / "trailer-gate.sh").write_text("#!/usr/bin/env bash\necho stub\n")
+    proc = run_stub_check(tmp_path)
     assert proc.returncode != 0
     assert "vendored copy of core canon file 'trailer-gate.sh'" in proc.stderr
-    assert "core/hooks/trailer-gate.sh" in proc.stderr
