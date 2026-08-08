@@ -270,6 +270,61 @@ gate_is_role_directive_stub() {
   return 0
 }
 
+# gate_directive_custom_by_convention <file> (issue-185): a directive.sh
+# hit that fails gate_is_role_directive_stub is not automatically a
+# vendored copy — three real Batch-1 repos carry deliberately custom,
+# per-facet SessionStart hooks that never intended to be a stub at all.
+# Returns 0 (custom-by-convention, clean) only when the file:
+#   (a) does not source core/hooks/lib/role-directive.sh (same source-
+#       line pattern gate_is_role_directive_stub tests),
+#   (b) does not source core/hooks/lib/gate-lib.sh,
+#   (c) contains no core_role_directive or gate_[A-Za-z_]+ token as a
+#       real definition/call line (word-boundary match on non-comment,
+#       non-heredoc-body lines) — the real fixtures prove a heredoc or
+#       comment mention alone must not trip this,
+#   (d) does not hash-match role-directive.sh or gate-lib.sh via
+#       gate_content_hash_matches_canon (defense-in-depth against a
+#       literal byte-identical embed).
+# Returns 1 (not custom — corrupted-stub candidate or contains canon
+# internals) otherwise. Silent either way: classification only, no
+# fail_reason string — callers already have gate_is_role_directive_stub's
+# reason for the FAIL case.
+gate_directive_custom_by_convention() {
+  local f="$1"
+  [ -f "$f" ] || return 1
+
+  grep -qE 'role-directive\.sh["'"'"']?[[:space:]]*$|role-directive\.sh"' "$f" && return 1
+  grep -qE 'gate-lib\.sh["'"'"']?[[:space:]]*$|gate-lib\.sh"' "$f" && return 1
+
+  local stripped
+  # Strip comment-only lines and heredoc bodies (everything between a
+  # `<<'EOF'`/`<<EOF`/`<<-EOF`-shaped opener and its matching closer)
+  # before the needle check, so a mention inside explanatory prose never
+  # trips it — only a real definition/call line does.
+  stripped="$(awk '
+    /<<[-]?['"'"'"]?[A-Za-z_][A-Za-z0-9_]*['"'"'"]?[[:space:]]*$/ {
+      match($0, /<<[-]?['"'"'"]?/);
+      tag = substr($0, RSTART + RLENGTH);
+      gsub(/['"'"'"].*/, "", tag);
+      in_heredoc = 1; heredoc_tag = tag; next
+    }
+    in_heredoc {
+      if ($0 == heredoc_tag) { in_heredoc = 0 }
+      next
+    }
+    /^[[:space:]]*#/ { next }
+    { print }
+  ' "$f" 2>/dev/null || true)"
+
+  printf '%s\n' "$stripped" | grep -qE '\bcore_role_directive\b' && return 1
+  printf '%s\n' "$stripped" | grep -qE '\bgate_[A-Za-z_][A-Za-z0-9_]*\b' && return 1
+
+  gate_content_hash_matches_canon "$f" "$GATE_LIB_SH_DIR/role-directive.sh" && return 1
+  gate_content_hash_matches_canon "$f" "$GATE_LIB_SH_DIR/gate-lib.sh" && return 1
+
+  return 0
+}
+
 # gate_content_hash_matches_canon <hit-file> <canon-file> (issue-175):
 # compliance-check.sh --canon-duplication's content-based test for every
 # manifest entry other than directive.sh (which keeps its own structural

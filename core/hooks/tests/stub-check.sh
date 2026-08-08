@@ -127,6 +127,8 @@ else
     [ -n "$f" ] || continue
     if fail_reason="$(gate_is_role_directive_stub "$f")"; then
       echo "stub-check: ok — $f is a role-directive stub"
+    elif gate_directive_custom_by_convention "$f"; then
+      echo "stub-check: ok — $f is custom-by-convention (not a stub, no canon internals)"
     else
       echo "stub-check: FAIL — $f: $fail_reason" >&2
       rc=1
