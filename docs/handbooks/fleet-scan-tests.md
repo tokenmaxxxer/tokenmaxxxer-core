@@ -60,6 +60,44 @@ rather than through `stub-check.sh`, to sidestep the known
 `canon-manifest.txt`/structural-check conflict documented in the "Known
 gap" paragraph below.
 
+**issue-185: third "custom-by-convention" category, canon-needle
+anti-bypass.** The stub/vendored classification stayed binary even after
+issue-180: any `directive.sh` failing `gate_is_role_directive_stub` read
+as "vendored copy", with no outcome for a file that was never meant to
+be a stub at all. Three real Batch-1 repos (accessibility-rulebook,
+localization-rulebook, capacity-planning-rulebook) carry deliberately
+custom, per-facet `directive.sh` SessionStart hooks — layered
+additionally via `hooks.json` ordering, never sourcing
+`role-directive.sh`/`gate-lib.sh`, never calling `core_role_directive` —
+and false-positived as vendored. Fixed by adding
+`gate_directive_custom_by_convention()` (`core/hooks/lib/gate-lib.sh`):
+clean only when the file doesn't source `role-directive.sh`/`gate-lib.sh`,
+carries no `core_role_directive`/`gate_[A-Za-z_]+` needle as a real
+definition/call line (comment/heredoc-body lines are stripped first, so
+a prose mention of the name never trips it), and doesn't hash-match
+`role-directive.sh`/`gate-lib.sh` (defense-in-depth against a literal
+byte-identical embed). The needle check is the load-bearing anti-bypass:
+a vendored copy edited by one byte still hash-mismatches canon, but the
+copied `gate_*`/`core_role_directive` name still carries over. Both
+`stub-check.sh` and `compliance-check.sh --canon-duplication` now branch
+three ways for a `directive.sh` hit — sanctioned stub / custom-by-
+convention / FAIL — with a distinct "custom-by-convention" log line for
+the middle case. Pinned in `run-fleet-scan-tests.sh` by the three real
+byte-exact fixtures (accessibility-rulebook @
+`ce5cbe5c4c55622001812ed18d8302221c2f5b21`,
+`wcag-em-directive/hooks/directive.sh`; localization-rulebook @
+`2c9f76b8b6ebc212845409413de7bb61c2de50c6`,
+`localization/plugins/mqm-tagging/hooks/directive.sh`;
+capacity-planning-rulebook @ `00273632123750aa3c5cff608729fa93f042b41`,
+`capacity-forecast-method/hooks/directive.sh`) scanning clean under both
+scripts, plus two re-based red fixtures that must still FAIL: a
+one-byte-edited copy of `gate_is_role_directive_stub`'s own function
+body (needle carried, hash mismatched) and a bare `gate_deny "denied"`
+call with no source line at all. `core/hooks/tests/run-gate-lib-tests.sh`
+adds direct unit coverage of `gate_directive_custom_by_convention`
+(sanctioned stub, comment/heredoc-only mention, bare-call needle,
+byte-identical hash match).
+
 Known gap (out of this file's scope, recorded in
 `docs/issue-173/reports/implementation.md`): `stub-check.sh`'s own
 unconditional `CANON_GATES` manifest loop still flags `directive.sh` by
