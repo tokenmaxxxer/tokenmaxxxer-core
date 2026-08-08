@@ -71,15 +71,33 @@ per-line categories does this line belong to."
   source line, the `core_role_directive` call line, bare `VAR=value`
   assignments) against three structural categories instead of a
   canon-forms.txt regex table:
-  1. a `.`/`source` line whose argument contains `gate-lib.sh`,
-     `role-directive.sh`, or matches a sibling `*-directive.sh` filename
-     pattern, as a substring test on the argument text rather than a
-     quote-anchored regex — tolerates arbitrary nested quoting and
-     `$(...)` command substitution in the path expression, with an
-     optional trailing `|| { ...; exit N; }` or `|| exit N` fallback;
+  1. a `.`/`source` line whose argument, after stripping the directory
+     portion, ends exactly in `/gate-lib.sh`, `/role-directive.sh`, or a
+     sibling `/*-directive.sh` basename (`grep -oE` on the trailing
+     `[A-Za-z0-9_-]+-directive\.sh$|/(gate-lib|role-directive)\.sh$`
+     component of the resolved argument, not a raw substring-anywhere
+     test) — tolerates arbitrary nested quoting and `$(...)` command
+     substitution in the *directory* portion of the path expression,
+     with an optional trailing `|| { ...; exit N; }` or `|| exit N`
+     fallback. A lookalike target such as
+     `gate-lib.sh.backdoor/inject.sh` fails this test (its basename is
+     `inject.sh`, not `gate-lib.sh`) — closes the after-proposal
+     warrant-hunt finding (`docs/reports/2026-08-08-hunt-canon-forms-real-bytes.md`,
+     "after-proposal — stance 0") against a naive substring-of-argument
+     test;
   2. a line calling exactly one `gate_<name>` function (reusing the
      existing gate_word_count > 1 rejection so the semicolon-chain cap
-     from issue-177 still holds), optionally followed by `|| exit N`;
+     from issue-177 still holds), optionally followed by `|| exit N` —
+     scoped to lines appearing *after* a category-1 line has matched
+     `gate-lib.sh` earlier in the same file (a `gate_*` call before any
+     `gate-lib.sh` source cannot be a real export, since nothing has
+     defined it yet, and is rejected as an "other" line instead of
+     silently passing on call-site shape alone). This does not verify
+     the callee is one of `gate-lib.sh`'s actual exports (still call-site
+     shape, not provenance) but does close the same finding's second
+     half: an attacker-defined `gate_evil` sourced from a non-canon file
+     can no longer piggyback on category 1's now-basename-anchored test
+     to get its defining source line admitted in the first place;
   3. `set -e`/`set -euo pipefail`-family preamble lines (shebang itself
      is already excluded upstream).
   A `for`/`do`/`done` loop body whose only statement lines are category-1
