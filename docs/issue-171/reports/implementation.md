@@ -379,3 +379,99 @@ The open findings resolve when a follow-up proposal + PR corrects
 of `architecture-rulebook` and `accessibility-rulebook`, and a re-run of
 the fleet scan against all four blocked Batch 1 repos shows clean. Batch
 1 does not close, and Batch 2 does not open, until then.
+
+## Session 4 — post-#177 re-scan of the four blocked Batch 1 repos
+
+Issue #177 (real-bytes `canon-forms.txt` patterns transcribed from
+`architecture-rulebook`'s actual `directive.sh`, plus a semicolon-chain
+cap-bypass fix in `gate-lib.sh`) merged to `main` (PR #178, commit
+`bb0d197`). This branch merged `main` to pick it up, fresh-cloned all
+four previously-blocking repos with `gh repo clone --depth 1`, and
+re-ran `core/hooks/tests/fleet-silent-failure-scan.sh` against each.
+
+Result: all four still report a `canon-duplication` finding on their
+`directive.sh`. Reading each file's real content (confirmed same commit
+`da8565d615d9fb6c18487c9b338fa8b60bdf1120` for architecture-rulebook
+that #177 itself transcribed from) shows why #177 did not close them:
+
+- `architecture-rulebook/architecture/hooks/directive.sh`: line 14
+  sources `gate-lib.sh` via a path expression with NESTED double quotes
+  (`"${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname
+  "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"`)
+  — the registered `gate-lib-source` pattern's `"[^"]*gate-lib\.sh"`
+  cannot match past the file's own inner `"` characters, so the line
+  goes unrecognized. Line 16 separately sources `role-directive.sh`
+  directly — a second `.`-line with no registered shape at all, since
+  every registered pattern assumes a `gate-lib.sh` source precedes the
+  `core_role_directive` call, not a bare direct source.
+- `accessibility-rulebook/accessibility/hooks/directive.sh` (its own
+  canonical stub, distinct from the already-known-mismatched
+  `wcag-em-directive/hooks/directive.sh` layered file): sources
+  `role-directive.sh` directly with the same nested-quote path
+  expression and no `gate-lib.sh` involved at all — same unregistered
+  direct-source-line gap as architecture-rulebook's line 16.
+- `localization-rulebook`, `capacity-planning-rulebook`: each has
+  multiple per-facet `directive.sh` files (4 and 5 respectively, one
+  per sub-plugin registered in that sub-plugin's own `hooks.json`),
+  consistent with the same layered/direct-source class; not confirmed
+  line-by-line this session, but the structural gap is the same shape.
+
+No commit or push was made to any of the four sibling repos this
+session. `docs/issue-171/reports/implementation/rollout-runbook.md`'s
+re-scan log was updated with this round's results — the frozen write
+set for this PR.
+
+## What did not work (session 4)
+
+- Expected #177's real-bytes `canon-forms.txt` patterns to close
+  architecture-rulebook's and accessibility-rulebook's `directive.sh`
+  false positives, and re-ran the fleet scan expecting `clean`. All four
+  repos still fail: #177 transcribed one specific line shape from
+  architecture-rulebook's real bytes, but the repos' actual
+  `directive.sh` files contain two distinct patterns #177 did not
+  cover — a `.`-source path expression with nested double quotes that
+  breaks the `"[^"]*gate-lib\.sh"` regex mid-string, and a direct
+  `role-directive.sh` source line issued with no preceding
+  `gate-lib.sh` source at all (accessibility-rulebook's own stub does
+  this; #177's fix only addressed the gate-lib.sh + gate_call
+  combination architecture-rulebook exhibits).
+
+## Open findings (session 4)
+
+- **Still blocking Batch 1:** `canon-forms.txt`'s stub-shape matcher has
+  two structural gaps, not further guessed literals to patch: (a) no
+  shape tolerates a `.`-source line whose path expression itself
+  contains nested double quotes (breaks any pattern anchored on a
+  quoted-string literal match); (b) no shape covers a direct
+  `role-directive.sh` source line issued without a preceding
+  `gate-lib.sh` source — every registered shape assumes the
+  gate-lib.sh-then-gate_call combination architecture-rulebook happens
+  to also exhibit. Lives in `core/hooks/tests/canon-forms.txt` /
+  `core/hooks/lib/gate-lib.sh`, outside this PR's frozen write set.
+- `localization-rulebook` and `capacity-planning-rulebook`'s
+  canon-duplication hits remain unconfirmed per-file (each has multiple
+  per-facet `directive.sh` files); their `mktemp-footgun` findings
+  remain out of this rollout's canon scope.
+
+## Next steps
+
+- Open a new follow-up proposal/issue (same pattern as #173, #175,
+  #177) that fixes the two structural gaps above: tolerate nested
+  double quotes in a `.`-source path expression, and register a shape
+  for a direct `role-directive.sh` source with no `gate-lib.sh`
+  predecessor. Confirm `localization-rulebook`/`capacity-planning-
+  rulebook`'s per-file shapes against their real bytes while at it,
+  since both have multiple layered `directive.sh` files.
+- Re-run the fleet scan against all four once that lands; only then can
+  Batch 1 close and Batch 2 open.
+- Regenerate the Batch 1-4 roster programmatically from issue-171's
+  embedded finding-count table (still outstanding since session 1).
+
+## Resolution path
+
+The open findings resolve when a follow-up proposal + PR fixes
+`canon-forms.txt`'s two structural gaps (nested-quote tolerance in
+source-line matching; a registered shape for a direct
+`role-directive.sh` source with no `gate-lib.sh` predecessor) and a
+re-run of the fleet scan against all four blocked Batch 1 repos shows
+clean. Batch 1 does not close, and Batch 2 does not open, until then.
