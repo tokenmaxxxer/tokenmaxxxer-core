@@ -85,4 +85,24 @@ if drift-over-time monitoring is wanted later.
 - `run-fleet-scan-tests.sh` passes and is wired into whatever test
   runner convention `core/hooks/tests/` already uses.
 
+## Scout-directive skip record
+
+Scouting skipped (external exemplar research) — carried over from the
+survey's own skip record (`docs/issue-168/reports/architecture/survey.md`):
+the two live product decisions here (orchestrator-clone-and-run vs.
+scheduled-sweep; which existing scan surface to parameterize) are
+settled by in-repo precedent already confirmed in the survey
+(`compliance-check.sh`'s documented invocation contract, the plain-
+clone reachability test) — an internal tooling decision constrained
+entirely by this repo's own auth boundaries and existing canon
+scripts, not by benchmarking external CI fleet-scan tools.
+
 ## What did not work
+
+- Fleet-wide six-category sweep as a deep per-file Explore-agent read
+  (the approach #163 used on this checkout's own, much smaller scope)
+  was considered and dropped for the driver itself: 43x the per-repo
+  agent-dispatch cost doesn't fit a phase-2 build turn that must finish
+  inline in one session. Replaced with a grep-based heuristic sweep for
+  the same six categories — cheaper, repeatable, but produces
+  candidates for follow-up triage rather than confirmed verdicts.
