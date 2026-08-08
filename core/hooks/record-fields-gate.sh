@@ -338,12 +338,23 @@ try:
 
     # issue-147 C2: resolve which contract §2 kind this record is, and
     # derive TERMINAL from that kind rather than one global flat list.
-    m_kind = re.search(r'^\s*kind:\s*([A-Za-z0-9_-]+)', new_text, re.M)
-    record_kind = m_kind.group(1).strip() if m_kind else None
-    if record_kind and record_kind in KIND_TERMINAL_DEFAULTS:
-        kind = record_kind
-    else:
-        kind = ROLE_TO_KIND.get(role)
+    #
+    # before-landing hunt (issue-147, stance 0): a record's own `kind:`
+    # frontmatter is written in the SAME tool call the gate is judging, so
+    # trusting it unconditionally let a role self-declare a foreign kind
+    # (e.g. a qa record claiming `kind: coding-record`) to borrow that
+    # kind's terminal-state set and skip next-steps/resolution-path. Fixed:
+    # for a role contract §2 names, the role->kind mapping is authoritative
+    # and a self-declared `kind:` is never consulted; the record's own
+    # `kind:` field is trusted only as a fallback for a role contract §2
+    # does not name (an unmapped rulebook role, where nothing else can
+    # resolve which kind applies).
+    kind = ROLE_TO_KIND.get(role)
+    if kind is None:
+        m_kind = re.search(r'^\s*kind:\s*([A-Za-z0-9_-]+)', new_text, re.M)
+        record_kind = m_kind.group(1).strip() if m_kind else None
+        if record_kind and record_kind in KIND_TERMINAL_DEFAULTS:
+            kind = record_kind
     TERMINAL = set(KIND_TERMINAL_DEFAULTS[kind]) if kind else set(LEGACY_FALLBACK_TERMINAL)
 
     override_path = posixpath.join(root, "docs/specs/record-fields-terminal-states.json")

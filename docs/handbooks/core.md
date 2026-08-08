@@ -50,6 +50,15 @@ edit the entry for the kind in question, and commit it. No hooks.json entry,
 env var, or other wiring is required — the gate reads the file directly on
 every write to a role's own record.
 
+**The `kind` used for terminal-state resolution is CLAUDE_ROLE-derived, not
+self-declared.** For a role contract §2 names, the gate ignores a record's
+own `kind:` frontmatter field for this purpose and uses the role->kind
+mapping instead — a record's own `kind:` field was found (before-landing
+hunt, issue-147) to be attacker/session-controlled in the same write the
+gate is judging, so trusting it let a role borrow another kind's
+terminal-state set. `kind:` is consulted only as a fallback for a role
+contract §2 does not name.
+
 ## `OP_PATTERNS` trigger set for `handbook-trigger-gate.sh` (contract §21)
 
 A commit that stages any of the following without also touching a

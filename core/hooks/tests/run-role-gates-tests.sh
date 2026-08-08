@@ -147,6 +147,16 @@ run_kind verify        cleared        reproducing
 run_kind ops           steady         rollout
 run_kind reflect       round-done     reflecting
 
+# before-landing hunt (issue-147, stance 0): a self-declared `kind:` field
+# used to be trusted even when it disagreed with CLAUDE_ROLE, letting a qa
+# record borrow coding-record's terminal-state set. Pinned: for a role
+# contract §2 names, the role's own mapped kind is authoritative regardless
+# of what `kind:` claims in the record body.
+run_rf deny "hunt fix: qa record cannot borrow coding-record's terminal state via a spoofed kind: field (issue-147)" qa \
+  "docs/issue-3/reports/qa.md" \
+  "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "kind: coding-record
+$(rf_body landed)")"
+
 run_rf deny  "implementation record code_under_review bare sha denied (issue-100)" implementation \
   "docs/issue-3/reports/implementation.md" \
   '"loop_state: landed\n\ncode_under_review: 0123456789abcdef0123456789abcdef01234567\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
