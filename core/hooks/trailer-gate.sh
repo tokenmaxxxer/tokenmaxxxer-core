@@ -83,9 +83,32 @@ command = ti.get("command")
 if not isinstance(command, str) or not command.strip():
     deny("trailer-gate: Bash call has no usable command string.")
 
-commit_m = re.search(r'\bgit\b[^\n;&|]*\bcommit\b(?!-)', command)
+# Any quote character dropped at shell-execution time joins its neighbors:
+# `git commi""t` and `git c'o'm'm'i't` both run `git commit`, even though
+# the raw source text has no contiguous `commit` substring — one strips an
+# empty pair, the other strips single-char fragments, but both are just
+# quote removal. Detect against a copy with every quote character removed
+# (mapped back to original offsets), same resolve-before-match discipline
+# as `_extract_resolvable_expr` below — the original `command` (quotes
+# intact) still drives everything downstream of the match.
+def _strip_quotes_with_map(s):
+    chars = []
+    offsets = []
+    for i, ch in enumerate(s):
+        if ch in ("'", '"'):
+            continue
+        chars.append(ch)
+        offsets.append(i)
+    return "".join(chars), offsets
+
+
+_dequoted, _offsets = _strip_quotes_with_map(command)
+commit_m = re.search(r'\bgit\b[^\n;&|]*\bcommit\b(?!-)', _dequoted)
 if not commit_m:
     allow()
+# Map the match end back into `command`'s coordinate space so downstream
+# parsing (the `-m` payload resolver etc.) still runs against the real text.
+commit_end = _offsets[commit_m.end() - 1] + 1 if commit_m.end() > 0 else 0
 
 def git_toplevel(start):
     try:
@@ -303,7 +326,7 @@ _marker_re = re.compile(r"\$\(|`|<<")
 resolved_joined = None
 skip_shlex_path = False
 
-_rest_after_commit = command[commit_m.end():]
+_rest_after_commit = command[commit_end:]
 _fm_probe = re.search(r"(?:^|\s)(-m|--message)(=)?", _rest_after_commit)
 if _fm_probe:
     _after_probe = _rest_after_commit[_fm_probe.end():]
@@ -313,7 +336,7 @@ if _fm_probe:
             _idx += 1
         _after_probe = _after_probe[_idx:]
     if _after_probe[:1] == '"':
-        expr = _extract_resolvable_expr(command, commit_m.end())
+        expr = _extract_resolvable_expr(command, commit_end)
         if expr is not None:
             skip_shlex_path = True
             inner = _check_allowlist(expr)
