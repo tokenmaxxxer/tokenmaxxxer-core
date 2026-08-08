@@ -158,6 +158,56 @@ run_rf deny "before-landing hunt: leading BOM does not bypass the sha check (iss
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"﻿---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
 
+# --- record-fields-gate.sh: frontmatter-less fallback (issue-157 F1) -------
+# F1 red->green: a document with NO leading `---` fence at all used to fall
+# back to an empty scan region (region = "" when fm is None) -- every sha:
+# line went uninspected, so a bare unresolved spelling went straight
+# through. Pre-fix this fixture is `allow` (reproduced by direct regex
+# trace, docs/issue-157/reports/implementation/survey.md's F1 section:
+# region="" -> bad=[]); post-fix the whole-document fallback scans it and
+# denies. Green as of this commit.
+run_rf deny "F1 red->green: fence-less document's bad sha value denied (issue-157)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"sha: HEAD\n"'
+# Regression guard: a fence-less document with a CONFORMING value must stay
+# allowed both before and after the fix -- the fallback closes the gap for
+# bad values, it must not become an always-deny trap for fence-less writes.
+run_rf allow "F1 regression: fence-less document's conforming sha value stays allowed (issue-157)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"sha: same-commit\n"'
+# Hunt finding regression (issue-157 after-proposal hunt, stance 0): a
+# document with a fully-conforming leading fence, preceded only by one
+# stray leading blank line (an ordinary editor/copy-paste artifact), must
+# still be recognized as fenced -- not misclassified as fence-less and
+# routed into the whole-document fallback, which would falsely deny the
+# denied spelling this fixture legitimately quotes inside a fenced example
+# in its body.
+run_rf allow "F1 hunt regression: leading blank line before a real fence still allowed to quote an example (issue-157)" coding \
+  "docs/issue-3/proposals/2026-08-04-x.md" \
+  '"\n---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n\nbody quoting a bad value as an example:\n\n```\n    sha: HEAD\n```\n"'
+
+# --- record-fields-gate.sh: F2 message-accuracy discriminator (issue-157) --
+# The pre-existing message-accuracy probe (:145-151) uses a non-empty value
+# directly on the field-name line, which never exercises the
+# newline-swallowing bug the case is named for -- old and current regex
+# produce the identical result against it (survey's F2 section). This
+# fixture reuses the landed carve-out fixture's shape (:141-143: one entry
+# with an empty sha:, a second entry with a value) but with the SECOND
+# entry's value made non-conforming: under the pre-#154 whole-document
+# pattern, the first (empty) entry's trailing `\s*` swallows the next
+# line's literal `- path: other` text as bad[0], so the denial message
+# would never contain the substring `sha: HEAD is not`; under the current,
+# carve-out-aware pattern it does. No production-code change pins this --
+# #154 already fixed the underlying behavior; only the test was
+# non-discriminating.
+f2b_msg_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/proposals/2026-08-04-x.md","content":"---\nupstream:\n  - path: a\n    sha:\n  - path: other\n    sha: HEAD\n---\n"}}' \
+    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+case "$f2b_msg_out" in
+  *"sha: HEAD is not"*) f2b_msg_ok=1 ;;
+  *) f2b_msg_ok=0 ;;
+esac
+report 1 "$f2b_msg_ok" "F2 discriminator: empty entry + bad second entry names HEAD, not swallowed text (issue-157)"
+
 # --- record-fields-gate.sh: single deny lists every violation (issue-140) --
 run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
