@@ -368,6 +368,51 @@ report deny "$got" \
   "record-fields-gate.sh: CLAUDE_PLUGIN_ROOT_CORE pointed nowhere denies (issue-75 fix, not silent-allow)"
 rm -rf "$td"
 
+# --- issue-185: gate_directive_custom_by_convention unit coverage --------
+. "$LIB"
+mktd
+
+stub_f="$td/stub-directive.sh"
+cat > "$stub_f" <<'EOF'
+#!/usr/bin/env bash
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/role-directive.sh"
+core_role_directive \
+  "YOU DECIDE: ..." \
+  "USE WHEN: ..." \
+  "PRODUCES: ..." \
+  "HAND-OFF: ..."
+EOF
+if gate_directive_custom_by_convention "$stub_f"; then got=custom; else got=not-custom; fi
+report not-custom "$got" "gate_directive_custom_by_convention: sanctioned stub reads as not-custom (sources role-directive.sh)"
+
+custom_f="$td/custom-directive.sh"
+cat > "$custom_f" <<'EOF'
+#!/usr/bin/env bash
+# mentions core_role_directive only in a comment/heredoc, never calls it
+case "${DIRECTIVE_OFF:-}" in 1|true) exit 0 ;; esac
+cat <<'INNER'
+core_role_directive is mentioned here in prose only.
+INNER
+EOF
+if gate_directive_custom_by_convention "$custom_f"; then got=custom; else got=not-custom; fi
+report custom "$got" "gate_directive_custom_by_convention: comment/heredoc-only mention reads as custom (needle must not trip on prose)"
+
+needle_call_f="$td/needle-call-directive.sh"
+cat > "$needle_call_f" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+gate_deny "denied"
+EOF
+if gate_directive_custom_by_convention "$needle_call_f"; then got=custom; else got=not-custom; fi
+report not-custom "$got" "gate_directive_custom_by_convention: bare gate_* call reads as not-custom (needle bypass attempt caught)"
+
+hash_vendored_f="$td/hash-vendored-directive.sh"
+cp "$HOOKS/lib/role-directive.sh" "$hash_vendored_f"
+if gate_directive_custom_by_convention "$hash_vendored_f"; then got=custom; else got=not-custom; fi
+report not-custom "$got" "gate_directive_custom_by_convention: byte-identical copy of role-directive.sh reads as not-custom (hash match)"
+
+rm -rf "$td"
+
 echo
 echo "gate-lib: $pass passed, $fail failed"
 echo "mandatory groups exercised:$groups_seen"

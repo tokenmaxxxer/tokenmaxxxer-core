@@ -58,9 +58,14 @@ if [ "${1:-}" = "--canon-duplication" ]; then
       # exact file, and only flag hits that fail it.
       if [ "$name" = "directive.sh" ]; then
         vendored_hits=""
+        custom_hits=""
         while IFS= read -r hit; do
           [ -n "$hit" ] || continue
-          if ! gate_is_role_directive_stub "$hit" >/dev/null; then
+          if gate_is_role_directive_stub "$hit" >/dev/null; then
+            :
+          elif gate_directive_custom_by_convention "$hit"; then
+            custom_hits="${custom_hits}${custom_hits:+$'\n'}${hit}"
+          else
             vendored_hits="${vendored_hits}${vendored_hits:+$'\n'}${hit}"
           fi
         done <<< "$hits"
@@ -70,6 +75,10 @@ if [ "${1:-}" = "--canon-duplication" ]; then
           rc=1
         else
           echo "compliance-check: ok — no vendored '$name' under $target (sanctioned stub only)"
+        fi
+        if [ -n "$custom_hits" ]; then
+          echo "compliance-check: ok — '$name' under $target is custom-by-convention (not a stub, no canon internals):"
+          printf '%s\n' "$custom_hits"
         fi
       else
         # Every other manifest entry: content hash vs its canonical
