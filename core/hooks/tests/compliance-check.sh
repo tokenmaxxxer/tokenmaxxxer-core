@@ -24,6 +24,7 @@ set -uo pipefail
 if [ "${1:-}" = "--canon-duplication" ]; then
   target="${2:?compliance-check --canon-duplication: rulebook path required}"
   [ -d "$target" ] || { echo "compliance-check: no such directory: $target" >&2; exit 2; }
+  . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd -P)/gate-lib.sh"
   manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
   if [ -f "$manifest" ]; then
     names="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#')"
@@ -42,9 +43,32 @@ if [ "${1:-}" = "--canon-duplication" ]; then
     # docs/reports/2026-08-08-hunt-role-agnostic-canon-boundary.md).
     hits="$(find "$target" -name "$name" -type f 2>/dev/null || true)"
     if [ -n "$hits" ]; then
-      echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
-      printf '%s\n' "$hits" >&2
-      rc=1
+      # directive.sh is the one manifest entry with "keep a stub" semantics
+      # (docs/handbooks/canon-rollout.md step 3, issue-173): a correctly-
+      # rolled-out rulebook still has a file literally named directive.sh,
+      # so a filename-only match can never pass for it. Reuse the same
+      # structural classification stub-check.sh already applies to this
+      # exact file, and only flag hits that fail it.
+      if [ "$name" = "directive.sh" ]; then
+        vendored_hits=""
+        while IFS= read -r hit; do
+          [ -n "$hit" ] || continue
+          if ! gate_is_role_directive_stub "$hit" >/dev/null; then
+            vendored_hits="${vendored_hits}${vendored_hits:+$'\n'}${hit}"
+          fi
+        done <<< "$hits"
+        if [ -n "$vendored_hits" ]; then
+          echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
+          printf '%s\n' "$vendored_hits" >&2
+          rc=1
+        else
+          echo "compliance-check: ok — no vendored '$name' under $target (sanctioned stub only)"
+        fi
+      else
+        echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
+        printf '%s\n' "$hits" >&2
+        rc=1
+      fi
     else
       echo "compliance-check: ok — no vendored '$name' under $target"
     fi
