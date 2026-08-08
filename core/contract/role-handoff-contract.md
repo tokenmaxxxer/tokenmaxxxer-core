@@ -691,6 +691,12 @@ v2's coding-only scope gate to the whole system.
   Research and survey live under `docs/issue-<n>/reports/<role>/`; the
   proposal under `docs/issue-<n>/proposals/`. The role opens the PR at
   this point and stops.
+  **Write-set branch-writability check.** Before a proposal freezes any
+  `docs/issue-<m>/` path where `m` differs from the subject issue `n`
+  into its `files:` write set, the role checks that path against R4
+  (`core/hooks/board-gate.sh`'s branch rule) and, if its own branch
+  (`issue-<n>/<role>`) cannot write it, designs a routing alternative in
+  the proposal instead of freezing a path it cannot deliver.
 - **Current-state survey rigor floor.** The survey's quality depended
   entirely on which rulebook happened to bring its own discipline, absent
   any floor here — this closes that gap with a minimum, not a template:
@@ -788,6 +794,11 @@ v2's coding-only scope gate to the whole system.
   documents) on the same branch, reported through the same PR. Merge of
   the PR is acceptance of the delivered work — the Approve authorizes
   doing the work; the merge accepts its result.
+  **PR-description-refresh requirement.** On landing, the role updates
+  the PR's title and body to describe what phase 2 actually delivered,
+  on every delivery step — not only the final one. The final step's
+  Closes-trailer norm already forces a body edit; this requirement closes
+  the remaining gap: the title, and the body on non-final delivery steps.
 - **`loop_state: scope-proposed` / `scope-approved`.** The scope states
   map onto the phases: `scope-proposed` in the proposal's own frontmatter
   when phase 1 is submitted, `scope-approved` once one of the two Approve
