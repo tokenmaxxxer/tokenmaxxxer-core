@@ -28,6 +28,9 @@ echo; echo "=== stub-check canon combination forms ==="
 echo; echo "=== compliance-check hooks.json scan scope ==="
 /bin/bash "$here/run-compliance-scan-scope-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== compliance-check --canon-duplication content-hash ==="
+/bin/bash "$here/run-canon-duplication-content-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== terse (sibling plugin) ==="
 /bin/bash "$here/../../../terse/hooks/tests/parse-check.sh" || rc=1
 
