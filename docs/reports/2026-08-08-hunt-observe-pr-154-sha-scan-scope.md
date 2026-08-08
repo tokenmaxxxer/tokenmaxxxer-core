@@ -59,3 +59,19 @@ The non-greedy `(.*?\n)^---[ \t]*\r?$` closes on the *first* line that is exactl
 
 ### Expected
 Either the scan region should extend to the *last* `---`-only line before the next non-frontmatter content (or otherwise be robust to an interior `---`-shaped line), or `placeholder_shas`/its test suite should demonstrate that this shape cannot legitimately arise in this repo's frontmatter convention. Absent that, the phase-2 record's Level 3 item 1 — as scoped by the phase-1 evidence plan to the empty-region branch only — will not surface this, because the plan never asks the observer to test the anchor-matches-early case.
+
+## before-landing — skipped (docs-only fast path)
+
+No before-landing hunt was dispatched for this transition. Reason:
+docs-only, no before-landing dispatch. Every path in this unit's write set
+is under `docs/` — the phase-2 landing writes
+`docs/issue-153/reports/execution-observation.md` and this hunt record and
+nothing else (`git status --short` on branch
+`issue-153/execution-observation` lists exactly those two paths before the
+landing commit), which is the warrant directive's docs-only fast path.
+
+Recorded rather than left silent, per the same mandatory-skip-line rule
+scout uses: a hunt nobody recorded reads exactly like a hunt nobody ran.
+The after-proposal dispatch above did run, returned FINDING, and its
+finding was folded into the approved evidence plan before phase 2 opened;
+it surfaces in the phase-2 record as Finding 4.
