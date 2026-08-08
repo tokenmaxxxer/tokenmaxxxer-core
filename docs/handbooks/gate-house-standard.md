@@ -46,6 +46,16 @@ Functions, one per defect class from the issue's background:
   same character class and return the same token set for the same
   command string (sh prints one token per line; py returns a list — the
   natural per-language shape for identical data).
+- `gate_budget_exceeded <started_epoch> <cap_seconds> [<now_epoch>]`
+  (bash, issue-63) — returns true (exit 0) when `now - started > cap`;
+  `now_epoch` defaults to `date +%s` when omitted, so tests can pass a
+  fixed clock. Malformed numeric input fails open (returns 1,
+  not-exceeded), matching this file's convention for untrusted external
+  input. A caller checking its **own** bookkeeping (e.g. a lock file it
+  wrote itself) should treat a malformed field as corrupt state and fail
+  closed instead of relying on this default — see `warrant/hooks/
+  hunt-guard.sh`'s budget-check block, which does exactly that ahead of
+  calling this function.
 - `gate_dequote(text)` / `gate_outside_quotes(text, pattern)` (Python,
   issue-94) — blank every quoted span in `text` to a space, and match a
   pattern only outside quotes. The shared primitive that replaces each
@@ -122,6 +132,10 @@ a run that skips any of them fails the harness itself:
 7. `gate-lib.sh` sourced with `CLAUDE_PLUGIN_ROOT_CORE` pointed at a
    nonexistent path and no valid relative fallback — must assert **deny**
    (exit 2), not the pre-issue-75 silent-allow bug.
+
+Additional non-mandatory groups accumulate alongside these seven as
+`gate-lib.sh` grows — e.g. `gate_budget_exceeded`'s red/green pair
+(issue-63) — without changing the seven-group floor above.
 
 Run it the same way `run-role-gates-tests.sh` is run today, from
 `core/hooks/tests/`: `bash run-gate-lib-tests.sh`.

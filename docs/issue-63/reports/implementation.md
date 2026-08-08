@@ -1,76 +1,123 @@
 ---
 subject: issue-63
 role: implementation
+code_under_review: HEAD
 loop_state: delivered
 ---
 
-# Implementation record — warrant-hunt canon promotion + proportional efficiency protocol
+# Implementation record — mechanize remaining issue-63 acceptance checks
 
-Approved via issue comment (single-account mode): `APPROVE issue-63/implementation`, with the unconfirmed fourth catch class ("watch 오탐 근본원인") accepted as unverified in this checkout — the approver's comment names it as already root-fixed in issues #129/#142.
+Approved via issue comment (single-account mode): `APPROVE issue-63/implementation`,
+2026-08-08T09:21:11Z. Builds on the earlier `delivered` phase (canon
+promotion + directive-text cadence, PR #65) — this pass closes the two
+Acceptance checks that PR #65 left mechanically unmet.
 
-## What shipped
+## What was done
 
-1. **Canon promotion** — `warrant/` added as a fifth plugin directory
-   (`warrant/README.md`, `warrant/.claude-plugin/plugin.json`,
-   `warrant/hooks/{directive.sh,hunt-guard.sh,hunt-state.sh,scope-gate.sh,
-   state.sh,hooks.json}`, `warrant/agents/warrant-hunter.md`), registered in
-   `.claude-plugin/marketplace.json` alongside `core`/`terse`/`freelunch`/
-   `scout`. Content is a byte-identical import of the 0.4.1 cached source
-   except for the cadence and record-shape changes below — pure relocation
-   plus the proposal's section-2 additions, not a rewrite. Plugin version
-   bumped to 0.5.0 to mark the cadence change.
-   - The 43 vendored rulebook copies are outside this repo's write
-     authority (separate repos) — per the proposal, that conversion to a
-     reference stub is a follow-up tracked per-rulebook, not done here.
-     The standalone `warrant` plugin repo re-pointing or deprecating in
-     favor of this copy is likewise a linked issue in that repo, out of
-     scope for this checkout.
+Proposal: `docs/issue-63/proposals/2026-08-08-mechanize-warrant-hunt-budget-and-manifest.md`.
 
-2. **Proportional, bounded hunt protocol** — `warrant/hooks/directive.sh`'s
-   hunt section now specifies: a three-tier wall-clock cap keyed off
-   `git diff --stat` size (<=20 lines/docs-only -> 60s; 21-200 -> 120s
-   default; >200 lines or >5 files -> 180s, may split into two sequential
-   stances); a docs-only fast path that skips the before-landing dispatch
-   with a mandatory skip line; and an adaptive-miss-streak rule that drops
-   the next dispatch's tier by one step after 3 consecutive `NO FINDING`
-   records, resetting to the size-derived default the moment a `FINDING`
-   lands. Detection power is trimmed on a streak, never removed outright,
-   per the issue's item-4 requirement.
+1. **`core/hooks/tests/canon-manifest.txt`** — appended the six
+   warrant-hunt filenames (`directive.sh`, `hunt-guard.sh`,
+   `hunt-state.sh`, `scope-gate.sh`, `state.sh`, `warrant-hunter.md`).
+   `compliance-check.sh --canon-duplication` now catches a vendored copy
+   of any of them (verified below).
 
-3. **Measurement instrumentation** — `warrant/agents/warrant-hunter.md`'s
-   record template now carries `cap_seconds`, `tier`, `diff_stat_lines`,
-   `started_at`, `ended_at` on every section, including `NO FINDING` ones,
-   and a `before-landing — skipped: docs-only, ...` shape for the fast
-   path. This is the minimum needed for the delivery-size-bucketed
-   time/token table the issue's item 2 asks for; no such table exists yet
-   because no real records under the new frontmatter have accumulated —
-   the proposal was explicit this PR instruments, it does not fabricate a
-   number.
+2. **`core/hooks/lib/gate-lib.sh`** — added `gate_budget_exceeded
+   <started_epoch> <cap_seconds> [<now_epoch>]`, fail-open on malformed
+   numeric input per this file's existing convention.
 
-## What was deliberately not built
+3. **`warrant/hooks/hunt-guard.sh`** — the dispatch-side lock write now
+   carries a second field, the cap in seconds (`WARRANT_HUNT_CAP_SECONDS`,
+   defaulting to `0`). A new budget-check block runs before the
+   Agent/Task/Workflow tool-type filtering (so it is reachable for the
+   hunter's own Bash/Read/Grep/Glob/Write calls, not just its disallowed
+   dispatch attempts), active only when `WARRANT_IN_HUNT=1`: it reads the
+   lock's started/cap fields and calls `gate_budget_exceeded`, refusing
+   the call with a loud stderr message and exit 2 when the budget is
+   exceeded.
 
-- Retroactive aggregation of past hunt time/token cost — no historical
-  records carry the new fields, so there is nothing to aggregate yet.
-- Editing the 43 vendored rulebooks or the standalone `warrant` plugin
-  repo — both outside this repo's write authority.
+4. **`core/hooks/tests/run-gate-lib-tests.sh`** — added a
+   `gate_budget_exceeded` test group: the red/green pair from the
+   proposal plus two fail-open cases (malformed `started`, malformed
+   `cap`).
 
-## Side-effect check (issue item 4, carried from the proposal)
+5. **Before-landing hunt fix (beyond the proposal text)** — the
+   before-landing warrant hunt (stance 2: "assume this guard goes silent
+   when its own input is malformed") reproduced a real gap: when the
+   lock file's cap field is non-numeric, `gate_budget_exceeded`'s
+   fail-open convention — correct for genuinely untrusted external
+   input — made `hunt-guard.sh` silently allow the hunter to continue
+   with zero stderr output, because the check couldn't distinguish "not
+   yet exceeded" from "budget unreadable." Fixed in `hunt-guard.sh`:
+   before calling `gate_budget_exceeded`, a malformed `started` or `cap`
+   field on an existing lock is now treated as a corrupt lock and denied
+   loudly (fail-closed, exit 2, explicit stderr message) rather than
+   falling through to the library function's general fail-open default.
+   `gate_budget_exceeded` itself is unchanged — its fail-open contract
+   still holds for genuinely absent/malformed external callers, per the
+   proposal's Constraints.
 
-The three confirmed catches (proposal-vs-mechanism design error,
-`isMinimized` silent failure, repo-wide stale-vocabulary residue) all sit
-on non-docs-only diffs, so before-landing dispatch still fires for all
-three at their size-derived default tier — none is a first-3-of-a-streak
-case, so no tier reduction applies to any of them under the new protocol.
-The fourth class is accepted unconfirmed per the approver's comment above.
+## Why
 
-## How this was judged
+The lock is the guard's own bookkeeping, not external input, so silent
+fail-open there would defeat the whole point of this proposal (mechanical
+enforcement instead of directive prose the previous PR relied on). Every
+other choice above is the proposal's own stated rationale — see the
+proposal file for the alternative it rejected (self-reported cadence in
+`warrant-hunter.md`'s prompt text) and why.
 
-- `warrant/` mirrors `scout/`'s directory shape and is registered in
-  `.claude-plugin/marketplace.json`.
-- `directive.sh` states the three-tier cap, the docs-only skip, and the
-  adaptive-miss-streak rule as directive text (this plugin's enforcement
-  layer is prompt text plus the existing mechanical guards in
-  `hunt-guard.sh`/`scope-gate.sh`, which are unchanged and still bound
-  single-flight, session cap, and nesting exactly as before).
-- The hunt record template carries the five new frontmatter fields on
-  every outcome, including misses and skips.
+upstream: HEAD (this commit)
+
+## What did not work
+
+- First cut of the malformed-lock guard in `hunt-guard.sh` used
+  `read -r started cap _rest < "$lock" 2>/dev/null || started="" cap=""`
+  — invalid bash (`||` cannot chain two assignments as a compound
+  command). Replaced with pre-clearing `started=""; cap=""` on the line
+  before the `read`.
+
+## Verification run this turn
+
+- `bash -n core/hooks/lib/gate-lib.sh` and `bash -n warrant/hooks/hunt-guard.sh` — clean.
+- `bash core/hooks/tests/run-gate-lib-tests.sh` — 62 passed, 0 failed,
+  including the new `budget-exceeded` group.
+- `bash core/hooks/tests/compliance-check.sh --canon-duplication <tmp-dir-with-a-copy-of-hunt-guard.sh>` —
+  FAILs (catches the vendored copy) as required.
+- Manual repro of the pre-fix silent-allow and the post-fix loud-deny
+  through the real `hunt-guard.sh` with `WARRANT_IN_HUNT=1` and a
+  corrupt lock file — confirmed exit 2 with explicit stderr after the fix.
+
+## Doc placement
+
+- No new env var, dependency, or migration — nothing to add to a
+  handbook.
+- No public-signature or wire-format change beyond what the proposal
+  and this record already describe.
+- No benchmark/investigation numbers produced.
+
+## Hunt cadence
+
+- after-proposal: recorded in
+  `docs/reports/2026-08-08-hunt-issue-63-mechanize-budget.md` (prior
+  turn, before this phase-2 approval).
+- before-landing: same file, `before-landing` section — stance 2
+  ("assume this guard goes silent when its own input is malformed"),
+  cap 120s, tier default, diff_stat_lines 61. Returned one finding
+  (silent fail-open on a corrupt lock), fixed above.
+
+closed_checks:
+- run-gate-lib-tests.sh full suite (code_sha: HEAD)
+- compliance-check.sh --canon-duplication on the six new manifest entries (code_sha: HEAD)
+- bash -n syntax check on both edited shell files (code_sha: HEAD)
+
+## Out of scope (unchanged from the proposal)
+
+- Editing the 43 vendored rulebook copies or the standalone `warrant`
+  plugin repo.
+- The delivery-size-bucketed time/token measurement table (issue item 2).
+- Killing a running hunter mid-call (not achievable from a PreToolUse hook).
+
+## Open findings
+
+None outstanding — the one finding from the before-landing hunt (silent
+fail-open on a corrupt lock) is fixed and verified above.

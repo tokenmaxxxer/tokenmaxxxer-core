@@ -93,3 +93,21 @@ gate_allow() {
 gate_bash_write_targets() {
   printf '%s\n' "$1" | grep -oE '[[:alnum:]_./~$-]+' || true
 }
+
+# gate_budget_exceeded <started_epoch> <cap_seconds> [<now_epoch>] —
+# returns 0 (true, exceeded) when now - started > cap, 1 otherwise.
+# now_epoch defaults to `date +%s` when omitted (the optional third arg
+# exists solely so tests can pass fixed timestamps instead of racing the
+# real clock). Malformed numeric input (non-integer) returns 1
+# (not-exceeded / fail-open), matching this file's fail-open convention.
+gate_budget_exceeded() {
+  local started="${1:-}" cap="${2:-}" now="${3:-}"
+  case "$started" in ''|*[!0-9]*) return 1 ;; esac
+  case "$cap" in ''|*[!0-9]*) return 1 ;; esac
+  if [ -z "$now" ]; then
+    now="$(date +%s)"
+  else
+    case "$now" in ''|*[!0-9]*) return 1 ;; esac
+  fi
+  [ $((now - started)) -gt "$cap" ]
+}
