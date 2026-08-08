@@ -39,6 +39,23 @@ trap __fc EXIT
 # var in its own hooks.json, the same "role identity via config, not via
 # copy" principle the proposal applies everywhere else in this file.
 #
+# issue-147 C2: the flat RECORD_FIELDS_TERMINAL_STATES list above had empty
+# intersection with contract §2's real per-kind loop_state vocabulary — a
+# single global set cannot be right, since "cleared" is terminal for a
+# verify-record and undefined for an ops-record, and "steady" is the
+# reverse. Terminal states are now derived from a {kind: {terminal states}}
+# table copied from contract §2, keyed by the record's own `kind:`
+# frontmatter field (falling back to a role->kind mapping for records not
+# yet carrying `kind:`, and to the old flat set for a role this repo's
+# contract does not name). The env-var override channel above is retired
+# (never reached any process it could take effect in, per the seven broken
+# downstream attempts the issue documents): the working override channel is
+# a repo-committed config file, docs/specs/record-fields-terminal-states.json,
+# read by this gate directly off `root` — reading a file has no
+# process-boundary problem. A present-but-malformed override file denies
+# loudly (bad JSON, an unrecognized kind, or an unrecognized state
+# spelling) rather than silently falling back to the default.
+#
 # Kill switch: export RECORD_FIELDS_GATE_OFF=1
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-fields-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
@@ -119,7 +136,37 @@ try:
     root = posixpath.normpath(os.environ["RF_ROOT"].replace("\\", "/"))
     RECORDS_RE = re.compile(r'^docs/issue-[0-9]+/reports/%s\.md$' % re.escape(role))
     PROPOSALS_RE = re.compile(r'^docs/issue-[0-9]+/proposals/.*\.md$')
-    TERMINAL = set(os.environ["RF_TERMINAL"].split())
+    LEGACY_FALLBACK_TERMINAL = set(os.environ["RF_TERMINAL"].split())
+
+    # issue-147 C2: per-kind terminal-state defaults, copied verbatim from
+    # contract §2's `loop_state` vocabulary column (core/contract/
+    # role-handoff-contract.md section 2). build-proposal is excluded here
+    # deliberately -- it lives under docs/issue-<n>/proposals/, matched by
+    # PROPOSALS_RE, not RECORDS_RE, and never reaches the terminal-state
+    # check below (proposals only get the sha-placeholder check).
+    KIND_TERMINAL_DEFAULTS = {
+        "product-record": {"decided", "scope-approved"},
+        "coding-record": {"landed"},
+        "qa-record": {"verified-fixed", "not-a-defect", "wont-fix"},
+        "feasibility-record": {"verdict"},
+        "ux-design-record": {"reviewed"},
+        "review-record": {"reported"},
+        "verify-record": {"cleared"},
+        "ops-record": {"steady"},
+        "reflect-record": {"round-done"},
+    }
+    ROLE_TO_KIND = {
+        "product": "product-record",
+        "coding": "coding-record",
+        "implementation": "coding-record",
+        "qa": "qa-record",
+        "feasibility": "feasibility-record",
+        "ux-design": "ux-design-record",
+        "review": "review-record",
+        "verify": "verify-record",
+        "ops": "ops-record",
+        "reflect": "reflect-record",
+    }
 
     def resolve(p):
         n = p.replace("\\", "/")
@@ -288,6 +335,63 @@ try:
         v = re.sub(r'([a-z])(\d)', r'\1-\2', v)
         v = re.sub(r'(\d)([a-z])', r'\1-\2', v)
         return v
+
+    # issue-147 C2: resolve which contract §2 kind this record is, and
+    # derive TERMINAL from that kind rather than one global flat list.
+    m_kind = re.search(r'^\s*kind:\s*([A-Za-z0-9_-]+)', new_text, re.M)
+    record_kind = m_kind.group(1).strip() if m_kind else None
+    if record_kind and record_kind in KIND_TERMINAL_DEFAULTS:
+        kind = record_kind
+    else:
+        kind = ROLE_TO_KIND.get(role)
+    TERMINAL = set(KIND_TERMINAL_DEFAULTS[kind]) if kind else set(LEGACY_FALLBACK_TERMINAL)
+
+    override_path = posixpath.join(root, "docs/specs/record-fields-terminal-states.json")
+    if os.path.isfile(override_path):
+        try:
+            with open(override_path, encoding="utf-8") as fh:
+                override_raw = fh.read()
+        except OSError as e:
+            deny(
+                "docs/specs/record-fields-terminal-states.json exists but could not be read "
+                "(%r); failing closed on the terminal-state override rather than silently "
+                "falling back to the default (§20/C2)." % (e,)
+            )
+        try:
+            override_data = json.loads(override_raw)
+        except ValueError as e:
+            deny(
+                "docs/specs/record-fields-terminal-states.json is not valid JSON (%s); the "
+                "terminal-state override must fail loudly rather than silently no-op (§20/C2)."
+                % e
+            )
+        if not isinstance(override_data, dict):
+            deny(
+                "docs/specs/record-fields-terminal-states.json must be a JSON object mapping "
+                "kind -> [terminal states]; got %s (§20/C2)." % type(override_data).__name__
+            )
+        for ok, ov in override_data.items():
+            if ok not in KIND_TERMINAL_DEFAULTS:
+                deny(
+                    "docs/specs/record-fields-terminal-states.json names unrecognized kind "
+                    "%r (not one of contract §2's record kinds: %s); failing loudly instead of "
+                    "silently ignoring it (§20/C2)." % (ok, ", ".join(sorted(KIND_TERMINAL_DEFAULTS)))
+                )
+            if not isinstance(ov, list) or not ov:
+                deny(
+                    "docs/specs/record-fields-terminal-states.json's entry for kind %r must be "
+                    "a non-empty list of loop_state strings; got %r (§20/C2)." % (ok, ov)
+                )
+            for sv in ov:
+                if not isinstance(sv, str) or not re.match(r'^[A-Za-z0-9_-]+$', sv):
+                    deny(
+                        "docs/specs/record-fields-terminal-states.json's entry for kind %r "
+                        "names an unrecognized state %r (loop_state values are "
+                        "[A-Za-z0-9_-]+ only); failing loudly instead of silently ignoring it "
+                        "(§20/C2)." % (ok, sv)
+                    )
+        if kind and kind in override_data:
+            TERMINAL = set(override_data[kind])
 
     if m_ls:
         loop_state = m_ls.group(1).strip().lower()
