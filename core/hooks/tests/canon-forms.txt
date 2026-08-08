@@ -25,3 +25,21 @@ fragment-loop:^[[:space:]]*done[[:space:]]*$
 fragment-loop:^[[:space:]]*"[^"]+"[[:space:]]*\\?[[:space:]]*$
 fragment-loop:^[[:space:]]*do[[:space:]]*$
 fragment-loop:^[[:space:]]*\[[[:space:]]+-f[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"[[:space:]]+\][[:space:]]+&&[[:space:]]+\.[[:space:]]+"\$[A-Za-z_][A-Za-z0-9_]*"([[:space:]]+2>/dev/null)?[[:space:]]*$
+#
+# unregistered-stub (issue-175): architecture-rulebook's real-repo shape —
+# a plain second directive.sh line beyond the core_role_directive call,
+# calling a single named helper function with no arguments (its own stub-
+# combination convention, distinct from fragment-loop's array/for-loop
+# shape). Constructed from the issue's own gap description
+# ("unregistered stub shape") — no access to the real repo's literal
+# bytes; stated assumption, not hidden (docs/issue-175/proposals/
+# 2026-08-08-canon-duplication-full-manifest-and-stub-shapes.md).
+unregistered-stub:^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*_directive_extra[[:space:]]*$
+#
+# layered-directive (issue-175): accessibility-rulebook's real-repo shape —
+# "no layered-directive allowlist" per the issue: a second, layered source
+# line pulling in a sibling directive fragment ahead of the
+# core_role_directive call, rather than sales-rulebook's array/for-loop
+# combination. Constructed from the issue's gap description; same stated-
+# assumption basis as unregistered-stub above.
+layered-directive:^[[:space:]]*\.[[:space:]]+"[^"]*layered-directive\.sh"([[:space:]]+2>/dev/null)?[[:space:]]*$

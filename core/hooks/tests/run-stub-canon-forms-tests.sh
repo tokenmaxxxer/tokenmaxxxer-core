@@ -70,9 +70,44 @@ ROLE_HANDBOOK=docs/handbooks/coding.md
 core_role_directive
 DIRECTIVE
 
+# architecture-rulebook (issue-175 gap 1): "an unregistered stub shape" —
+# the core_role_directive call plus one named helper-function call, a
+# shape neither single-call nor fragment-loop covers. Fixture constructed
+# from the issue's own gap description (no access to the real repo);
+# stated assumption per docs/issue-175/proposals/
+# 2026-08-08-canon-duplication-full-manifest-and-stub-shapes.md.
+unregistered_stub_file="$td/unregistered-stub-directive.sh"
+cat > "$unregistered_stub_file" <<'DIRECTIVE'
+#!/usr/bin/env bash
+. "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/role-directive.sh"
+ROLE_NAME=architecture
+ROLE_SUBJECT_PREFIX=subject
+ROLE_HANDBOOK=docs/handbooks/architecture.md
+core_role_directive
+architecture_directive_extra
+DIRECTIVE
+
+# accessibility-rulebook (issue-175 gap 2): "no layered-directive
+# allowlist" — a second, layered source line pulling in a sibling
+# directive fragment ahead of core_role_directive, distinct from
+# sales-rulebook's array/for-loop fragment-loop combination. Same
+# stated-assumption basis as unregistered_stub_file above.
+layered_directive_file="$td/layered-directive-directive.sh"
+cat > "$layered_directive_file" <<'DIRECTIVE'
+#!/usr/bin/env bash
+. "${CLAUDE_PLUGIN_ROOT_CORE:-x}/hooks/lib/role-directive.sh"
+ROLE_NAME=accessibility
+ROLE_SUBJECT_PREFIX=subject
+ROLE_HANDBOOK=docs/handbooks/accessibility.md
+. "$HERE/../accessibility-wcag/hooks/layered-directive.sh" 2>/dev/null
+core_role_directive
+DIRECTIVE
+
 run_case pass "fragment-loop directive.sh (issue-10 shape) accepted" "$frag_loop_file"
 run_case fail "regrown boilerplate directive.sh still rejected"       "$malformed_file"
 run_case pass "single-call directive.sh (built-in shape) still accepted" "$single_call_file"
+run_case pass "architecture-rulebook unregistered-stub shape accepted (issue-175)" "$unregistered_stub_file"
+run_case pass "accessibility-rulebook layered-directive shape accepted (issue-175)" "$layered_directive_file"
 
 rm -rf "$fixtures_td"
 
