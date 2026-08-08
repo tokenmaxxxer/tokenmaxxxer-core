@@ -138,10 +138,156 @@ Two deviations from `## What will be done`, both discovered mid-pilot:
   embedded finding-count table (the runbook flags the hand-copied roster
   as carrying transcription risk) before opening Batch 1's PRs.
 
+## Resolution path (superseded — see session 2 below)
+
+The prior open finding resolved: issue #173's fix (merged to `main`,
+commit `edf25ed`, PR #174) landed a content-based `directive.sh` check
+(`gate_is_role_directive_stub` in `core/hooks/lib/gate-lib.sh`). This
+branch merged `main` in session 2 to pick it up.
+
+## Session 2 — Batch 0 re-scan, Batch 1 attempt, new blocking finding
+
+**Batch 0 re-scan (post-#173-merge):** cloned `content-design-rulebook`
+fresh and ran `core/hooks/tests/fleet-silent-failure-scan.sh` against it
+directly (not just `compliance-check.sh --canon-duplication` in
+isolation, per the runbook's step 6). Result: `content-design-rulebook |
+clean`. Confirms the #173 fix resolves the prior blocker for this repo.
+No PR needed against `content-design-rulebook` — its `directive.sh` was
+already the correct stub, as this record's session-1 pilot attempt had
+predicted. Batch 0 is done.
+
+**Batch 1 attempt (10 repos, count 1-2):** cloned all 10
+(`market-analysis-rulebook`, `accessibility-rulebook`,
+`requirements-engineering-rulebook`, `architecture-rulebook`,
+`user-discovery-rulebook`, `pricing-rulebook`, `observability-rulebook`,
+`localization-rulebook`, `legal-compliance-rulebook`,
+`capacity-planning-rulebook`) and ran the fleet scan on each:
+
+- Clean already, no action: `market-analysis-rulebook`,
+  `requirements-engineering-rulebook`.
+- Non-canon findings out of this rollout's scope (six-signal sweep hits,
+  not canon-duplication — per the runbook's step 6, these are
+  justification candidates, not something this rollout unit fixes):
+  `user-discovery-rulebook` (fail-open-on-internal-error),
+  `observability-rulebook` (fail-open-on-internal-error),
+  `legal-compliance-rulebook` (mktemp-footgun).
+- `pricing-rulebook`: flagged `canon-duplication` on
+  `pricing/plugins/pricing-scope-gate/hooks/scope-gate.sh`. Attempted the
+  runbook's step-1 mechanical delete, then inspected the file's content
+  **before pushing** (this session's own added caution, not a runbook
+  step) — it is not a vendored copy of any core canon file at all. It is
+  `pricing-scope-gate`'s own PreToolUse gate (checks a `scope-gate
+  result:` labeled line, sources `gate-lib.sh` by reference per the
+  gate-house standard) that happens to share the filename `scope-gate.sh`
+  with a core canon file of a completely different purpose
+  (`core/hooks/tests/scope-gate.sh`). The deletion was reverted before
+  any commit or push; branch discarded locally, nothing landed against
+  `pricing-rulebook`.
+- `architecture-rulebook`: flagged `canon-duplication` on `directive.sh`
+  despite the file being a genuine `core_role_directive` stub (sources
+  `role-directive.sh`, calls `core_role_directive` with four values).
+  `gate_is_role_directive_stub` rejects it because it also sources
+  `gate-lib.sh` and calls `gate_kill_switch_active` as an explicit early
+  guard (a deliberate, commented design choice per issue-16) — a shape
+  `core/hooks/tests/canon-forms.txt` does not register alongside
+  `single-call`/`fragment-loop`.
+- `accessibility-rulebook`, `localization-rulebook`,
+  `capacity-planning-rulebook`: each has more than one `directive.sh`
+  under different plugin subdirectories. In `accessibility-rulebook`,
+  `accessibility/hooks/directive.sh` is a correct stub, but
+  `wcag-em-directive/hooks/directive.sh` is a second, independent
+  SessionStart hook (explicitly documented in its own header as
+  layering additionally, not replacing or calling
+  `core_role_directive`) — `gate_is_role_directive_stub` rejects it as
+  "does not source role-directive.sh", which is correct-by-design for
+  this file, not a defect in it. Same shape suspected (not fully
+  confirmed per-file) for `localization-rulebook`'s and
+  `capacity-planning-rulebook`'s extra `directive.sh` files.
+
+No commit or push was made to any of the 43 sibling repos this session.
+
+## What did not work (session 2)
+
+- Ran the runbook's step-1 mechanical delete
+  (`find <repo> -name <manifest-filename>` then delete every hit) against
+  `pricing-rulebook`'s `canon-duplication` hit on `scope-gate.sh`,
+  expecting a vendored core file per the runbook's own framing ("the
+  authoritative list, not a hand-picked subset"). Reading the file's
+  content before pushing showed it was an unrelated, legitimately-named
+  gate specific to `pricing-scope-gate`, not a vendored copy of anything.
+  The runbook's step 1 is unsafe as written for any manifest entry other
+  than `directive.sh`: it deletes by filename match alone, with no
+  content check, for the 12 other manifest filenames
+  (`trailer-gate.sh`, `record-fields-gate.sh`, `handbook-trigger-gate.sh`,
+  `parse-check.sh`, `stub-check.sh`, `gate-lib.sh`, `gate-lib.py`,
+  `compliance-check.sh`, `hunt-guard.sh`, `hunt-state.sh`,
+  `scope-gate.sh`, `state.sh`, `warrant-hunter.md`) — exactly the same
+  class of bug #173 fixed for `directive.sh`, still open for the rest of
+  the manifest.
+
+## Open findings (session 2)
+
+- **Blocking for Batch 1 and the rest of the rollout:**
+  `compliance-check.sh --canon-duplication` matches every manifest
+  filename except `directive.sh` by name only, with no content check —
+  confirmed to misclassify at least one real per-repo file
+  (`pricing-rulebook`'s `pricing-scope-gate/hooks/scope-gate.sh`) as a
+  canon duplicate. Any rollout step that deletes on this signal alone,
+  for any of the other 12 manifest filenames, risks destroying
+  legitimate role-specific files fleet-wide. Fix needs the same
+  structural/content classification `gate_is_role_directive_stub` added
+  for `directive.sh`, generalized (or file-specific) for the rest of the
+  manifest — lives in `core/hooks/tests/compliance-check.sh` /
+  `core/hooks/lib/gate-lib.sh`, outside this PR's frozen write set.
+- **Blocking for `architecture-rulebook`, and any repo whose stub
+  legitimately composes `gate-lib.sh` guards alongside
+  `role-directive.sh`:** `core/hooks/tests/canon-forms.txt`'s registered
+  shape set (`single-call`, `fragment-loop`) does not cover this pattern,
+  so `gate_is_role_directive_stub` false-positives a correct stub. Fix is
+  a new registered form in `canon-forms.txt` (or a broader "additional
+  guard lines are fine if they only call `gate_lib_*` functions" rule) —
+  outside this PR's frozen write set.
+- **Blocking for any repo with more than one `directive.sh` (confirmed:
+  `accessibility-rulebook`; suspected, unconfirmed:
+  `localization-rulebook`, `capacity-planning-rulebook`):**
+  `gate_is_role_directive_stub` (and by extension
+  `--canon-duplication`) has no notion of "this repo has one canonical
+  role stub plus N legitimately-independent layered directive files" —
+  it flags every hit against the single-stub shape. Needs either a
+  per-repo allowlist mechanism or a documented registration convention
+  for layered directives (`docs/issue-7/proposals/methodology-
+  enforcement.md` section 1 already names "composes alongside via
+  hooks.json ordering" as sanctioned — the check just doesn't know
+  about it) — outside this PR's frozen write set.
+
+## Next steps
+
+- Open a follow-up proposal (new issue, same pattern as #173) to
+  generalize `compliance-check.sh --canon-duplication`'s content check
+  beyond `directive.sh` to the rest of `canon-manifest.txt`, and to
+  extend `canon-forms.txt` / add a layered-directive allowlist mechanism
+  for the two `gate_is_role_directive_stub` gaps found this session.
+- Until that lands, this rollout may only act on scan results with
+  **manual content verification of every hit**, never a blind
+  filename-match delete — this record's own "What did not work" entry
+  is the reason. Batch 0 is closed (genuinely clean, zero manifest hits
+  to verify). Batch 1's two clean repos
+  (`market-analysis-rulebook`, `requirements-engineering-rulebook`) need
+  no action. `pricing-rulebook` needs no action (its flagged file is not
+  a duplicate). The remaining Batch 1 repos' canon-duplication findings
+  (`accessibility-rulebook`, `architecture-rulebook`,
+  `localization-rulebook`, `capacity-planning-rulebook`) stay open,
+  blocked on the follow-up fix — per the runbook's own rule, a
+  canon-duplication finding is never a justification candidate, so
+  Batch 1 cannot close and Batch 2 does not open until then.
+- Regenerate the Batch 1-4 roster programmatically from issue-171's
+  embedded finding-count table (still outstanding from session 1).
+
 ## Resolution path
 
-The open finding resolves when a follow-up proposal + PR fixes
-`compliance-check.sh --canon-duplication`'s `directive.sh` detection and
-a re-run of the pilot scan against `content-design-rulebook` shows clean
-(or a justified, non-`directive.sh` finding). Batch 1 does not open until
-then, per the runbook's own gate.
+The open findings resolve when a follow-up proposal + PR generalizes
+`compliance-check.sh --canon-duplication`'s content-based check to the
+full manifest and closes the two `gate_is_role_directive_stub` gaps
+(missing `canon-forms.txt` shape; no layered-directive allowlist), and a
+re-run of the fleet scan against the four blocked Batch 1 repos shows
+clean. Batch 1 does not close, and Batch 2 does not open, until then.
