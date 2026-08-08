@@ -146,3 +146,36 @@ open item after this PR lands.
 case fails on `main` before this change (confirmed via `git stash`) —
 same `canon-manifest.txt`/structural-check contradiction as above, not
 introduced or worsened by this build.
+
+## Follow-up: stub-check.sh manifest integration fix (operator relay)
+
+Per an operator relay comment on PR #182 ("fleet-scan 13/0 but
+run-role-gates-tests.sh is 78/1 — FAIL 'stub-check: real stub
+directive.sh passes want=allow got=deny'"), fixed the pre-existing
+failure noted above. Root cause: `canon-manifest.txt` lists
+`directive.sh` as an absence-checked canon gate, so `stub-check.sh`'s
+top absence-based loop (which iterates every manifest entry and FAILs on
+any hit) denied a real stub directive.sh before its own later,
+purpose-built structural check (the one delegating to
+`gate_is_role_directive_stub`) ever ran. `compliance-check.sh`'s
+`--canon-duplication` mode already carves `directive.sh` out of its
+equivalent absence-based loop for the identical reason (it "has keep-a-
+stub semantics", per that script's own comment); `stub-check.sh`'s loop
+had no matching carve-out.
+
+Fix (`core/hooks/tests/stub-check.sh`, `grep -vx 'directive.sh'` added
+to the manifest-entry filter that builds `CANON_GATES`): `directive.sh`
+is now excluded from the absence-based loop and classified exclusively
+by the existing structural check further down the same script — mirrors
+`compliance-check.sh`'s carve-out, no second independently-maintained
+list. The vendored-copy-of-directive.sh regression path stays covered:
+`run-role-gates-tests.sh`'s "regrown boilerplate caught" case still
+denies via the structural check itself, not via the absence loop.
+
+Confirmed: `core/hooks/tests/run-all.sh` all green, including
+`run-role-gates-tests.sh` at 79/79 (previously 78/79) and
+`run-fleet-scan-tests.sh` unaffected (13/0, per the relay's own report).
+Per the relay's coordination note, this fix touches only the failing
+"real stub directive.sh passes" case's root cause in `stub-check.sh` and
+does not touch `canon-forms.txt`/the classifier itself, leaving #183's
+concurrently-claimed canon-source false-positive area untouched.
