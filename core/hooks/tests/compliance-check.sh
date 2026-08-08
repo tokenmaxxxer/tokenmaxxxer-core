@@ -12,7 +12,45 @@
 #   "${CORE_PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT/../core}/hooks/tests/compliance-check.sh" "$(dirname "$0")/.."
 #
 # Usage: compliance-check.sh [hooks-dir]
+#        compliance-check.sh --canon-duplication <rulebook-path>
 set -uo pipefail
+
+# --canon-duplication (issue-66): the acceptance check literally names this
+# script as the surface that should scan an arbitrary rulebook path for
+# vendored copies of core canon files. Reuses canon-manifest.txt — the same
+# file stub-check.sh already reads — so the two scripts' file lists cannot
+# drift against each other (a second, independently-maintained list would
+# be exactly the drift class this whole promotion exists to close off).
+if [ "${1:-}" = "--canon-duplication" ]; then
+  target="${2:?compliance-check --canon-duplication: rulebook path required}"
+  [ -d "$target" ] || { echo "compliance-check: no such directory: $target" >&2; exit 2; }
+  manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/canon-manifest.txt"
+  if [ -f "$manifest" ]; then
+    names="$(grep -v '^[[:space:]]*$' "$manifest" | grep -v '^[[:space:]]*#')"
+  else
+    echo "compliance-check: WARN — canon-manifest.txt not found at $manifest, falling back to built-in list" >&2
+    names="$(printf '%s\n' trailer-gate.sh record-fields-gate.sh handbook-trigger-gate.sh parse-check.sh stub-check.sh gate-lib.sh gate-lib.py compliance-check.sh)"
+  fi
+  rc=0
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    # No -maxdepth bound (unlike stub-check.sh's hooks-dir-scoped scan):
+    # this mode's contract is "an arbitrary rulebook path" (the whole repo
+    # root, per the issue's acceptance text), not a known hooks/ layout, so
+    # a fixed depth guess is exactly the kind of unmaintained assumption a
+    # rulebook nesting one directory deeper defeats silently (warrant hunt,
+    # docs/reports/2026-08-08-hunt-role-agnostic-canon-boundary.md).
+    hits="$(find "$target" -name "$name" -type f 2>/dev/null || true)"
+    if [ -n "$hits" ]; then
+      echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
+      printf '%s\n' "$hits" >&2
+      rc=1
+    else
+      echo "compliance-check: ok — no vendored '$name' under $target"
+    fi
+  done <<< "$names"
+  exit "$rc"
+fi
 
 dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)}"
 [ -d "$dir" ] || { echo "compliance-check: no such directory: $dir" >&2; exit 2; }
