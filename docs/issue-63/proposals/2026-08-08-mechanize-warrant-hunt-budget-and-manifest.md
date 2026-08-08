@@ -65,13 +65,19 @@ single-flight lock instead of introducing a second cadence mechanism.
    as a second field in `.warrant-hunt.lock` (`"<started_epoch>
    <cap_seconds> <prompt-head>"`) — the cap the dispatching session
    already computes per `directive.sh`'s tiers, passed through
-   `WARRANT_HUNT_CAP_SECONDS`. Add a check, active only when
-   `WARRANT_IN_HUNT=1` (i.e. this is the hunter's own next tool call):
-   read the lock's started/cap fields and call `gate_budget_exceeded`;
-   if it returns true, print a loud "warrant: hunt budget of Ns
-   exceeded (ran Ns) — stop and return your finding (or nothing) now"
-   message to stderr and exit 2, refusing the call. In-budget calls
-   proceed unchanged (`allow()`).
+   `WARRANT_HUNT_CAP_SECONDS`. Add the budget check *before* the
+   existing `if tool not in ("Agent","Task","Workflow"): allow()` early
+   return — placing it after that line would make it unreachable dead
+   code for the hunter's own Bash/Read/Grep/Glob/Write calls, exactly
+   the flaw the after-proposal hunt on this proposal caught (see
+   `docs/reports/2026-08-08-hunt-issue-63-mechanize-budget.md`). The new
+   check runs for every tool call, active only when `WARRANT_IN_HUNT=1`
+   (i.e. this is the hunter's own next call, of any type): read the
+   lock's started/cap fields and call `gate_budget_exceeded`; if it
+   returns true, print a loud "warrant: hunt budget of Ns exceeded (ran
+   Ns) — stop and return your finding (or nothing) now" message to
+   stderr and exit 2, refusing the call. In-budget calls fall through to
+   the existing tool-type filtering and checks unchanged.
 
 4. **`core/hooks/tests/run-gate-lib-tests.sh`**: add one red case
    (`gate_budget_exceeded 1000 60 1200` -> exceeded -> hunt-guard-style
