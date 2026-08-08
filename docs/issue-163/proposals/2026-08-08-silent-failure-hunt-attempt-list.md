@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 files:
   - docs/issue-163/reports/defect-verification/survey.md
   - docs/issue-163/proposals/2026-08-08-silent-failure-hunt-attempt-list.md
@@ -138,5 +138,15 @@ repro runs and exhibits the claimed behavior, and the fleet table lists
 
 ## What did not work
 
-(none yet — appended live during phase 2 per the warrant proposal
-protocol.)
+- A3 and A6's hypothesized silent-failure defects did not reproduce as
+  defects: both fail-open/no-op behaviors are explicitly documented
+  in-file as deliberate, and neither shows a downstream enforcement
+  effect on this checkout's other gates. Recorded as `not-reproduced`,
+  not dropped silently.
+- A2's original hypothesis (fail-open on missing `python3` / malformed
+  JSON in `hunt-guard.sh`) turned out to work as designed for those two
+  cases; the actual reproducible bypass found under the same source line
+  was a different one — an exact-string `subagent_type` match that never
+  matches the real, plugin-namespaced `warrant:warrant-hunter` agent type
+  this session's own registry uses. Recorded the real finding rather than
+  forcing the original hypothesis.
