@@ -102,6 +102,25 @@ touched.
     verified by those five files scanning clean without loosening the
     vendored-copy check.
 
+## Before-landing hunt
+
+Dispatched `warrant-hunter` (stance 0: "assume the gate just touched is
+bypassable — find the bypass"), cap 120s, tier default. Returned a
+FINDING: the new one-line-each cap in `gate_is_role_directive_stub`
+counted matching *physical lines*, not `gate_*` statements, so a
+semicolon-joined chain (`gate_a x; gate_b y; gate_c z; ...`) on one
+physical line bypassed the cap (accepted, exit=0) even though it is
+exactly the unbounded-chain shape the cap exists to reject. Fixed in the
+same commit: count `gate_<name>` word occurrences per line directly and
+reject any line with more than one, closing the semicolon-chain gap.
+Re-verified the hunter's own repro now returns exit=1 (rejected), and the
+suite's new-shape cases still behave as designed. Full record:
+`docs/reports/2026-08-08-hunt-canon-forms-real-bytes.md`.
+
+closed_checks:
+- name: before-landing semicolon-chain bypass (issue-177)
+  code_sha: HEAD
+
 ## Next steps
 
 File the two follow-up issues above; #171's own next session re-runs the

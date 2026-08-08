@@ -152,7 +152,7 @@ gate_is_role_directive_stub() {
     local other
     other="$(grep -vE '^[[:space:]]*(#.*)?$|^#!|role-directive\.sh|core_role_directive|^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null || true)"
     if [ -n "$other" ] && [ "${#CANON_FORM_PATTERNS[@]}" -gt 0 ]; then
-      local still_other="" oline matched i name
+      local still_other="" oline matched i name gate_word_count
       # gate-lib-source/gate-call (issue-177): capped at one matching line
       # each — architecture-rulebook's real shape has exactly one of each
       # (gate-lib.sh:14-15); an uncapped generalization would let an
@@ -163,6 +163,17 @@ gate_is_role_directive_stub() {
       while IFS= read -r oline; do
         [ -n "$oline" ] || continue
         matched=0
+        # A semicolon-joined chain of gate_* calls on one physical line
+        # (e.g. `gate_a x; gate_b y; gate_c z`) would otherwise hide an
+        # unbounded chain from the one-match-per-line cap below, since
+        # that cap counts physical lines, not statements (before-landing
+        # hunt finding, issue-177). Count `gate_<name>` word occurrences
+        # directly and reject a line with more than one.
+        gate_word_count="$(printf '%s' "$oline" | grep -oE '\bgate_[A-Za-z_][A-Za-z0-9_]*\b' | wc -l)"
+        if [ "$gate_word_count" -gt 1 ]; then
+          still_other="${still_other}${still_other:+$'\n'}${oline}"
+          continue
+        fi
         for ((i = 0; i < ${#CANON_FORM_PATTERNS[@]}; i++)); do
           if printf '%s' "$oline" | grep -qE "${CANON_FORM_PATTERNS[$i]}"; then
             name="${CANON_FORM_NAMES[$i]}"

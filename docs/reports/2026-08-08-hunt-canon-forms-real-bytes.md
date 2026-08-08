@@ -37,3 +37,39 @@ Ran `gate_is_role_directive_stub` (sourced from the scratch gate-lib.sh, forms_m
 
 ### Expected
 The described rule's own prose ("only sources gate-lib.sh", "only calls one ... gate_* function") implies at most one such extra line should be tolerated per file; as statable in per-line regex form with no companion count/uniqueness check in `gate_is_role_directive_stub`'s loop, the rule instead accepts any number of such lines, so a vendored or attacker-modified directive.sh can smuggle arbitrary additional gate_* logic past the "sanctioned stub" classification one line at a time.
+
+## before-landing — stance 0: assume the gate just touched is bypassable — find the bypass
+
+Verdict: FINDING — the new gate-lib-source/gate-call one-line-each cap counts matching *physical lines*, not semantic gate_* invocations, so a directive.sh that semicolon-joins an unbounded chain of `gate_*` calls onto a single physical line is accepted as a sanctioned stub (returns 0) even though it is exactly the "chains multiple gate_* lines" shape the cap was added to reject.
+Kind: design-error
+Seed: core/hooks/lib/gate-lib.sh (gate_is_role_directive_stub, gate-lib-source/gate-call one-line-each cap), core/hooks/tests/canon-forms.txt (gate-call pattern), core/hooks/tests/run-stub-canon-forms-tests.sh
+cap_seconds: 120
+tier: default
+diff_stat_lines: gate-lib.sh +26/-4, canon-forms.txt (new gate-lib-source/gate-call entries replacing unregistered-stub/layered-directive), run-stub-canon-forms-tests.sh new fixtures, gate-house-standard.md doc update
+started_at: 2026-08-08T20:35:19+09:00
+ended_at: 2026-08-08T20:37:14+09:00
+
+### Reproduce
+```
+cd /home/jwjung/.tokenmaxxxer/work/tokenmaxxxer-core-issue-177-implementation
+cat > /tmp/case-semicolon-chain.sh <<'SCRIPT'
+#!/usr/bin/env bash
+. "core/hooks/lib/role-directive.sh"
+. "core/hooks/lib/gate-lib.sh"
+gate_a x; gate_b y; gate_c z; gate_d w; gate_e v
+core_role_directive
+SCRIPT
+bash -c 'cd /home/jwjung/.tokenmaxxxer/work/tokenmaxxxer-core-issue-177-implementation
+source core/hooks/lib/gate-lib.sh
+gate_is_role_directive_stub /tmp/case-semicolon-chain.sh
+echo exit=$?'
+```
+
+### Observed
+```
+exit=0
+```
+No fail reason printed, `gate_is_role_directive_stub` treats the file as a sanctioned canon stub. (Sanity check: replacing the single semicolon-joined line with the same 5 `gate_*` calls on 5 separate physical lines is correctly rejected with `exit=1` and "has non-stub line(s), looks like regrown boilerplate: gate_b x" — confirming the cap only counts physical lines, not calls.)
+
+### Expected
+A directive.sh chaining more than one `gate_*` call beyond the mandatory single call should be rejected regardless of whether the extra calls are newline- or semicolon-separated; `gate_is_role_directive_stub` should return 1 with a "has non-stub line(s)" (or equivalent) fail reason for this file.
