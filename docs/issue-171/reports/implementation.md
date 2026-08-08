@@ -475,3 +475,96 @@ source-line matching; a registered shape for a direct
 `role-directive.sh` source with no `gate-lib.sh` predecessor) and a
 re-run of the fleet scan against all four blocked Batch 1 repos shows
 clean. Batch 1 does not close, and Batch 2 does not open, until then.
+
+## Session 5 — post-#180/#183 re-scan of Batch 1
+
+Issues #180 (directive.sh structural line classifier, replacing
+canon-forms.txt shape-matching, PR #182) and #183 (stub-check.sh
+canon-source false-positive fix, PR #184) merged to `main`. This branch
+merged `main` (fast-forward-free merge, no conflicts besides restoring
+a stray locally-deleted `.warrant-hunt.count` to match `main`), then
+fresh-cloned (`gh repo clone --depth 1`) and fleet-scanned all ten
+Batch 1 repos: `market-analysis-rulebook`, `accessibility-rulebook`,
+`requirements-engineering-rulebook`, `architecture-rulebook`,
+`user-discovery-rulebook`, `pricing-rulebook`, `observability-rulebook`,
+`localization-rulebook`, `legal-compliance-rulebook`,
+`capacity-planning-rulebook`.
+
+Result: 7 of 10 now canon-duplication-clean (market-analysis,
+requirements-engineering, pricing were already clean;
+architecture-rulebook newly clean — #180's classifier now recognizes
+its nested-quote `gate-lib.sh` source and its direct
+`role-directive.sh` source line; user-discovery, observability,
+legal-compliance newly clean on canon-duplication, each still carrying
+its own pre-existing unrelated six-signal finding out of this rollout's
+scope). 3 of 10 (accessibility-rulebook, localization-rulebook,
+capacity-planning-rulebook) still fail canon-duplication, but the
+root cause is a new class, not the one #180 fixed: each repo's own
+canonical `directive.sh` is now correctly recognized as a stub, but
+each also carries one or more separate, deliberately non-canon SessionStart
+hook files that are also literally named `directive.sh` by
+convention (accessibility: 1 layered file under
+`wcag-em-directive/hooks/`; localization: 3 under
+`localization/plugins/*/hooks/`; capacity-planning: 4 under
+`capacity-*/hooks/`) — documented in-repo as intentionally composing
+alongside the canonical stub rather than replacing it, per
+`docs/issue-7/proposals/methodology-enforcement.md` section 1.
+`compliance-check.sh`'s canon-duplication check has no third
+classification for "custom file, shares the canon filename by
+convention, not a stub and not vendored" — it flags these as vendored
+copies. Full detail and the confirmed per-file evidence is recorded in
+`docs/issue-171/reports/implementation/rollout-runbook.md`'s re-scan
+log (row "Batch 1 (post-#180/#183 re-scan)") — the frozen write set for
+this PR.
+
+No commit or push was made to any sibling repo this session (execution
+against the 43 rulebook repos stays outside this repo's write access,
+per this runbook's own opening note).
+
+## What did not work (session 5)
+
+- Expected #180's structural line classifier plus #183's stub-check fix
+  to fully close all four previously-blocked Batch 1 repos (per this
+  resume prompt's premise: "should finally be clean"). Only
+  architecture-rulebook closed; accessibility-rulebook,
+  localization-rulebook, capacity-planning-rulebook remain blocked, on
+  a newly-identified root cause distinct from the one #180/#183 fixed.
+
+## Open findings (session 5)
+
+- **Still blocking Batch 1:** `compliance-check.sh`'s canon-duplication
+  check (its `directive.sh` branch, `core/hooks/tests/compliance-check.sh`)
+  treats every file literally named `directive.sh` as binary — a
+  recognized `core_role_directive` stub, or a vendored copy of core
+  canon — with no category for a deliberately custom, non-canon file
+  that only shares the filename by repo-local convention (layered
+  per-facet SessionStart hooks, confirmed present in
+  accessibility-rulebook, localization-rulebook, capacity-planning-rulebook).
+  This is a false positive on these three repos, not a rollout gap: they
+  need no action on these specific files. Fix lives in
+  `core/hooks/tests/compliance-check.sh`, outside this PR's frozen
+  write set.
+
+## Next steps
+
+- Open a new follow-up proposal/issue (same pattern as #173, #175,
+  #177, #180, #183) that gives `compliance-check.sh`'s canon-duplication
+  check a third classification for a `directive.sh`-named file that is
+  neither a recognized stub nor a vendored canon copy — e.g. exempt any
+  file under a directory other than the repo's own canonical
+  `<role>/hooks/` path, or check for an explicit non-stub marker (a
+  `# does NOT call core_role_directive` style header, matching what
+  accessibility-rulebook's own layered file already documents).
+- Re-run the fleet scan against the three remaining repos once that
+  lands; only then can Batch 1 close and Batch 2 open.
+- Regenerate the Batch 1-4 roster programmatically from issue-171's
+  embedded finding-count table (still outstanding since session 1).
+
+## Resolution path
+
+The open findings resolve when a follow-up proposal + PR gives
+`compliance-check.sh` a third classification for custom non-canon
+`directive.sh`-named files, and a re-run of the fleet scan against
+accessibility-rulebook, localization-rulebook, and
+capacity-planning-rulebook shows clean. Batch 1 does not close, and
+Batch 2 does not open, until then.
