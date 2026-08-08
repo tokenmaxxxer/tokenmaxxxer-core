@@ -34,7 +34,13 @@ if [ "${1:-}" = "--canon-duplication" ]; then
   rc=0
   while IFS= read -r name; do
     [ -n "$name" ] || continue
-    hits="$(find "$target" -maxdepth 3 -name "$name" -type f 2>/dev/null || true)"
+    # No -maxdepth bound (unlike stub-check.sh's hooks-dir-scoped scan):
+    # this mode's contract is "an arbitrary rulebook path" (the whole repo
+    # root, per the issue's acceptance text), not a known hooks/ layout, so
+    # a fixed depth guess is exactly the kind of unmaintained assumption a
+    # rulebook nesting one directory deeper defeats silently (warrant hunt,
+    # docs/reports/2026-08-08-hunt-role-agnostic-canon-boundary.md).
+    hits="$(find "$target" -name "$name" -type f 2>/dev/null || true)"
     if [ -n "$hits" ]; then
       echo "compliance-check: FAIL — vendored copy of core canon file '$name' found under $target:" >&2
       printf '%s\n' "$hits" >&2
