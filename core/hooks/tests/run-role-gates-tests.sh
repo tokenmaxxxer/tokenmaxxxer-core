@@ -147,6 +147,23 @@ run_kind verify        cleared        reproducing
 run_kind ops           steady         rollout
 run_kind reflect       round-done     reflecting
 
+# --- issue-189, design decision 3: the shared `refused` loop_state value
+# is NOT in any kind's KIND_TERMINAL_DEFAULTS (contract §2's per-kind
+# vocabulary column stays unchanged; `refused` lives in the shared
+# preamble instead) — so it is treated as non-terminal by this gate,
+# which already requires a next-steps/resolution-path pointer for any
+# non-terminal state. That existing mechanism is exactly contract §2's
+# rule that "a bare refused with no pointer is not a valid consumption
+# of the refusal": no record-fields-gate.sh code change needed, only
+# coverage that the existing pointer requirement actually reaches
+# `refused` the same as any other non-terminal spelling.
+run_rf deny "C2/issue-189: bare 'refused' with no finding pointer denied" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: refused\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "C2/issue-189: 'refused' paired with a finding pointer allowed" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: refused\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nfinding: docs/issue-3/reports/coding.md#finding-1\n\n## next steps\nwait for a revised REJECT/CHANGES_REQUESTED or a human waiver\n\n## resolution path\nsame as next steps\n"'
+
 # before-landing hunt (issue-147, stance 0): a self-declared `kind:` field
 # used to be trusted even when it disagreed with CLAUDE_ROLE, letting a qa
 # record borrow coding-record's terminal-state set. Pinned: for a role

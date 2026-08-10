@@ -384,6 +384,17 @@ trap by ignoring `EXIT` (`trap '' EXIT`), short-circuiting a gate's kill
 switch check) and only a hit still denies; every other path keeps the
 content-blind write-set behavior unchanged.
 
+issue-189: `warrant/hooks/scope-gate.sh`'s `KNOWN_STATES` gained
+`"rejected"` alongside `"withdrawn"` — same non-warrant treatment (known,
+readable, never eligible for the write-set/trailer enforcement branch).
+`run-scope-gate-tests.sh`'s `run_status` harness pins
+`rejected-proposal-stands-down` next to the existing
+`withdrawn-proposal-stands-down` case. `core/hooks/tests/deny-only-check.sh`
+also gained a `reject_forgery_probe`, symmetric to its existing
+`forgery_probe`: an off-branch forged board write is refused the same way
+regardless of whether its content spells approval or rejection (no new
+trust boundary — see `docs/issue-189/proposals/2026-08-10-rejection-withdrawal-lifecycle-design.md`).
+
 A before-landing warrant-hunt (stance 1) found the first version of this
 denylist too broad: `trap - EXIT` (restore-default) is the project-wide
 sanctioned early-exit idiom every gate script's own kill-switch/success
