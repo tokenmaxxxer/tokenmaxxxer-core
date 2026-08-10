@@ -254,6 +254,47 @@ def _segment_is_failing(seg, stripped):
     return True
 
 
+HEREDOC_OP = re.compile(r"<<(-)?\s*(['\"]?)(\w+)\2")
+
+
+def _mask_heredocs(cmdline):
+    """Blank out heredoc body lines so their content is never scanned as a
+    write-target or split into pseudo-command segments of its own.
+
+    A heredoc body is literal data delivered on stdin between the
+    `<<DELIM` operator and a line consisting solely of DELIM (optionally
+    indented when the operator is `<<-`) -- it is not a command. Without
+    this, `_split_segments`'s newline cut treated each body line as its
+    own segment with no recognizable head, so a line that only MENTIONS a
+    docs/ path (`cat <<'EOF'\nsee docs/issue-3/x.md\nEOF`) was misread as
+    an unproven write candidate and the whole call denied (issue-198),
+    even though the resolved write target -- what the shell actually
+    opens for writing -- is on the `<<` line itself (a real
+    `cat <<EOF > docs/issue-3/x.md` keeps its `> docs/issue-3/x.md`
+    target intact; only the interior body is masked).
+    """
+    spans = []
+    for m in HEREDOC_OP.finditer(cmdline):
+        dash, _quote, delim = m.groups()
+        body_start = cmdline.find("\n", m.end())
+        if body_start < 0:
+            continue
+        body_start += 1
+        pattern = (r"^[ \t]*%s[ \t]*$" if dash else r"^%s[ \t]*$") % re.escape(delim)
+        tm = re.compile(pattern, re.MULTILINE).search(cmdline, body_start)
+        body_end = tm.start() if tm else len(cmdline)
+        if body_end > body_start:
+            spans.append((body_start, body_end))
+    if not spans:
+        return cmdline
+    chars = list(cmdline)
+    for start, end in spans:
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+
 def _write_candidate_segments(cmdline):
     """Segments of this command line that could not be proven read-only.
 
@@ -263,7 +304,7 @@ def _write_candidate_segments(cmdline):
     just because some other segment on the same line couldn't be
     classified.
     """
-    probe = DEVNULL_REDIR.sub(" ", cmdline)
+    probe = DEVNULL_REDIR.sub(" ", _mask_heredocs(cmdline))
     segments = _split_segments(probe)
     failing = []
     for seg in segments:
@@ -375,7 +416,7 @@ elif tool == "Bash":
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
     if DOCS in cmdline:
-        probe = DEVNULL_REDIR.sub(" ", cmdline)
+        probe = DEVNULL_REDIR.sub(" ", _mask_heredocs(cmdline))
         classified = []
         for seg in _split_segments(probe):
             stripped = seg.strip()
