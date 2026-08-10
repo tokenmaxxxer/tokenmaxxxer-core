@@ -23,21 +23,29 @@ gate_trap_fail_closed
 set -uo pipefail
 gate_kill_switch_active "${WARRANT_OFF:-}" || { trap - EXIT; exit 0; }
 
-# Root resolution is shared with hunt-guard.sh and must stay identical: the
-# project directory, normalized to the git top level when there is one. A
-# directory that is not a repository still gets bounded — git supplies a stable
-# location, not permission to count.
-root="${CLAUDE_PROJECT_DIR:-$PWD}"
-top="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
-[ -n "$top" ] && root="$top"
-[ -d "$root" ] || { trap - EXIT; exit 0; }
+# State-dir resolution is shared with hunt-guard.sh and must stay identical:
+# the .git dir (never the worktree, so it is never staged/diffed/committed),
+# with a "warrant" subdirectory. A directory that is not a repository still
+# gets bounded — the project directory stands in, matching the guard's fallback.
+proj="${CLAUDE_PROJECT_DIR:-$PWD}"
+gitdir="$(git -C "$proj" rev-parse --git-dir 2>/dev/null)"
+if [ -n "$gitdir" ]; then
+  case "$gitdir" in
+    /*) : ;;
+    *) gitdir="$proj/$gitdir" ;;
+  esac
+  statedir="$gitdir/warrant"
+else
+  statedir="$proj"
+fi
+[ -d "$statedir" ] || { trap - EXIT; exit 0; }
 
 case "${1:-release}" in
   release)
-    rm -f "$root/.warrant-hunt.lock" 2>/dev/null
+    rm -f "$statedir/.warrant-hunt.lock" 2>/dev/null
     ;;
   reset)
-    rm -f "$root/.warrant-hunt.lock" "$root/.warrant-hunt.count" 2>/dev/null
+    rm -f "$statedir/.warrant-hunt.lock" "$statedir/.warrant-hunt.count" 2>/dev/null
     ;;
 esac
 
