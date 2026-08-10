@@ -66,6 +66,16 @@ first temporarily un-testable in isolation, adding review overhead
      rejection asserted. Either path emits one contract §5 `finding`
      block (`verdict: contradicts`, `addressed_to: <role>`,
      `severity: blocking`), never a second finding shape.
+     `last` (line ~275) is defined only inside `if pr_out.returncode ==
+     0:` (line 267) — the new `CHANGES_REQUESTED`/`DISMISSED` read must
+     be written inside that same guarded block (or against a `last =
+     {}` default bound before the branch), never as an unconditional
+     reference, so the no-PR-open case (line ~285's existing comment:
+     "no PR open right now ... an expected gap, not itself a denial")
+     stays a no-op instead of a `NameError` that the script's fail-
+     closed EXIT trap would turn into a blanket deny of the still-valid
+     comment-only `APPROVE`/`REJECT` path (after-proposal hunt finding,
+     docs/reports/2026-08-10-hunt-implement-rejection-withdrawal-lifecycle.md).
    - Add `state_reason` to the existing `gh issue view --json` field
      list; read-only, used for reporting/routing only.
 3. `warrant/hooks/state.sh` — add a second pass over
