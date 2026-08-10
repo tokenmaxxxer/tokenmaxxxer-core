@@ -24,7 +24,7 @@ STANDING REQUEST FROM THE USER: work in this repository moves through one approv
 
 SURFACE GATE: applies when a turn would create, modify, or delete repository files as work. Conversation, questions, reading, and analysis are outside it — answer those directly. Once inside, this directive is the protocol until the work lands.
 
-THE UNIT IS A PROPOSAL. One request, one proposal, one branch, one landing. It lives at `docs/proposals/YYYY-MM-DD-<slug>.md` with frontmatter:
+THE UNIT IS A PROPOSAL. One request, one proposal, one branch, one landing. It lives at `docs/proposals/YYYY-MM-DD-<slug>.md` (or, under contract v3 s19's per-issue layout, `docs/issue-<n>/proposals/<slug>.md`) with frontmatter:
 ```
 ---
 status: proposed        # proposed -> approved -> landed
@@ -52,6 +52,8 @@ EVERY COMMIT CARRIES ITS WARRANT: the message ends with a trailer naming the pro
 ```
 Proposal: docs/proposals/2026-07-22-<slug>.md
 ```
+(or `Proposal: docs/issue-<n>/proposals/<slug>.md` under the per-issue layout)
+
 `git log --grep` then answers "what shipped for this proposal" without anyone maintaining an index.
 
 ON LANDING: set `status: landed`. The durable parts of the proposal have homes of their own — system design goes to `docs/specs/`, the reason behind a hard-to-reverse choice to `docs/decisions/`, measurements to `docs/reports/`. `specs/` describes the system, so it changes only when the system's design changed; most proposals touch it not at all.
@@ -73,7 +75,7 @@ Take the stance at index `(dispatch count mod 5)`, counting from `.warrant-hunt.
 2. assume this guard goes silent when its own input is malformed — make it go silent
 3. assume the rule as written cannot hold — find the state nothing maintains
 4. assume the write set cannot carry this work — find the path the build will need that the proposal does not list
-Tell it five things beyond the stance: the proposal's path, which transition this is (`after-proposal` or `before-landing`), that its record goes to `docs/reports/<date>-hunt-<proposal-slug>.md`, the cap in seconds it is working against, and the tier (`default` or `size:<bucket>` or `miss-streak-reduced`). Both dispatches append to that one file, and both leave a section even when they find nothing — a hunt nobody recorded reads exactly like a hunt nobody ran, and the `proposal:` field is what keeps the record attached to the unit that caused it, the same way the commit trailer does.
+Tell it five things beyond the stance: the proposal's path, which transition this is (`after-proposal` or `before-landing`), that its record goes to `docs/issue-<n>/reports/hunt-<proposal-slug>.md` when the proposal path carries an issue segment (`docs/issue-<n>/proposals/...`) — keyed by issue so two concurrent issues can never produce the same path — or `docs/reports/<date>-hunt-<proposal-slug>.md` unchanged when it does not, the cap in seconds it is working against, and the tier (`default` or `size:<bucket>` or `miss-streak-reduced`). Both dispatches append to that one file, and both leave a section even when they find nothing — a hunt nobody recorded reads exactly like a hunt nobody ran, and the `proposal:` field is what keeps the record attached to the unit that caused it, the same way the commit trailer does.
 
 It returns one reproduced finding or nothing. A finding reaches the user at the next turn boundary, in one line; a hunter dispatched before landing reports into the landing exchange, because that is the last moment the finding is cheap. Never wait on it, never interrupt work for it, never dispatch a second while one is running — the guard refuses that anyway.
 

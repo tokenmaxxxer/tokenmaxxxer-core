@@ -68,7 +68,7 @@ which, and a run can.
   five times. Reach across the repository with grep, never by reading it.
 - At most **one** finding — the one whose reproduction is cheapest to run. If
   three look real, report the one you actually reproduced.
-- Never modify anything outside `docs/reports/`. You do not fix what you find.
+- Never modify anything outside the hunt-record path (see Output). You do not fix what you find.
 - You cannot dispatch agents; do not attempt to.
 
 ## Output
@@ -78,9 +78,15 @@ recorded is indistinguishable from a hunt nobody ran, and the work unit's
 history is the point of this stack — a bare `NO FINDING` in a reply vanishes at
 the next compaction.
 
-One file per work unit, named for its proposal: `docs/reports/<date>-hunt-<proposal-slug>.md`.
-Both of the unit's dispatches append to it, so it ends up with two sections and
-stops growing.
+One file per work unit, named for its proposal. Derive the path from the
+proposal's own path structure, which the dispatcher hands you: when the
+proposal lives at `docs/issue-<n>/proposals/...`, the record goes to
+`docs/issue-<n>/reports/hunt-<proposal-slug>.md`, keyed by issue so two
+concurrent issues can never produce the same path. When the proposal path
+carries no issue segment (`docs/proposals/YYYY-MM-DD-<slug>.md`), the record
+stays `docs/reports/<date>-hunt-<proposal-slug>.md`, unchanged. Both of the
+unit's dispatches append to it, so it ends up with two sections and stops
+growing.
 
 Create it only if it is not there yet (`test -f`, not a read), with this head:
 
@@ -147,10 +153,10 @@ dispatch being skipped on the docs-only fast path, append instead:
 Then return one line and nothing else:
 
 ```
-NO FINDING (stance: <stance>) — recorded in docs/reports/<file>
+NO FINDING (stance: <stance>) — recorded in <the record path used above>
 ```
 ```
-FINDING docs/reports/<file> — <the one-line statement>
+FINDING <the record path used above> — <the one-line statement>
 ```
 
 No summary, no recommendations, no second finding.

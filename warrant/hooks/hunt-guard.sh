@@ -35,9 +35,18 @@ payload="$(cat)"
 # it is reachable for the hunter's Bash/Read/Grep/Glob/Write calls too, not
 # just its (disallowed) dispatch attempts.
 if [ "${WARRANT_IN_HUNT:-}" = "1" ]; then
-  root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null)"
-  root="${root:-${CLAUDE_PROJECT_DIR:-$(pwd)}}"
-  lock="$root/.warrant-hunt.lock"
+  proj="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  gitdir="$(git -C "$proj" rev-parse --git-dir 2>/dev/null)"
+  if [ -n "$gitdir" ]; then
+    case "$gitdir" in
+      /*) : ;;
+      *) gitdir="$proj/$gitdir" ;;
+    esac
+    statedir="$gitdir/warrant"
+  else
+    statedir="$proj"
+  fi
+  lock="$statedir/.warrant-hunt.lock"
   if [ -f "$lock" ]; then
     started=""; cap=""
     read -r started cap _rest < "$lock" 2>/dev/null || true
@@ -97,17 +106,31 @@ prompt = tool_input.get("prompt") or ""
 
 root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
 try:
-    top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, timeout=5).stdout.strip()
+    gitdir = subprocess.run(["git", "-C", root, "rev-parse", "--git-dir"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
 except (OSError, subprocess.SubprocessError):
-    top = ""
-# git supplies a stable root; it is not a precondition for counting. Falling
+    gitdir = ""
+# git supplies a stable .git dir; it is not a precondition for counting. Falling
 # through to allow() here handed every non-git directory unlimited hunters —
 # the exact failure this guard exists to prevent, silently switched off by a
-# repository layout the guard has an opinion about but does not need.
-root = posixpath.normpath((top or root).replace("\\", "/"))
-lock = posixpath.join(root, ".warrant-hunt.lock")
-count = posixpath.join(root, ".warrant-hunt.count")
+# repository layout the guard has an opinion about but does not need. State now
+# lives under .git/warrant/, never the worktree, so it is never staged, diffed,
+# or committed — two branches can never conflict over it.
+if gitdir:
+    gitdir = gitdir.replace("\\", "/")
+    if not posixpath.isabs(gitdir):
+        gitdir = posixpath.join(root, gitdir)
+    statedir = posixpath.normpath(posixpath.join(gitdir, "warrant"))
+else:
+    statedir = posixpath.normpath(root)
+try:
+    os.makedirs(statedir, exist_ok=True)
+except OSError as exc:
+    print("warrant: cannot create hunt state dir %s (%s); declining to dispatch one." % (statedir, exc),
+          file=sys.stderr)
+    sys.exit(2)
+lock = posixpath.join(statedir, ".warrant-hunt.lock")
+count = posixpath.join(statedir, ".warrant-hunt.count")
 
 # A hunter cannot dispatch: its own tool list omits Agent/Task/Workflow, and this
 # refuses the case where it is dispatched under some other type.
@@ -146,7 +169,7 @@ except (OSError, ValueError):
 cap = int(os.environ.get("WARRANT_HUNT_MAX", "3"))
 if used >= cap:
     print("warrant: %d hunters already dispatched in this repository (cap %d). No more until the "
-          "count file is cleared: rm %s" % (used, cap, posixpath.relpath(count, root)),
+          "count file is cleared: rm %s" % (used, cap, count),
           file=sys.stderr)
     sys.exit(2)
 
