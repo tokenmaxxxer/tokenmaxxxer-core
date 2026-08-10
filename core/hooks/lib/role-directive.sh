@@ -44,5 +44,10 @@ ${produces}
 ${hand_off}
 
 RECORD: docs/issue-<n>/reports/${role}.md, phase-gated per contract v3 s19
+RECORD FORMAT: code_under_review: is a file list (- path per reviewed/
+changed file), never a commit sha. Any count claim cites an actual
+code-fenced command output, preceded by a derived: <command or path>
+line. When the change is accumulation-cost-shaped, fill the proposal's
+## Accumulation section with real content.
 EOF
 }
