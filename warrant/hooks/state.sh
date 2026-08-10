@@ -46,6 +46,7 @@ def frontmatter(path):
 
 
 open_units = []
+closed_units = []
 for name in sorted(os.listdir(proposals)):
     if not name.endswith(".md") or name == "README.md":
         continue
@@ -56,11 +57,15 @@ for name in sorted(os.listdir(proposals)):
     status = found.group(1).lower() if found else "proposed"
     if status in ("proposed", "approved"):
         open_units.append((status, "docs/proposals/" + name))
+    elif status in ("withdrawn", "rejected"):
+        closed_units.append((status, "docs/proposals/" + name))
 
-if not open_units:
+if not open_units and not closed_units:
     sys.exit(0)
 
-lines = ["warrant: open work units in this repository —"]
+lines = []
+if open_units:
+    lines.append("warrant: open work units in this repository —")
 for status, path in open_units:
     if status == "approved":
         try:
@@ -80,6 +85,13 @@ for status, path in open_units:
         lines.append(
             "  AWAITING APPROVAL: %s — do not start this work until the user approves it." % path
         )
+
+if closed_units:
+    if lines:
+        lines.append("")
+    lines.append("warrant: closed (withdrawn/rejected) — history —")
+    for status, path in closed_units:
+        lines.append("  %s: %s" % (status.upper(), path))
 
 print("\n".join(lines))
 PY

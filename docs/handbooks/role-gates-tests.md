@@ -107,6 +107,17 @@ hardcoded in the script — it is read from `core/hooks/tests/canon-manifest.txt
 (one filename per line); promoting a new script to core canon means adding
 one manifest line, not editing detection logic.
 
+issue-189: the shared `refused` `loop_state` value (contract §2 preamble)
+is deliberately NOT added to `record-fields-gate.sh`'s
+`KIND_TERMINAL_DEFAULTS` for any kind — it needed no gate code change at
+all. Since `refused` is then treated as any other non-terminal state, the
+gate's existing next-steps/resolution-path requirement already enforces
+contract §2's "a bare `refused` with no pointer is not a valid
+consumption of the refusal" mechanically: a `refused` record with no
+next-steps/resolution-path is denied the same as any other non-terminal
+state missing that pointer, and one paired with it is allowed.
+`run-role-gates-tests.sh` pins both halves of that pair.
+
 Wired into `core/hooks/tests/run-all.sh`.
 
 ## Canon invocation from a rulebook (issue-69)

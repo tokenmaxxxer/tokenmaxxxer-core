@@ -10,6 +10,27 @@ Run it directly, no setup required:
 
     bash core/hooks/tests/run-approval-gate-tests.sh
 
+issue-189: `approval-gate.sh` now also reads `state_reason` from
+`gh issue view --json state,comments,state_reason` (read-only, unused for
+enforcement — reporting/routing only) and computes a `reject_challenge`
+("REJECT issue-<n>/<role>") matched via the same
+`comment_matches(challenge_str)` machinery now shared with `APPROVE`'s
+`challenge`. It also reads the existing `last[login]` state map (already
+computed only inside the `if pr_out.returncode == 0:` guarded block) to
+tell `CHANGES_REQUESTED` (a rejection act, review body as rationale) apart
+from `DISMISSED` (a revoked opinion, no rejection): either recognized
+path — or an exact `REJECT` comment — computes one contract §5 `finding`
+block (`verdict: contradicts`, `addressed_to: <role>`, `severity:
+blocking`) folded into the existing deny message when the write is
+refused. This read never itself denies anything beyond what was already
+being refused (no auto-enforcement off `CHANGES_REQUESTED` — deferred,
+see `docs/issue-189/proposals/2026-08-10-rejection-withdrawal-lifecycle-design.md`'s
+alternatives-considered). `run-approval-gate-tests.sh` itself is
+unchanged and stays the read-only reference suite (46/46 green against
+this build); `REJECT`/`CHANGES_REQUESTED` coverage instead lives in
+`core/hooks/tests/deny-only-check.sh`'s `reject_forgery_probe` (see
+`docs/handbooks/board-gate-tests.md`).
+
 `stub_gh <dir> <mode>` generates that stub. It is argument-aware: the
 generated `gh` script branches on its own `$1` ("issue" vs "pr"), because
 `approval-gate.sh` now makes two independent `gh` calls per check —
