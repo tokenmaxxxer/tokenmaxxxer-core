@@ -218,7 +218,7 @@ if not approvers:
 gh = os.environ.get("CORE_GH") or "gh"
 try:
     issue_out = subprocess.run([gh, "issue", "view", issue_num, "--json",
-                                "state,comments"],
+                                "state,comments,state_reason"],
                                capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check issue #%s's state — refusing execution "
@@ -233,6 +233,10 @@ try:
     issue_parsed = json.loads(issue_out.stdout)
     issue_state = issue_parsed.get("state") or ""
     issue_comments = issue_parsed.get("comments") or []
+    # Read-only, reporting/routing only (design decision 4): never an
+    # enforcement input — closing an issue stays exclusively human
+    # (gh-guard.sh, unchanged).
+    issue_state_reason = issue_parsed.get("state_reason") or ""
 except (ValueError, AttributeError):
     deny("unreadable issue JSON from gh; refusing rather than assuming "
          "approval")
@@ -256,6 +260,24 @@ if issue_state != "OPEN":
 #       mint design. The orchestrator posts it after the human said so in
 #       conversation; gh-guard denies role sessions the comment spelling.
 challenge = "APPROVE issue-%s/%s" % (issue_num, role)
+# design decision 2: REJECT mirrors APPROVE exactly — same exact-match/
+# approvers.md-gated/isMinimized-skip machinery, parameterized challenge
+# string, no new trust boundary. Read-only: recognizing it never writes
+# or auto-denies anything on its own (design's explicit deferred item).
+reject_challenge = "REJECT issue-%s/%s" % (issue_num, role)
+
+def comment_matches(challenge_str):
+    for c in issue_comments:
+        if not isinstance(c, dict):
+            continue
+        if c.get("isMinimized"):
+            continue  # hidden/minimized is GitHub's own way to retract a
+                       # comment without deleting or editing it
+        login = ((c.get("author") or {}).get("login") or "").lower()
+        body = (c.get("body") or "").strip()
+        if login in approvers and body == challenge_str:
+            return True
+    return False
 
 pr_approved = False
 try:
@@ -264,6 +286,7 @@ try:
 except OSError:
     deny("cannot run %r to check the PR's reviews — refusing execution "
          "writes rather than assuming approval (fail closed)" % gh)
+rejection_finding = None
 if pr_out.returncode == 0:
     try:
         reviews = (json.loads(pr_out.stdout) or {}).get("reviews") or []
@@ -273,6 +296,7 @@ if pr_out.returncode == 0:
     # Last review per author wins: an author who approved and later
     # requested changes has not approved.
     last = {}
+    last_body = {}
     for r in reviews:
         if not isinstance(r, dict):
             continue
@@ -280,27 +304,56 @@ if pr_out.returncode == 0:
         state = r.get("state") or ""
         if login and state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
             last[login] = state
+            last_body[login] = (r.get("body") or "").strip()
     pr_approved = any(login in approvers and state == "APPROVED"
                       for login, state in last.items())
-# pr_out.returncode != 0: no PR open right now — the two-account path is
-# simply unavailable, not a denial by itself.
+    # design decision 2, step-1 finding #7: use the CHANGES_REQUESTED vs
+    # DISMISSED distinction instead of discarding it. CHANGES_REQUESTED
+    # from an approver is a rejection act (review body -> rationale);
+    # DISMISSED is a revoked opinion, no rejection asserted. Either
+    # outcome emits at most one contract §5 finding block, never a
+    # second finding shape — this is the trigger, not a second record.
+    for login, state in last.items():
+        if login in approvers and state == "CHANGES_REQUESTED":
+            rejection_finding = {
+                "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+                "verdict": "contradicts",
+                "evidence": "PR review by @%s: CHANGES_REQUESTED" % login,
+                "rationale": last_body.get(login) or "(no review body)",
+                "addressed_to": role,
+                "severity": "blocking",
+            }
+            break
+# pr_out.returncode != 0: no PR open right now (see comment above the
+# "no PR open" note further down) — the two-account path, and the
+# CHANGES_REQUESTED/DISMISSED read above (which lives inside this same
+# guarded branch, never as an unconditional `last` reference), are both
+# simply unavailable then, not a denial by themselves.
 
-comment_approved = False
-for c in issue_comments:
-    if not isinstance(c, dict):
-        continue
-    if c.get("isMinimized"):
-        continue  # hidden/minimized is GitHub's own way to retract a
-                   # comment without deleting or editing it
-    login = ((c.get("author") or {}).get("login") or "").lower()
-    body = (c.get("body") or "").strip()
-    if login in approvers and body == challenge:
-        comment_approved = True
-        break
+comment_approved = comment_matches(challenge)
+comment_rejected = comment_matches(reject_challenge)
+if comment_rejected and rejection_finding is None:
+    rejection_finding = {
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "verdict": "contradicts",
+        "evidence": "issue comment exactly '%s' from a listed approver" % reject_challenge,
+        "rationale": "issue-level REJECT token",
+        "addressed_to": role,
+        "severity": "blocking",
+    }
 
 approved = pr_approved or comment_approved
 
 if not approved:
+    if rejection_finding is not None:
+        deny("issue-%s/%s was rejected, not merely unapproved: finding "
+             "{requirement: %s, verdict: %s, evidence: %s, rationale: %s, "
+             "addressed_to: %s, severity: %s}. (contract v3 s19, design "
+             "decision 2)"
+             % (issue_num, role, rejection_finding["requirement"],
+                rejection_finding["verdict"], rejection_finding["evidence"],
+                rejection_finding["rationale"], rejection_finding["addressed_to"],
+                rejection_finding["severity"]))
     deny("neither the PR for %s nor issue #%s carries an approval from a "
          "listed human approver (%s): no Approve review on an open PR, "
          "and no issue comment that is exactly '%s'. Free-text comments "
