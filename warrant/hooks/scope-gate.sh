@@ -36,7 +36,7 @@ import sys
 # `approved`, `Approved`, and `approved   # go` are the same intent; a value that
 # is none of the three known states is reported rather than read as "not approved".
 STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
-KNOWN_STATES = ("proposed", "approved", "landed")
+KNOWN_STATES = ("proposed", "approved", "landed", "withdrawn")
 # `git commit`, `git  commit`, `git -C path commit` are one command.
 GIT_COMMIT = re.compile(r"\bgit\b(?:\s+-[A-Za-z]\S*(?:\s+\S+)?|\s+--\S+)*\s+commit\b")
 FILE_ITEM = re.compile(r"^\s*-\s*(.+?)\s*$")

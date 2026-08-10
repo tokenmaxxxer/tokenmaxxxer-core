@@ -373,3 +373,20 @@ the 43 rulebook repos meet both conditions today (see the per-repo
 migration checklist above, still open per issue-142's own scope line);
 wiring `compliance-check.sh` into each rulebook's own CI is future work,
 not done by this sweep.
+
+## `scope-gate.sh` `KNOWN_STATES` gains `withdrawn` (issue-189, emergency fix)
+
+`warrant/hooks/scope-gate.sh`'s `KNOWN_STATES` tuple was
+`("proposed", "approved", "landed")` — a proposal frontmatter
+`status: withdrawn` fell outside it and was read as malformed/
+unreadable, tripping the fail-closed stand-down and bricking sessions
+in a consumer repo on a legitimate, already-observed lifecycle state.
+`KNOWN_STATES` now includes `"withdrawn"`, flowing through the same
+known/not-approved/not-enforced branch `proposed`/`landed` already
+take — no change to the `approved` write-set/trailer enforcement path,
+no change to genuinely-malformed detection. Covered by a red/green
+pair in `core/hooks/tests/run-scope-gate-tests.sh`
+(`withdrawn-proposal-stands-down`). `rejected` and the rest of the
+rejection/withdrawal lifecycle vocabulary are explicitly out of scope
+for this fix — see `docs/issue-189/proposals/
+2026-08-10-scope-gate-withdrawn-emergency-fix-and-lifecycle-registration.md`.
