@@ -89,5 +89,27 @@ run deny  nonhook-outside-writeset         Write \
 run allow hook-inside-writeset             Write \
   '{"file_path":"src/app.py","content":"anything"}'
 
+# --- issue-189: a `status: withdrawn` proposal is a known, non-warrant
+# state (same bucket as proposed/landed) — it must NOT be misread as
+# malformed and must NOT stand the gate down into a refusal on ordinary
+# tool calls. Before the fix, KNOWN_STATES lacked "withdrawn", so this
+# exact case denied (the live incident: two dead controller sessions).
+run_status() {
+  want="$1"; name="$2"; status="$3"
+  mktd
+  git init -q "$td"
+  mkdir -p "$td/docs/proposals"
+  printf -- '---\nstatus: %s\nfiles:\n  - src/app.py\n---\nbody\n' "$status" \
+    > "$td/docs/proposals/2026-08-10-withdrawn-probe.md"
+  payload='{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"anything"},"cwd":"'"$td"'"}'
+  printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report "$want" "$got" "$name"
+}
+run_status allow withdrawn-proposal-stands-down withdrawn
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
