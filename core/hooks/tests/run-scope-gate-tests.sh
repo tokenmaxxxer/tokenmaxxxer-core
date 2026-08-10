@@ -111,5 +111,10 @@ run_status() {
 }
 run_status allow withdrawn-proposal-stands-down withdrawn
 
+# --- issue-189: `status: rejected` is a known, non-warrant state, same
+# bucket as withdrawn/proposed/landed — the reviewer-initiated twin of
+# the author-initiated `withdrawn`.
+run_status allow rejected-proposal-stands-down rejected
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

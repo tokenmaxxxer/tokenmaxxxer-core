@@ -61,6 +61,19 @@ Every role writes exactly one status record onto the blackboard,
 sub-artifacts. All nine roles are sanctioned here, including product's and
 coding's records, closing the trial's two unsanctioned-kind gaps.
 
+**Shared `refused` value.** A role's `loop_state` may additionally be set
+to `refused` when an external act — a `REJECT` token, a
+`CHANGES_REQUESTED` review, or an equivalent human refusal — closes the
+role's current unit without the role's own success-path terminal being
+reached. `refused` is always paired with a pointer to the `finding`
+block (section 5) that caused it — a bare `refused` with no pointer is
+not a valid consumption of the refusal (section 6). This is one shared
+value usable in any kind's `loop_state` column, deliberately distinct
+from a role's own negative verdict reached through its own judgment
+(e.g. feasibility's `verdict: no-go`, qa's `wont-fix`) — those are the
+role concluding something itself, not being refused by someone else, and
+keep their existing terminal spellings unchanged.
+
 | kind | produced by | path | `loop_state` vocabulary | required fields beyond common header |
 |---|---|---|---|---|
 | `hypothesis` | product | `docs/issue-<n>/proposals/<date>-<slug>.md` | `idle,scoping,researching,hypothesis-registered,measuring,decided` | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |

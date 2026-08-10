@@ -49,3 +49,69 @@ so that the comment-only approval path documented as working with no PR
 open keeps working once the reject-detection code lands, instead of
 every write during that window failing closed regardless of a valid
 APPROVE comment.
+
+## before-landing — stance 1: assume this change and another plugin's rule cancel each other — find the pair
+
+Verdict: FINDING — a second approver's plain APPROVE review silently cancels a first approver's CHANGES_REQUESTED rejection finding in the same gate, in the same PR
+Kind: composition
+Seed: core/hooks/approval-gate.sh working-tree diff (REJECT/CHANGES_REQUESTED finding logic, design decision 2)
+cap_seconds: 180
+tier: size:>5-files
+diff_stat_lines: 8 files, 162 insertions(+), 20 deletions(-) (working-tree diff)
+started_at: 2026-08-10T10:54:38+09:00
+ended_at: 2026-08-10T11:07:00+09:00
+
+### Reproduce
+Stub `gh pr view` to return two reviews on the same PR — one from an
+approver who APPROVED, one from a different approver who requested
+changes with a blocking rationale — then run approval-gate.sh directly:
+
+```bash
+cd /home/jwjung/.tokenmaxxxer/work/tokenmaxxxer-core-issue-189-implementation
+td=$(mktemp -d "$TMPDIR/ag-repro-XXXX")
+git init -q "$td"
+git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+git -C "$td" checkout -q -b issue-7/coding
+mkdir -p "$td/docs/specs" "$td/stub"
+cp core/contract/role-handoff-contract.md "$td/docs/specs/role-handoff-contract.md"
+printf -- '- jw-human\n- jw-human2\n' > "$td/docs/specs/approvers.md"
+cat > "$td/stub/gh" <<'SCRIPT'
+#!/bin/sh
+case "$1" in
+  issue) printf '%s' '{"state":"OPEN","comments":[]}' ;;
+  pr) printf '%s' '{"reviews":[{"author":{"login":"jw-human"},"state":"APPROVED"},{"author":{"login":"jw-human2"},"state":"CHANGES_REQUESTED","body":"blocking security issue, do not merge"}]}' ;;
+esac
+SCRIPT
+chmod +x "$td/stub/gh"
+printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
+  | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$(pwd)/core" \
+        CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" /bin/bash core/hooks/approval-gate.sh
+echo "EXIT=$?"
+rm -rf "$td"
+```
+
+### Observed
+`EXIT=0` — the write is allowed with no output at all. approval-gate.sh
+correctly builds `rejection_finding` from jw-human2's CHANGES_REQUESTED
+review (lines 317-327 of the working-tree diff), but that finding is
+only ever consulted inside `if not approved:` (lines 345-348). `approved
+= pr_approved or comment_approved`, and `pr_approved` is computed as
+`any(login in approvers and state == "APPROVED" for login, state in
+last.items())` — an OR across *all* approvers on the PR, not scoped to
+the approver who requested changes. jw-human's unrelated APPROVED review
+sets `pr_approved = True`, so `approved` is True, the `if not approved:`
+branch is skipped entirely, and jw-human2's blocking CHANGES_REQUESTED
+finding — the exact contract §5 finding block design decision 2 was
+built to surface — is silently discarded: never denied, never printed,
+never logged anywhere.
+
+### Expected
+A blocking CHANGES_REQUESTED from any listed approver should either
+block the write or at minimum surface the finding (per the gate's own
+deny message: "issue-%s/%s was rejected, not merely unapproved"),
+regardless of whether a different approver separately approved. As
+written, the pre-existing "any approver approves -> pr_approved" OR
+logic (correct on its own, for the pre-issue-189 single-signal world)
+and the new per-review rejection_finding logic (also correct on its own)
+cancel each other the moment both appear in the same PR's review list —
+each is right alone and wrong together.
