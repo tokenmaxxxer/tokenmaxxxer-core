@@ -1,5 +1,5 @@
 ---
-code_under_review: pending-commit
+code_under_review: `warrant/hooks/scope-gate.sh`, `core/hooks/approval-gate.sh`, `warrant/hooks/state.sh`, `core/contract/role-handoff-contract.md`, `core/hooks/tests/run-role-gates-tests.sh`, `core/hooks/tests/deny-only-check.sh`, `core/hooks/tests/run-scope-gate-tests.sh`
 type: feature
 breaking: false
 verdict: n/a
@@ -123,10 +123,10 @@ decided here. Left open; not fixed in this pass.
 
 ## closed_checks
 
-- check: run-scope-gate-tests.sh full suite | code_sha: pending-commit
-- check: run-role-gates-tests.sh full suite | code_sha: pending-commit
-- check: deny-only-check.sh (core/hooks) | code_sha: pending-commit
-- check: run-approval-gate-tests.sh full suite (reference, unchanged) | code_sha: pending-commit
+- check: run-scope-gate-tests.sh full suite | code_sha: 8721d76f9b1489c3f98585c7d6f9c635036c7e39
+- check: run-role-gates-tests.sh full suite | code_sha: 8721d76f9b1489c3f98585c7d6f9c635036c7e39
+- check: deny-only-check.sh (core/hooks) | code_sha: 8721d76f9b1489c3f98585c7d6f9c635036c7e39
+- check: run-approval-gate-tests.sh full suite (reference, unchanged) | code_sha: 8721d76f9b1489c3f98585c7d6f9c635036c7e39
 
 ## Open findings
 
