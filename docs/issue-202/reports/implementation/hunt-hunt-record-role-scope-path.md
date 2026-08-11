@@ -45,3 +45,54 @@ branch `issue-202/implementation`:
   dispatch path (directive.sh dispatches hunts for proposals living under
   the session's own issue tree) keeps these identical, so I have no
   concrete input that exercises a mismatch.
+
+## before-landing — stance 0: assume the gate just touched is bypassable — find the bypass
+
+Verdict: NO FINDING
+Seed: diff of warrant/hooks/directive.sh and warrant/agents/warrant-hunter.md (issue-202, hunt-record-role-scope-path)
+cap_seconds: 120
+tier: default
+diff_stat_lines: 2 files changed (prose-only edits to a hook's static stdout heredoc and an agent's markdown instructions; no code logic changed)
+started_at: 2026-08-11T00:00:00Z
+ended_at: 2026-08-11T00:18:00Z
+
+The diff itself touches only prose (directive.sh's static `cat <<'EOF'` heredoc
+text fed to a hunter subagent, and warrant-hunter.md's own instructions) — no
+mechanical enforcement logic changed. The actual gate that decides whether a
+hunt-record write succeeds is core/hooks/board-gate.sh's R4/R5, which this diff
+does not touch at all. I tried to find a case where the new role-subtree
+template (`docs/issue-<n>/reports/<role>/...`) the prose now recommends would
+let a role slip a record into another role's tree, or where board-gate.sh
+would accept something the old prose's flat template was correctly denied for.
+
+Reproduced instead that board-gate.sh's enforcement is unaffected and correct
+on both sides of this change:
+
+```
+cd /home/jwjung/.tokenmaxxxer/work/tokenmaxxxer-core-issue-202-implementation
+export CLAUDE_PLUGIN_ROOT_CORE="$PWD/core"
+git branch --show-current   # issue-202/implementation
+echo '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-202/reports/hunt-foo.md","content":"x"}}' \
+  | CLAUDE_ROLE=implementation bash core/hooks/board-gate.sh; echo "rc=$?"
+# -> denies: "belongs to another role... writes only implementation.md, implementation/**", rc=2
+echo '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-202/reports/implementation/hunt-foo.md","content":"x"}}' \
+  | CLAUDE_ROLE=implementation bash core/hooks/board-gate.sh; echo "rc=$?"
+# -> allowed, rc=0
+```
+
+R5's `tail[0] == role` check operates on a `posixpath.normpath`-ed path
+(board-gate.sh's `norm()`), so `..`-traversal tricks (e.g.
+`docs/issue-202/reports/implementation/../feasibility/x.md`) collapse before
+the comparison and land back on the true first segment — no traversal bypass.
+Checked also that only Write/Edit/MultiEdit/NotebookEdit/Bash tool calls are
+inspected for docs/ writes (anything else falls through to `allow()` at
+board-gate.sh's tool dispatch), but that fallthrough predates this diff and is
+not something this change introduces or widens.
+
+Since the "gate" this diff edits is advisory text handed to an LLM subagent
+(directive.sh's heredoc, warrant-hunter.md's own instructions) rather than a
+hook that itself enforces anything, and the actual enforcing gate
+(board-gate.sh) is untouched and, empirically, still refuses the old flat
+template while admitting the new role-subtree template exactly as the diff's
+commit message claims — I found no reproducible bypass attributable to this
+diff.
