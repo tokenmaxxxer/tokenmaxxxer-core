@@ -116,7 +116,13 @@ cat <<EOF
 - A commit that stages any docs/issue-<n>/** work must use git commit -m
   and carry a Subject: issue-<n> trailer naming that issue (contract v3
   s13), one commit per subject — the same requirement trailer-gate.sh
-  already enforces mechanically at commit time.
+  already enforces mechanically at commit time. Before committing, stage
+  the full intended change set INCLUDING new files: git commit -a/-am
+  only stages modifications to already-tracked paths, never untracked
+  ones, so a newly created file needs an explicit git add of its path
+  (or of the write set's directories, never a blanket git add -A/.) before
+  commit — omitting this step leaves the new file out of the commit and
+  produces "No commits between main and branch" at PR-create time.
 - Headless/single-shot (no later turn for an async completion
   notification to land in): never end a turn having delegated work — any
   Agent/Task-style subagent dispatch, backgrounded or not — whose result
