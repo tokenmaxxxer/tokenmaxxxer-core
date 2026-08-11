@@ -159,6 +159,20 @@ cat <<EOF
   Gemfile, Dockerfile, docker-compose.yml, .env, migrations/,
   .github/workflows/, or a deploy/setup/run/install script — is refused
   (contract §21) unless the same commit also touches a docs/handbooks/ file.
+- A session that stages a change to any docs/specs/* file must also
+  regenerate and stage docs/specs/reconciled-index.md (python3
+  gates/spec_index.py --update) in the same commit — spec-index-preflight.sh
+  refuses a docs/specs/* commit that leaves the index stale.
+- PR trailer phase split: a phase-1 proposal PR references its issue as a
+  plain #<issue> in the body; Closes/Fixes/Resolves #<issue> is forbidden
+  until the phase-2 delivery PR, which must carry it — pr-preflight.sh's
+  check_body refuses a phase-1 body carrying Closes/Fixes/Resolves and a
+  phase-2 body missing it.
+- A reply claiming a clean pytest pass must not omit pasted SKIPPED lines
+  without acknowledging them, and a hand-typed pass count must equal the
+  pasted summary's count — role-test-claim-guard.sh refuses a test claim
+  that drops SKIPPED lines or states a count that does not match the
+  pasted output.
 EOF
 
 trap - EXIT
