@@ -78,9 +78,16 @@ recorded is indistinguishable from a hunt nobody ran, and the work unit's
 history is the point of this stack — a bare `NO FINDING` in a reply vanishes at
 the next compaction.
 
-One file per work unit, named for its proposal. Derive the path from the
-proposal's own path structure, which the dispatcher hands you: when the
-proposal lives at `docs/issue-<n>/proposals/...`, the record goes to
+One file per work unit, named for its proposal. The dispatcher hands you the
+path to use — write there. If you are ever invoked standalone, with no
+dispatcher prompt naming the path, derive it yourself: first check whether
+this session is issue-scoped and role-scoped — `CLAUDE_ROLE` is set AND this
+session's own current branch resolves as exactly `issue-<n>/<CLAUDE_ROLE>`
+(the same check board-gate's R4 performs). If so, the record goes to
+`docs/issue-<n>/reports/<role>/<date>-hunt-<proposal-slug>.md` (inside the
+role's own subtree, so board-gate's R5 admits it). Otherwise, derive it from
+the proposal's own path structure instead: when the proposal lives at
+`docs/issue-<n>/proposals/...`, the record goes to
 `docs/issue-<n>/reports/hunt-<proposal-slug>.md`, keyed by issue so two
 concurrent issues can never produce the same path. When the proposal path
 carries no issue segment (`docs/proposals/YYYY-MM-DD-<slug>.md`), the record
