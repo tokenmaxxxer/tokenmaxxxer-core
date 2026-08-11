@@ -87,6 +87,17 @@ step — matching the issue's Acceptance check verbatim.
 - Any change to the per-role `hooks/directive.sh` wrapper files — they
   already source the shared function and need no edits.
 
+Known limitation, confirmed by the after-proposal warrant hunt
+(`docs/issue-203/reports/implementation/hunt-2026-08-11-stage-new-files-in-commit-directive.md`):
+this text-only fix is advisory, not mechanically enforced.
+`trailer-gate.sh` checks the commit's trailer and args form, not whether
+untracked in-scope files are staged, so a `git commit -m "Subject:
+issue-<n>..."` that omits a new file still passes the gate — reproduced
+in the hunt record. This proposal does not close that mechanical gap
+(see the rejected-gate alternative above); it only fixes the directive
+text a role reads, per the issue's own Acceptance scope. The mechanical
+staging gate remains a follow-up issue.
+
 ## How you'll know it worked
 
 - `core/hooks/tests/run-role-directive-staging-tests.sh` passes: the
