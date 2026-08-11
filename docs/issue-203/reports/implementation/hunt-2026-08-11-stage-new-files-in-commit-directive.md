@@ -69,3 +69,32 @@ actually rejects the exact bypass reproduced above. A role satisfies the
 new instruction "in form only" merely by having been shown wording that
 mentions `git add`; the mechanical path that lets `git commit -m` land an
 incomplete, trailer-valid commit is untouched by this change.
+
+## before-landing — stance 1: assume this change and another plugin's/gate's rule cancel each other out — find the pair
+
+Verdict: NO FINDING
+Seed: core/hooks/directive.sh commit-guidance bullet now instructs scoped `git add` of new/untracked files before `git commit -m`; checked against handbook-trigger-gate.sh, trailer-gate.sh, record-fields-gate.sh, scope-gate.sh for a contradicting or cancelling rule.
+cap_seconds: 120
+tier: default
+diff_stat_lines: 179
+started_at: 2026-08-11T13:40:00+09:00
+ended_at: 2026-08-11T13:42:30+09:00
+
+Checked whether the new "stage new files, scoped, no blanket add" advice
+is silently cancelled by handbook-trigger-gate.sh's staged-set judgment
+(the gate that fired on this very commit's new run*.sh file). It is not:
+handbook-trigger-gate.sh's D2/issue-141 comment block (lines ~90-145)
+already explicitly projects the staged set forward for the exact
+`git add <paths> && git commit ...` composition the new directive text
+recommends, via `git add --dry-run --` on each preceding `git add`
+segment, and its own deny message even suggests "Stage explicit paths,
+or run `git add` as a separate step first" — the same pattern the new
+directive bullet teaches. trailer-gate.sh requires `git commit -m` with
+an inline message (denying `-a`/editor-based commits when the message
+isn't inline), which is consistent with the new bullet: it tells sessions
+to `git add` then `git commit -m`, never to rely on `-a`/`-am` alone.
+No gate advises or requires a blanket `git add -A`/`.` that the new
+scoped-add instruction would contradict; grepped `git add -A|add \.` and
+`-am\b` across core/hooks/*.sh and core/hooks/lib/*.sh — no other rule
+text recommends unscoped staging. No reproduction of a cancelling pair
+found within the cap.
