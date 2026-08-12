@@ -37,6 +37,12 @@
 # own tools, i.e. a forgeable approval. gh unavailable or failing on
 # either call = deny (fail closed). Kill switch: CORE_OFF=1. Test seam:
 # CORE_GH overrides the gh executable.
+#
+# Build-now bypass (contract v3 s19a, issue-212): when the spawn task
+# itself sets CORE_BUILD_NOW=1 (an env var the spawner controls, same as
+# CLAUDE_ROLE), the proposal round is explicitly waived and execution-
+# surface writes are allowed without an Approve signal. Unset by default,
+# so ordinary tasks keep the two-phase gate unchanged.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "approval-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
@@ -135,6 +141,15 @@ else:
 hits = [c for c in candidates if execution_surface(c)]
 if not hits:
     allow()                  # phase-1 material or unrelated: not this gate's business
+
+# --- build-now bypass (contract v3 s19a) ---------------------------------
+# The spawn task, not the role itself, sets CORE_BUILD_NOW=1 — the same
+# way it sets CLAUDE_ROLE — to explicitly authorize delivery-only work.
+# When present, the proposal round is skipped and execution-surface
+# writes are allowed without an Approve signal. Absent (the default),
+# behavior is unchanged: the two-phase gate below still applies.
+if os.environ.get("CORE_BUILD_NOW", "").strip() == "1":
+    allow()
 
 # --- where are we, and is it a board? -----------------------------------
 def root_of():
