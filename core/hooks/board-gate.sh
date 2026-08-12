@@ -463,21 +463,13 @@ elif tool == "Bash":
 else:
     allow()
 
-hits = []
-for c in candidates:
-    tail = _docs_relative_tail(c)
-    if tail:
-        hits.append(tail)
-if not hits:
-    allow()                  # nothing under docs/: not this gate's business
-
-# --- board or bystander? -----------------------------------------------
-# Not every repository with a docs/ directory follows this contract. This
-# gate is enabled in every session, and a repo keeping ordinary docs has
-# nothing to do with the board — refusing its writes would be a false
-# positive, not enforcement. No contract and no role means no board: stand
-# aside entirely. (A role IS set but the contract is missing → that is a
-# real error and R2 denies below.)
+# Not every repository with a docs/ directory follows this contract, and a
+# candidate is not necessarily a real repository path at all -- a Bash
+# segment can carry an absolute path that merely CONTAINS a docs/-shaped
+# component while pointing entirely outside this repo (e.g. a /tmp/...
+# fixture path). root_of() is resolved here, before hits are built, so an
+# absolute candidate can be checked against it below rather than judged on
+# substring text alone (issue-651).
 def root_of():
     cpd = os.environ.get("CLAUDE_PROJECT_DIR")
     if cpd and os.path.isdir(cpd):
@@ -492,8 +484,34 @@ def root_of():
         pass
     return None
 
-role = os.environ.get("CLAUDE_ROLE", "").strip()
 root = root_of()
+
+hits = []
+for c in candidates:
+    tail = _docs_relative_tail(c)
+    if not tail:
+        continue
+    if c.startswith("/"):
+        # An absolute candidate can be resolved and root-checked exactly,
+        # unlike a relative Bash token (no reliable cwd model -- see the
+        # proposal's Rationale). If root itself can't be resolved, refuse
+        # rather than silently allow what might be a real board write.
+        if root is None:
+            deny("cannot resolve the project root to check an absolute "
+                 "write-target path against it; refusing rather than "
+                 "guessing whether %s is inside this board" % c)
+        normalized = os.path.realpath(norm(c))
+        if normalized != root and not normalized.startswith(root + os.sep):
+            continue      # resolves outside the repo: not a board write
+    hits.append(tail)
+if not hits:
+    allow()                  # nothing under docs/: not this gate's business
+
+# --- board or bystander? -----------------------------------------------
+# No contract and no role means no board: stand aside entirely. (A role IS
+# set but the contract is missing -> that is a real error and R2 denies
+# below.)
+role = os.environ.get("CLAUDE_ROLE", "").strip()
 if not root:
     deny("cannot resolve the project root for a docs/ write")
 
