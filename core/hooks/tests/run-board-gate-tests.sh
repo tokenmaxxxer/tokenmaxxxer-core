@@ -402,6 +402,47 @@ run allow url-docs-path-2                 Bash '{"command":"curl http://example.
 run deny  url-docs-negative-write         Write '{"file_path":"docs/en/hooks.md","content":"x"}'
 run deny  url-docs-negative-issue         Write '{"file_path":"docs/issue-1/notabucket/x.md","content":"x"}'
 
+# --- issue-651: resolved write-target path, not command-text substring ----
+# board-gate.sh used to decide a candidate is a board hit by finding the
+# literal substring "docs/" in it, never checking whether the candidate,
+# resolved as an actual filesystem path, falls under the repo root the
+# gate itself already resolves (the #628 hunt bonus finding). An absolute
+# path that merely contains a docs/issue-N-shaped component while
+# resolving entirely OUTSIDE the repo must now pass; a genuine write whose
+# resolved absolute path lands INSIDE the repo, at a foreign record, must
+# still refuse -- both directions of the acceptance criterion, driven by
+# real fixtures rather than assumed from the source diff alone.
+run allow abs-write-outside-repo-docs-shaped Write '{"file_path":"/does/not/exist-651/'$BOARD'/reports/review.md","content":"x"}'
+run deny  abs-write-inside-repo-foreign      Write '{"file_path":"'$BOARD'/reports/review.md","content":"x"}'
+
+absTargetTest() { # <want> <name> <template> -- {ROOT} -> repo root, {FOREIGN} -> sibling path outside root
+  want="$1"; name="$2"; template="$3"
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b issue-3/qa
+  mkdir -p "$td/docs/specs" "$td/docs/issue-3/reports"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  foreign="${td}-outside-651/$BOARD/reports/review.md"
+  cmd="${template//\{ROOT\}/$td}"
+  cmd="${cmd//\{FOREIGN\}/$foreign}"
+  payload="$(printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' "$cmd" "$td")"
+  printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report "$want" "$got" "$name"
+}
+
+# red before the fix: this redirect target resolves OUTSIDE the repo (a
+# sibling fixture directory) yet carries a docs/issue-3-shaped component --
+# the substring-only judge used to deny it.
+absTargetTest allow bash-redirect-outside-repo-docs-shaped 'echo x > {FOREIGN}'
+# green negative-space sibling: the same shape, but the redirect target
+# actually resolves INSIDE the repo, at a foreign record -- must still deny.
+absTargetTest deny  bash-redirect-inside-repo-foreign       'echo x > {ROOT}/'$BOARD'/reports/review.md'
+
 # --- issue-187: comment/echoed text is not a write target -----------------
 # `own_hits` used to scan a failing segment's full raw text, so a
 # docs/issue-N-shaped string sitting only in an ECHOED comment was
