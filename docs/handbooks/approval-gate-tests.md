@@ -131,3 +131,16 @@ to `\"` (and any literal `\` to `\\`) in the test line itself, or the
 resulting JSON is invalid and the gate denies via its unrelated
 unreadable-payload path — a deny that can coincidentally match a `want
 deny` case without ever exercising `_writeish` at all.
+
+Also covers issue-212's build-now bypass (contract v3 s19a,
+on-the-record#785 cross-repo-blocked basis): when the spawn task sets
+`CORE_BUILD_NOW=1` in the session's environment, `approval-gate.sh` now
+allows execution-surface writes without any Approve signal, checked
+before the gh-backed checks. `run()` gained a `buildnow` option that sets
+`CORE_BUILD_NOW=1` for the invocation (default empty, so every other test
+case is unaffected). `build-now-bypass-no-pr`,
+`build-now-bypass-no-approvers`, and `build-now-bypass-bash-write` pin
+the bypass allowing even with no PR, no approvers file, or a raw Bash
+redirect; `build-now-unset-still-gated` is the empty-state sibling — the
+same `nopr` fixture with `CORE_BUILD_NOW` left unset still denies,
+proving the default two-phase gate is unchanged.

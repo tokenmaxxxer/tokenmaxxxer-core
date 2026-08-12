@@ -861,6 +861,41 @@ v2's coding-only scope gate to the whole system.
   reserves for the human's seat — scope approval among them — are never
   delegated.**
 
+## 19a. Build-now bypass: delivery-only spawn authorization
+
+`on-the-record#785` (cross-repo-blocked verdict): the propose→build
+two-phase default in section 19 above lives in this repo's rulebook and
+gate layer, so a session running in another repo cannot fix it there —
+the fix has to land here. This section is that fix.
+
+**The bypass.** When the task that spawns a role session explicitly
+authorizes delivery-only work, the session skips phase 1's proposal round
+entirely and goes straight to phase 2: build on `issue-<n>/<role>`, commit
+code, tests, and its record, and open one PR carrying the delivered work
+— no intermediate proposal PR.
+
+**The mechanism.** The spawner (never the role itself) sets
+`CORE_BUILD_NOW=1` in the environment of the spawned session, the same
+way it already sets `CLAUDE_ROLE`. `core/hooks/approval-gate.sh` checks
+this before any of section 19's gh-backed Approve checks: when set to
+exactly `1`, an execution-surface write is allowed unconditionally; when
+unset (the default), the gate is unchanged and section 19 applies in
+full. A role session cannot grant itself this bypass — it can only read
+the variable the spawner already set, never set it for itself, so
+"explicitly authorizes" stays a spawner-side act, not a self-service one.
+
+**What still authorizes delivery-only.** Either of the two conditions
+issue-212 named counts as explicit authorization: (a) the spawn task sets
+`CORE_BUILD_NOW=1` directly, or (b) an approved phase-1 proposal for this
+same subject has already merged — which is already covered by section
+19's own "later entries are unaffected" rule and needs no new mechanism.
+This section adds only (a); (b) was already true.
+
+**Empty state.** A task with no `CORE_BUILD_NOW=1` in its environment
+gets the unmodified section 19 two-phase default — the gate's early
+bypass check simply never matches, and every existing Approve-signal path
+below it runs exactly as before.
+
 ## 20. Per-role record minimum content
 
 Every role record (`docs/issue-<n>/reports/<role>.md`, per section

@@ -71,7 +71,7 @@ SCRIPT
 run() {
   want="$1"; name="$2"; mode="$3"; fp="$4"; shift 4
   branch="issue-7/coding"; role="coding"; tool="Write"; cmd=""
-  approvers="yes"
+  approvers="yes"; buildnow=""
   for o in "$@"; do
     case "$o" in
       noapprovers) approvers="no" ;;
@@ -79,6 +79,7 @@ run() {
       branch=*) branch="${o#branch=}" ;;
       role=*) role="${o#role=}" ;;
       cmd=*) tool="Bash"; cmd="${o#cmd=}" ;;
+      buildnow) buildnow="1" ;;
     esac
   done
   mktd
@@ -100,7 +101,7 @@ run() {
   fi
   printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE="$role" CORE_GH="$td/stub/gh" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_ROLE="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -130,6 +131,15 @@ run deny  neither-surface                     nopr                    src/app.py
 run deny  closed-issue-with-comment           closed-with-comment     src/app.py
 run deny  closed-issue-with-pr-review         closed-with-pr-review   src/app.py
 run deny  issue-comment-minimized             comment-minimized       src/app.py
+
+# --- build-now bypass (contract v3 s19a, issue-212) ------------------------
+# CORE_BUILD_NOW=1, set only by the spawner, skips the whole Approve chain
+# even with no PR, no approvers file, and no issue comment at all.
+run allow build-now-bypass-no-pr       nopr  src/app.py buildnow
+run allow build-now-bypass-no-approvers nopr src/app.py buildnow noapprovers
+run allow build-now-bypass-bash-write  nopr  x buildnow cmd='echo hi > src/app.py'
+# empty state: the default (no CORE_BUILD_NOW) keeps section 19's gate.
+run deny  build-now-unset-still-gated  nopr  src/app.py
 
 # --- precondition: no remote, no approvals --------------------------------
 noremote() {
