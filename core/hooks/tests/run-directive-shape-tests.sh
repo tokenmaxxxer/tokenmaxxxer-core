@@ -68,6 +68,17 @@ disc_match=""
 case "$disc_bullet" in *"plain #<issue>"*"Closes/Fixes/Resolves"*"is forbidden"*"phase-2 delivery PR"*) disc_match=1 ;; esac
 report absent "${disc_match:-absent}" "bypass fixture (disconnected bullets) is not accepted as the phase-split rule"
 
+# issue-212: build-now bypass bullet.
+build_now=""
+build_now_bullet="$(printf '%s\n' "$out" | awk '/^- Build-now bypass/{p=1} p{print; if (/^- [A-Z]/ && !/^- Build-now bypass/) exit}')"
+case "$build_now_bullet" in *"CORE_BUILD_NOW=1"*"never by you"*"skip the proposal round"*) build_now=present ;; esac
+report present "${build_now:-absent}" "names the build-now bypass and its spawner-only env var"
+
+fake_no_build_now="- Do the work when the human says so."
+build_now_in_fake=""
+case "$fake_no_build_now" in *"CORE_BUILD_NOW"*) build_now_in_fake=1 ;; esac
+report absent "${build_now_in_fake:-absent}" "empty-state fixture (no build-now rule) has no CORE_BUILD_NOW mention"
+
 echo
 echo "directive-shape: $pass passed, $fail failed"
 [ "$fail" = 0 ]

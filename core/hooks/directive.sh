@@ -85,6 +85,13 @@ cat <<EOF
   (docs/issue-<n>/reports/${role}.md) is phase-2 output like code: it
   waits for the Approve too. Before the Approve you write only the two
   phase-1 homes.
+- Build-now bypass (contract v3 s19a): when the task that spawned this
+  session explicitly authorizes delivery-only — its environment carries
+  CORE_BUILD_NOW=1, set by the spawner, never by you — skip the proposal round
+  and deliver directly: build on issue-<n>/${role}, commit code and your
+  record, and open one PR carrying the work. Without CORE_BUILD_NOW=1 the
+  default two-phase flow below is unchanged; a session cannot grant itself
+  this bypass by setting the variable on its own.
 - Human decisions are GitHub acts only: PR merge = acceptance of the
   delivered work, issue/PR closed unmerged = refusal. Phase 2 opens
   through exactly two paths (contract v3 s19): a PR review Approve from
