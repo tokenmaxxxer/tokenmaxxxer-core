@@ -64,6 +64,7 @@ Before each dispatch, read the frozen write set's size the same way `scope-gate.
 - diff <= 20 lines, or every touched path under `docs/` — 60s, one stance.
 - diff 21-200 lines — 120s, one stance (the default when size is unclear).
 - diff > 200 lines, or more than 5 files touched — 180s, may split into two stances run sequentially inside the one dispatch.
+- REGARDLESS OF SIZE: any diff touching a path under a `hooks/` or `gates/` directory keeps the full 180s/two-stance treatment — the composition-bypass class this repo has already caught has landed as one-line diffs, so line count alone must never downgrade a gates/hooks change to the cheap tier. `warrant/hooks/hunt-tier.sh <base-ref> [<head-ref>]` computes this mapping mechanically (`tier=... cap_seconds=... max_stances=... reason=...`) and is the check this table's mapping must match.
 
 DOCS-ONLY FAST PATH: when every touched path is under `docs/`, the before-landing dispatch is skipped. Append a section to the hunt record naming the reason (`docs-only, no before-landing dispatch`) — the same mandatory-skip-line shape scout uses, so a skip is never silent.
 
