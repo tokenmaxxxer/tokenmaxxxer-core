@@ -149,6 +149,27 @@ READONLY_ALLOW = [
 FIND_EXEC_FLAGS = re.compile(
     r"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)\b")
 
+# issue-225: an interpreter invocation carrying an inline body -- a heredoc,
+# or a '-c'/'-e' string -- or a tee/dd invocation is not provably read-only
+# (SHELL_CHAIN's `<` already disqualifies the heredoc form from
+# readonly_allowed, and tee/dd/`-c` never matched READONLY_ALLOW), but it
+# was previously left to "decline to vouch" (allow() with no
+# permissionDecision) the same as any other unproven command -- which
+# lets a session running with auto-accept permissions execute it anyway,
+# writing wherever the masked body names, unseen by the frozen write set.
+# The live bypass (on-the-record PR #1627): board-gate denied a direct
+# Edit outside the write set, and the same session rewrote the file via
+# `python3 - <<EOF` instead. Denied outright, but ONLY while a write-set
+# is actually being enforced (exactly one proposal approved, the branch
+# this whole block already runs in) -- an unrestricted session with no
+# approved proposal never reaches here (stand_down() above).
+UNANALYZABLE_WRITE_SHAPE = re.compile(
+    r"<<-?\s*['\"]?\w"
+    r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    r"|(?:^|\s)tee\b"
+    r"|(?:^|\s)dd\b"
+)
+
 
 def _segment_readonly(segment):
     if not any(pattern.match(segment) for pattern in READONLY_ALLOW):
@@ -283,6 +304,25 @@ if tool == "Bash":
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
         allow()
+
+    # issue-225: checked ahead of withheld()/readonly_allowed() -- tee and dd
+    # otherwise match WITHHELD's own tee/dd entries first and merely
+    # decline to vouch (same as e.g. `git push`), which is the wrong
+    # posture for a shape whose write target this gate cannot read at all.
+    if UNANALYZABLE_WRITE_SHAPE.search(command):
+        print(
+            "warrant: refused — this Bash call carries an un-analyzable "
+            "write-capable shape (a heredoc body, an interpreter -c/-e "
+            "inline script, or tee/dd) while %s's write set is enforced. "
+            "Its real write target is not visible in the command text, "
+            "so this refuses rather than risk a masked out-of-set write "
+            "(issue-225). Use a provably read-only invocation (e.g. "
+            "python3 -m pytest), or write through Write/Edit or a plain "
+            "redirect the write-set check can read the target of."
+            % proposal_path,
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     reason = withheld(command)
     if reason is not None:

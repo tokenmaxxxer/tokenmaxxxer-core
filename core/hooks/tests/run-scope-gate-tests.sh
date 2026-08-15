@@ -174,5 +174,40 @@ run_malformed deny  malformed-find-fprint0-denied Bash \
 run allow approved-piped-all-readonly-allowed Bash \
   '{"command":"grep -rn x tests/ | head"}'
 
+# --- issue-225: script-heredoc/-c/-e/tee/dd writes must not slip through
+# as a mere "decline to vouch" while a write-set is actively enforced —
+# on-the-record PR #1627's live bypass used exactly this shape after
+# board-gate denied a direct Edit. Write set here is src/app.py only.
+run deny  heredoc-write-shape-denied      Bash \
+  '{"command":"python3 - <<EOF\nopen(\"src/other.py\", \"w\").write(1)\nEOF"}'
+run deny  bash-heredoc-write-shape-denied Bash \
+  '{"command":"bash <<EOF\necho pwn > src/other.py\nEOF"}'
+run deny  inline-c-flag-write-shape-denied Bash \
+  '{"command":"python3 -c \"open(1)\""}'
+run deny  tee-write-shape-denied          Bash \
+  '{"command":"echo pwn | tee src/other.py"}'
+run deny  dd-write-shape-denied           Bash \
+  '{"command":"dd if=/dev/zero of=src/other.py"}'
+# provably read-only interpreter calls stay unaffected.
+run allow python-pytest-still-allowed     Bash \
+  '{"command":"python3 -m pytest -q"}'
+
+# an unrestricted session — no docs/proposals directory at all, so the
+# gate stands down entirely — is unaffected by the same heredoc shape.
+run_unrestricted() {
+  want="$1"; name="$2"; tinput="$3"
+  mktd
+  git init -q "$td"
+  payload="$(printf '{"tool_name":"Bash","tool_input":%s,"cwd":"%s"}' "$tinput" "$td")"
+  printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report "$want" "$got" "$name"
+}
+run_unrestricted allow heredoc-unrestricted-session-unaffected \
+  '{"command":"python3 - <<EOF\nopen(\"src/other.py\", \"w\").write(1)\nEOF"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

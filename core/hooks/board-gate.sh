@@ -407,6 +407,41 @@ def _docs_relative_tail(token):
     return ""
 
 candidates = []
+# issue-225: failing (unproven-read-only) Bash segments whose write target
+# this gate could not read from the visible command text -- collected
+# alongside `candidates`, never in place of them (see the check below).
+unanalyzable = []
+
+INTERPRETER_HEADS = ("python3", "python", "python2", "bash", "sh", "zsh",
+                      "perl", "ruby", "node", "nodejs")
+INLINE_FLAG_WORDS = ("-c", "-e")
+
+
+def _is_unanalyzable_write_shape(stripped, head):
+    """True when `stripped` is a write-capable command whose actual write
+    target(s) cannot be read from the command text itself: an inline
+    heredoc body, a shell/interpreter '-c'/'-e' string, or a `dd`
+    invocation. Called only when the ordinary token scan already found no
+    docs/-shaped hit of its own (own_hits empty) -- a heredoc/-c/dd whose
+    visible text DOES name a docs/ path is still caught by that scan and
+    never reaches here.
+
+    This is the gap on-the-record PR #1627 hit live: `python3 - <<EOF`
+    masked its body via `_mask_heredocs` before the segment scan ever ran,
+    so the write it performed inside contributed zero candidates and the
+    whole call fell through `if not hits: allow()` as if it were a plain
+    read.
+    """
+    if "<<" in stripped:
+        return True
+    if head in INTERPRETER_HEADS:
+        if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+            return True
+    if head == "dd":
+        return True
+    return False
+
+
 if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
     p = ti.get("file_path") or ti.get("notebook_path")
     if isinstance(p, str) and p:
@@ -460,6 +495,10 @@ elif tool == "Bash":
                 candidates.extend(own_hits)
             elif cd_tail:
                 candidates.append(DOCS + cd_tail)
+            if not own_hits:
+                head = gate_lib.gate_head_of(stripped)
+                if _is_unanalyzable_write_shape(stripped, head):
+                    unanalyzable.append(stripped)
 else:
     allow()
 
@@ -504,6 +543,28 @@ for c in candidates:
         if normalized != root and not normalized.startswith(root + os.sep):
             continue      # resolves outside the repo: not a board write
     hits.append(tail)
+
+role = os.environ.get("CLAUDE_ROLE", "").strip()
+is_board = bool(root) and os.path.isfile(
+    os.path.join(root, "docs", "specs", "approvers.md"))
+
+# issue-225: an unanalyzable write-capable segment must not silently
+# contribute zero candidates and let `if not hits: allow()` below wave the
+# whole call through as if it were a plain read -- deny it here instead,
+# fail-closed, but ONLY where a write-set is actually being enforced (a
+# role session against a board repo). No role, or no board marker, and
+# this command is unaffected -- same posture R3 already takes.
+if unanalyzable and role and is_board:
+    deny("a Bash call carries an un-analyzable write-capable shape (%s) "
+         "while this gate enforces role %r's write-set. A heredoc body, "
+         "an interpreter -c/-e inline script, or a dd invocation does not "
+         "show its real write target in the command text, so this "
+         "refuses rather than risk a masked out-of-set write (issue-225 — "
+         "the on-the-record PR #1627 bypass). Use a provably read-only "
+         "invocation (e.g. python3 -m pytest), or write through "
+         "Write/Edit or a plain redirect this gate can read the target of."
+         % ("; ".join(unanalyzable), role))
+
 if not hits:
     allow()                  # nothing under docs/: not this gate's business
 
@@ -511,12 +572,9 @@ if not hits:
 # No contract and no role means no board: stand aside entirely. (A role IS
 # set but the contract is missing -> that is a real error and R2 denies
 # below.)
-role = os.environ.get("CLAUDE_ROLE", "").strip()
 if not root:
     deny("cannot resolve the project root for a docs/ write")
 
-marker = os.path.join(root, "docs", "specs", "approvers.md")
-is_board = os.path.isfile(marker)
 if not is_board and not role:
     allow()
 
