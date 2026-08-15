@@ -116,5 +116,40 @@ run_status allow withdrawn-proposal-stands-down withdrawn
 # the author-initiated `withdrawn`.
 run_status allow rejected-proposal-stands-down rejected
 
+# --- issue-216 (observed as on-the-record#1581): a malformed proposal
+# (no closing `---`) previously fail-closed EVERY tool call, including
+# pure reads — blocking the only path to inspecting the file the gate
+# complains about. A read-only call now degrades to warn-and-allow; a
+# write stays hard-blocked; a valid single-approved unit is unaffected.
+run_malformed() {
+  want="$1"; name="$2"; tool="$3"; tinput="$4"
+  mktd
+  git init -q "$td"
+  mkdir -p "$td/docs/proposals"
+  printf 'no frontmatter closer here\n' > "$td/docs/proposals/2026-08-15-broken.md"
+  payload="$(printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td")"
+  printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" \
+      /bin/bash "$GATE" >/dev/null 2>"$td.stderr"
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td" "$td.stderr"
+  report "$want" "$got" "$name"
+}
+# (a) malformed proposals + read-only Bash payload -> allow, warned
+run_malformed allow malformed-readonly-bash-allowed Bash \
+  '{"command":"git status"}'
+run_malformed allow malformed-read-tool-allowed Read \
+  '{"file_path":"docs/proposals/2026-08-15-broken.md"}'
+run_malformed allow malformed-grep-tool-allowed Grep \
+  '{"pattern":"status"}'
+# (b) malformed proposals + Write payload -> still blocked
+run_malformed deny  malformed-write-still-blocked Write \
+  '{"file_path":"src/app.py","content":"x"}'
+# and a non-allowlisted Bash command stays outside the vouch too (falls
+# through to the normal permission prompt, exit 0 with no allow decision —
+# same as today's non-malformed-proposal posture)
+run_malformed deny  malformed-nonreadonly-bash-still-blocked Bash \
+  '{"command":"rm somefile"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

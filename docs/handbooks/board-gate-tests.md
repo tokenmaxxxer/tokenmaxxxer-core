@@ -409,6 +409,28 @@ never the sanctioned restore-then-exit idiom. `hook-write-disables-trap`
 pins the narrowed rule (`deny`); its negative-space sibling
 `hook-write-standard-early-exit` pins the sanctioned idiom now allowing.
 
+issue-216 (observed as on-the-record#1581): `warrant/hooks/scope-gate.sh`'s
+malformed-frontmatter branch (`len(approved) != 1` with a non-empty
+`malformed` list) used to `sys.exit(1)` unconditionally, which the gate's
+own fail-closed EXIT trap remaps to `exit 2` — hard-blocking every tool
+call in the session, including pure reads, whenever any
+`docs/proposals/*.md` had no closing `---` or an unrecognized `status`.
+That blocked the only path to even inspecting the file the warning names.
+Fixed by degrading to warn-and-allow for read-only calls: a read tool
+(`Read`/`Grep`/`Glob`/`NotebookRead`) or a `Bash` command that passes the
+existing `readonly_allowed()` allowlist still gets the same stderr
+warning, but exits 0 instead. Write/Edit/NotebookEdit and any
+non-allowlisted Bash still hit the hard block, unchanged — a gate that
+cannot enforce a write-set (no single approved unit) has nothing to
+protect from a read. `SHELL_CHAIN`/`SAFE_ARG`/`READONLY_ALLOW`/
+`readonly_allowed()` moved earlier in the script so the malformed branch
+(which now needs them) can reach them; a new `call_is_readonly()` helper
+classifies the current tool call. `run-scope-gate-tests.sh`'s
+`run_malformed` harness pins: `malformed-readonly-bash-allowed`,
+`malformed-read-tool-allowed`, `malformed-grep-tool-allowed` (all
+`allow`); `malformed-write-still-blocked`,
+`malformed-nonreadonly-bash-still-blocked` (both `deny`, unchanged).
+
 Scope item 2 of issue-149 surveyed the same find-anywhere root cause for
 other false-positive shapes and reported, without fixing, two further
 cases and one examined-and-ruled-out path: (1) a directory name that

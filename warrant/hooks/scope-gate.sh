@@ -123,6 +123,40 @@ def frontmatter(path):
     return text[3:end] if end != -1 else None
 
 
+# Needed ahead of the malformed-frontmatter branch below: when no single
+# approved unit is enforceable, a read-only tool call still gets vouched for
+# (warning on stderr, allow) rather than blocked — a gate that cannot
+# enforce a write-set has nothing to protect from a read, and blocking every
+# read leaves the session unable to even inspect the file the gate is
+# complaining about (issue-216, observed as on-the-record#1581).
+READ_TOOLS = {"Read", "Grep", "Glob", "NotebookRead"}
+SHELL_CHAIN = re.compile(r"[;&|`]|\$\(")
+SAFE_ARG = r"(?:\s+[^\s;&|`$]+)*"
+READONLY_ALLOW = [
+    re.compile(r"^git\s+(status|diff|log|show|branch|rev-parse|blame)" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^(ls|cat|pwd|echo|which|head|tail|wc|find|grep|file)" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^python3\s+-m\s+pytest" + SAFE_ARG + r"\s*$"),
+    re.compile(r"^bash\s+\S+/(run-gate-lib-tests|run-role-gates-tests)\.sh" + SAFE_ARG + r"\s*$"),
+]
+
+
+def readonly_allowed(command):
+    if SHELL_CHAIN.search(command):
+        # Chaining can hide an unvetted second command; do not try to parse it.
+        return False
+    stripped = command.strip()
+    return any(pattern.match(stripped) for pattern in READONLY_ALLOW)
+
+
+def call_is_readonly():
+    if tool in READ_TOOLS:
+        return True
+    if tool == "Bash":
+        command = tool_input.get("command")
+        return isinstance(command, str) and command.strip() and readonly_allowed(command)
+    return False
+
+
 approved = []
 malformed = []
 for name in sorted(os.listdir(proposals_dir)):
@@ -157,6 +191,12 @@ if len(approved) != 1:
             % ", ".join("docs/proposals/" + n for n in malformed),
             file=sys.stderr,
         )
+        if call_is_readonly():
+            # Nothing enforceable, and this call cannot write anyway — vouching
+            # for it costs nothing and unblocks inspecting the very file the
+            # warning names. Writes still hit the sys.exit(1) above (remapped
+            # to exit 2 by the fail-closed trap).
+            sys.exit(0)
         sys.exit(1)
     stand_down()
 
@@ -215,24 +255,8 @@ def withheld(command):
 # for. Everything else — including anything the gate cannot prove is
 # read-only — falls through to the normal permission prompt, same posture as
 # a `withheld()` match.
-SHELL_CHAIN = re.compile(r"[;&|`]|\$\(")
-SAFE_ARG = r"(?:\s+[^\s;&|`$]+)*"
-READONLY_ALLOW = [
-    re.compile(r"^git\s+(status|diff|log|show|branch|rev-parse|blame)" + SAFE_ARG + r"\s*$"),
-    re.compile(r"^(ls|cat|pwd|echo|which|head|tail|wc|find|grep|file)" + SAFE_ARG + r"\s*$"),
-    re.compile(r"^python3\s+-m\s+pytest" + SAFE_ARG + r"\s*$"),
-    re.compile(r"^bash\s+\S+/(run-gate-lib-tests|run-role-gates-tests)\.sh" + SAFE_ARG + r"\s*$"),
-]
-
-
-def readonly_allowed(command):
-    if SHELL_CHAIN.search(command):
-        # Chaining can hide an unvetted second command; do not try to parse it.
-        return False
-    stripped = command.strip()
-    return any(pattern.match(stripped) for pattern in READONLY_ALLOW)
-
-
+# (SHELL_CHAIN, SAFE_ARG, READONLY_ALLOW, readonly_allowed are defined above,
+# ahead of the malformed-frontmatter branch, which needs them too.)
 if tool == "Bash":
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
