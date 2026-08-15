@@ -28,6 +28,7 @@ THE UNIT IS A PROPOSAL. One request, one proposal, one branch, one landing. It l
 ```
 ---
 status: proposed        # proposed -> approved -> landed
+                        #   (or: withdrawn, rejected — see warrant/hooks/scope-gate.sh KNOWN_STATES)
 files:                  # the write set; nothing outside it gets edited
   - path/one.py
   - path/two.py

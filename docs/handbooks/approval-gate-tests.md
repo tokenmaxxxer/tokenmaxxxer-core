@@ -105,6 +105,30 @@ a second, independent head-resolution path in `approval-gate.sh` itself.
 sibling `bash-wrapper-timeout-write` pins that a same-wrapper write stays
 denied, unchanged before and after the fix.
 
+Also covers the narrow negative-lifecycle remainder (2026-08-16,
+`docs/issue-189/proposals/2026-08-16-narrow-negative-lifecycle-remainder.md`):
+the closed-issue denial message now interpolates `issue_state_reason`
+when GitHub supplied one (`"issue #%s is not open (state: %s, reason:
+%s)"`), falling back to the original wording verbatim when absent —
+lenient, no new failure mode. `approval-gate.sh` also gained
+`withdraw_challenge`/`defer_challenge` ("WITHDRAW"/"DEFER
+issue-<n>/<role>"), matched via the same `comment_matches()` used for
+`APPROVE`/`REJECT`. When the write is refused for lack of approval, a
+matching `WITHDRAW`/`DEFER` comment now folds its own `severity:
+advisory` finding into the deny message (no `verdict` field, unlike the
+pre-existing `REJECT`/`CHANGES_REQUESTED` finding's `verdict:
+contradicts` — contract §5 defines no `verdict` field on a `finding`
+block). Precedence is unchanged and pre-existing: `approved = pr_approved
+or comment_approved` short-circuits before any of `REJECT`/`WITHDRAW`/
+`DEFER` are consulted, so an approval present alongside one of these
+tokens on the same issue silently wins — a before-landing hunt confirmed
+this is inherited, not introduced, by the new tokens, and is the
+proposal's own named out-of-scope item (no precedence rule decided
+here). Coverage for the new tokens' forgery resistance lives in
+`core/hooks/tests/deny-only-check.sh`'s `withdraw_forgery_probe` (see
+`docs/handbooks/board-gate-tests.md`), not in this reference suite,
+which stays unchanged and green (50/50) against this build.
+
 Also covers issue-138's fail-closed rc-remap fix: `approval-gate.sh`
 used to clear the EXIT trap (`trap - EXIT`) before propagating the
 python judge's own exit code, so an uncaught python error (rc=1) exited

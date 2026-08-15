@@ -132,6 +132,45 @@ reject_forgery_probe() {
   return 0
 }
 
+# --- issue-189 decision 2: WITHDRAW is symmetric with REJECT — same
+# comment_matches() machinery, no new trust boundary. Same assertion as
+# reject_forgery_probe: an off-branch board write is refused regardless of
+# whether its content spells approval, rejection, or withdrawal.
+withdraw_forgery_probe() {
+  gates="$(find "$probe_dir" -name '*.sh' -type f 2>/dev/null \
+           | grep -vE '/(tests?|install)' \
+           | grep -vE '/(run-|test-|deny-only-check)' || true)"
+  [ -n "$gates" ] || { echo "deny-only-check: no gate scripts under $probe_dir — nothing to probe"; return 0; }
+
+  mktd
+  git init -q "$td"
+  mkdir -p "$td/docs/specs" "$td/docs/issue-999/reports"
+  canon="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/contract/role-handoff-contract.md"
+  [ -f "$canon" ] && cp "$canon" "$td/docs/specs/role-handoff-contract.md"
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"loop_state: withdrawn\\nfinding: addressed_to: product, severity: advisory\\n"},"cwd":"%s"}' \
+             "$tokens_rel" "$td")"
+
+  refused=0
+  for g in $gates; do
+    printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" \
+        CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)" \
+        CLAUDE_ROLE=probe /bin/bash "$g" >/dev/null 2>&1
+    [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the forged withdrawn-state board write"; }
+  done
+  rm -rf "$td"
+
+  if [ "$refused" = 0 ]; then
+    echo "deny-only-check: FAIL — no gate under $probe_dir refuses a forged" >&2
+    echo "  WITHDRAW/withdrawn-state board write to $tokens_rel" >&2
+    echo "  A foreign record written off the role's own issue branch is a" >&2
+    echo "  forged path regardless of whether its content claims approval," >&2
+    echo "  rejection, or withdrawal. Deny it for every role. (contract v3 s10/s11, issue-189)" >&2
+    return 1
+  fi
+  return 0
+}
+
 forgery_probe || rc=1
 reject_forgery_probe || rc=1
+withdraw_forgery_probe || rc=1
 exit "$rc"

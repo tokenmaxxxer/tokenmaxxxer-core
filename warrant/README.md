@@ -16,6 +16,7 @@ Approving it freezes that set. From there the build runs uninterrupted.
 docs/proposals/2026-07-22-store-sqlite.md
 ---
 status: approved          # proposed -> approved -> landed
+                          #   (or: withdrawn, rejected — see warrant/hooks/scope-gate.sh KNOWN_STATES)
 files:
   - src/store.py
 ---
