@@ -168,6 +168,12 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
+    # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
+    # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
+    # defeating the literal-`\s`-before-`-c`/`-e` requirement in the
+    # pattern above. No legitimate gated write needs `$IFS` in its
+    # command text, so its bare presence is itself an unanalyzable shape.
+    r"|\$\{?IFS\}?"
 )
 
 

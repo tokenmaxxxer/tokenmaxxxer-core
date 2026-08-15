@@ -415,16 +415,27 @@ unanalyzable = []
 INTERPRETER_HEADS = ("python3", "python", "python2", "bash", "sh", "zsh",
                       "perl", "ruby", "node", "nodejs")
 INLINE_FLAG_WORDS = ("-c", "-e")
+# issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what
+# would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."` reads,
+# to whitespace-splitting code, as ONE word) -- gate_head_of's
+# `.split()` and gate_trailing_words see no interpreter head and no `-c`
+# flag at all, so the INTERPRETER_HEADS branch above never fires. No
+# legitimate gated write needs `$IFS` in its command text, so its mere
+# presence is itself treated as an unanalyzable write shape rather than
+# attempting to normalize the fused token apart (issue #227 direction).
+IFS_TOKEN_RE = re.compile(r"\$\{?IFS\}?")
 
 
 def _is_unanalyzable_write_shape(stripped, head):
     """True when `stripped` is a write-capable command whose actual write
     target(s) cannot be read from the command text itself: an inline
-    heredoc body, a shell/interpreter '-c'/'-e' string, or a `dd`
-    invocation. Called only when the ordinary token scan already found no
-    docs/-shaped hit of its own (own_hits empty) -- a heredoc/-c/dd whose
-    visible text DOES name a docs/ path is still caught by that scan and
-    never reaches here.
+    heredoc body, a shell/interpreter '-c'/'-e' string, a `dd`
+    invocation, a `tee` invocation with no visible target of its own
+    (piped in indirectly, e.g. via `xargs`), or a command carrying an
+    `$IFS`/`${IFS}` token-fusion space substitute. Called only when the
+    ordinary token scan already found no docs/-shaped hit of its own
+    (own_hits empty) -- a heredoc/-c/dd/tee whose visible text DOES name a
+    docs/ path is still caught by that scan and never reaches here.
 
     This is the gap on-the-record PR #1627 hit live: `python3 - <<EOF`
     masked its body via `_mask_heredocs` before the segment scan ever ran,
@@ -438,6 +449,20 @@ def _is_unanalyzable_write_shape(stripped, head):
         if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
             return True
     if head == "dd":
+        return True
+    # issue-227: `echo docs/issue-3/reports/x.md | xargs tee` resolves
+    # (via gate_head_of's TRANSPARENT walk through xargs) to head=="tee"
+    # with no trailing word of its own -- its real write target arrives
+    # on stdin, invisible in the command text. A `tee` with a visible
+    # non-flag trailing word (docs/-shaped or not, e.g. `tee /tmp/x`) is
+    # analyzable -- own_hits already caught a docs/-shaped one via
+    # `_write_target_windows`'s head=="tee" branch, and a non-docs/ one is
+    # a genuine non-board write, not a masked target -- so this only
+    # fires when tee names NO target of its own to inspect.
+    if head == "tee" and not [w for w in gate_lib.gate_trailing_words(stripped)
+                               if not w.startswith("-")]:
+        return True
+    if IFS_TOKEN_RE.search(stripped):
         return True
     return False
 

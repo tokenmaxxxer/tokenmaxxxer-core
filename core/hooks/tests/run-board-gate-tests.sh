@@ -593,5 +593,36 @@ runUnrestrictedHeredoc
 # unrelated docs/ mention on the same line (the fast-path/word check).
 run allow python-pytest-still-allowed     Bash '{"command":"echo see '$BOARD'/x.md ; python3 -m pytest -q"}'
 
+# --- issue-227: residuals from #225's review -------------------------------
+# (1) `${IFS}`/`$IFS` used as a literal-space substitute fuses what would
+# otherwise be separate tokens (`python3${IFS}-c` reads as ONE word to
+# gate_head_of's whitespace split), so the interpreter-head + `-c` shape
+# above goes undetected -- the write it performs is invisible to the token
+# scan and the call must still deny (fail-closed) rather than fall through
+# `if not hits: allow()`.
+run deny  ifs-fused-inline-c-mask-bypass  Bash '{"command":"cd '$BOARD' && python3${IFS}-c${IFS}\"open(1)\""}'
+# unrestricted session: same $IFS shape, but no write-set is enforced.
+runUnrestrictedIfs() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  mkdir -p "$td/docs"
+  printf '{"tool_name":"Bash","tool_input":{"command":"python3${IFS}-c${IFS}%s"},"cwd":"%s"}' \
+    "'open(1)'" "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report allow "$got" "ifs-fusion-unrestricted-session-unaffected"
+}
+runUnrestrictedIfs
+# (2) indirect tee: the write target arrives on stdin via `xargs`, never as
+# a visible tee argument in the command text -- board-gate's unanalyzable
+# set previously covered heredoc/-c/-e/dd only.
+run deny  indirect-tee-via-xargs          Bash '{"command":"echo '$BOARD'/reports/x.md | xargs tee"}'
+# a direct tee with a visible target keeps being caught the ordinary way
+# (own_hits finds it -- unaffected by this fix).
+run deny  direct-tee-visible-target       Bash '{"command":"echo pwn | tee '$BOARD'/reports/x.md"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
