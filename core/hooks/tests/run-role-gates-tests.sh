@@ -164,6 +164,20 @@ run_rf allow "C2/issue-189: 'refused' paired with a finding pointer allowed" cod
   "docs/issue-3/reports/coding.md" \
   '"loop_state: refused\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nfinding: docs/issue-3/reports/coding.md#finding-1\n\n## next steps\nwait for a revised REJECT/CHANGES_REQUESTED or a human waiver\n\n## resolution path\nsame as next steps\n"'
 
+# issue-189 decision 2: `withdrawn` is the second shared loop_state value
+# added to the preamble (contract §2). Same mechanism as `refused` above —
+# not in any kind's KIND_TERMINAL_DEFAULTS, so it is treated as
+# non-terminal and needs the same next-steps/resolution-path pointer.
+# `deferred` is deliberately excluded from this coverage: it is explicitly
+# non-terminal (a unit stays resumable), so terminal-spelling coverage
+# does not apply to it (design decision 2).
+run_rf deny "C2/issue-189: bare 'withdrawn' with no finding pointer denied" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: withdrawn\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
+run_rf allow "C2/issue-189: 'withdrawn' paired with a finding pointer allowed" coding \
+  "docs/issue-3/reports/coding.md" \
+  '"loop_state: withdrawn\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nfinding: docs/issue-3/reports/coding.md#finding-1\n\n## next steps\nwait for a revised WITHDRAW token or a human waiver\n\n## resolution path\nsame as next steps\n"'
+
 # before-landing hunt (issue-147, stance 0): a self-declared `kind:` field
 # used to be trusted even when it disagreed with CLAUDE_ROLE, letting a qa
 # record borrow coding-record's terminal-state set. Pinned: for a role

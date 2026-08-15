@@ -74,6 +74,21 @@ from a role's own negative verdict reached through its own judgment
 role concluding something itself, not being refused by someone else, and
 keep their existing terminal spellings unchanged.
 
+**Shared `withdrawn` and `deferred` values (issue-189 decision 2).**
+Two more shared `loop_state` values, usable in any kind's column next to
+`refused`, produced by the `WITHDRAW`/`DEFER` issue-comment tokens
+(symmetric to `REJECT`, same approvers.md-gated exact-match machinery).
+`withdrawn` is terminal — a role's own author-side voluntary stop, no
+defect asserted — and, like `refused`, is always paired with a pointer
+to the `finding` block (severity `advisory`, not `blocking`) that caused
+it; a bare `withdrawn` with no pointer is not a valid consumption.
+`deferred` is **not** terminal: it marks a unit postponed and explicitly
+resumable, either by the same role in a later session or a fresh one, and
+carries the same advisory `finding` pointer. Neither value is a proposal
+`status:` — proposal `status:` and role `loop_state` remain distinct
+vocabularies (`warrant/hooks/scope-gate.sh`'s `KNOWN_STATES` is
+unchanged by this decision).
+
 | kind | produced by | path | `loop_state` vocabulary | required fields beyond common header |
 |---|---|---|---|---|
 | `hypothesis` | product | `docs/issue-<n>/proposals/<date>-<slug>.md` | `idle,scoping,researching,hypothesis-registered,measuring,decided` | Background/Context, Problem Statement, Candidate Hypotheses, Known Risks, Goals/Success Metrics |
@@ -217,6 +232,14 @@ generalized from v1, where only review produced findings, to all nine roles.
   and — when code changed — proof of the fix (commit sha, targeted re-run
   result, or equivalent evidence). An entry missing any of these three parts
   does not close the finding.
+- **`recommended_close_reason` (issue-189 decision 1, optional field.)**
+  A `finding` block reaching a `verdict: contradicts`/`no-go`-shaped
+  conclusion may carry `recommended_close_reason: completed|not_planned`.
+  No role calls `gh issue close` itself (`gh-guard.sh`'s human-only
+  posture is unchanged); this field is read by the orchestrator's
+  conversational session, which relays the recommendation to the human
+  the same way `APPROVE`/`REJECT` are relayed today — the human, not the
+  role, issues the actual `gh issue close --reason`.
 
 ## 6. Loop termination
 
