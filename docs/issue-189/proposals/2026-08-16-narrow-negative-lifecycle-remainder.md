@@ -33,10 +33,14 @@ token, not reinvented; (c) auto-expiry of stale open units to
 ## Constraints
 
 - Ride the existing comment-scan (`comment_matches`/`issue_comments` in
-  `approval-gate.sh`) and existing object fields (`state_reason`,
-  `updatedAt` from the `gh issue view --json` call already made) —
-  **zero new polling**: no new background process, cron, or extra `gh`
-  call beyond widening a field list already requested.
+  `approval-gate.sh`) and existing object fields (`state_reason` is
+  already in the `gh issue view --json` field list at
+  `approval-gate.sh:235`) — **zero new polling**: no new background
+  process, cron, or extra `gh` call anywhere, including `state.sh`,
+  which today makes none at all (99 lines: frontmatter parsing plus one
+  `git log` subprocess at `state.sh:72`) and stays that way — see
+  decision 1 and decision 3 below, both re-routed to data `state.sh`
+  already has rather than adding its first `gh` call.
 - **Lenient `state_reason` parsing**: an unrecognized or absent
   `state_reason` value is read as "no signal," never as an error or a
   denial — mirrors the fail-closed-only-on-genuine-unreadability
@@ -89,14 +93,25 @@ that check is correct as-is and is not touched. What changes:
   immediately knows shipped-vs-abandoned instead of parsing GitHub by
   hand. Absent/unrecognized `state_reason` (lenient parsing) falls back
   to the current message verbatim — no new failure mode on old data.
-- `warrant/hooks/state.sh`'s `SessionStart` report adds `state_reason`
-  to the same `gh issue view --json` field list it (or a sibling call)
-  already makes, and labels a closed-with-`not_planned` subject
-  distinctly from closed-with-`completed` in its open/closed-units
-  summary (extends decision 5 of the already-merged full design:
-  `docs/issue-189/proposals/2026-08-10-rejection-withdrawal-lifecycle-design.md`,
-  which this narrow proposal's item (a) completes rather than
-  restates).
+  This is `approval-gate.sh`'s own existing `gh issue view --json` call
+  (line 235, which already requests `state_reason` at line 254) — no
+  field-list widening needed, the value is already parsed and simply
+  unused in the denial message today.
+- **Correction from review: `state.sh` makes no `gh` call and gains
+  none here.** `warrant/hooks/state.sh` is frontmatter parsing plus one
+  `git log` subprocess (`state.sh:72`) — it has no issue-state data to
+  label a subject closed-with-`not_planned` vs closed-with-`completed`,
+  and adding a `gh issue view` call there to get it would be this
+  design's first new `gh` call, contradicting the zero-new-polling
+  constraint above. `state.sh`'s `SessionStart` report is therefore
+  **not** extended with `state_reason` labeling; that labeling lives
+  exclusively in `approval-gate.sh`'s denial message (previous bullet),
+  the one place in this design that already makes the relevant `gh`
+  call. `state.sh`'s open/closed-units summary is unchanged by this
+  decision (extends decision 5 of the already-merged full design —
+  `docs/issue-189/proposals/2026-08-10-rejection-withdrawal-lifecycle-design.md`
+  — only through the `approval-gate.sh` denial-message path, not
+  through `state.sh`).
 - **The write path**: a role cannot post a close reason (`gh-guard.sh`
   unchanged), but it can — same as any other finding — write a
   `recommended_close_reason: completed|not_planned` line into its own
@@ -123,11 +138,21 @@ login, `isMinimized` skipped) already used for `challenge` and
 `reject_challenge` — no new function, no new trust boundary. Semantic
 distinction from `REJECT`, all three now symmetric:
 
-| token | who acts | intent | contract §5 verdict |
+| token | who acts | intent | resulting `loop_state` |
 |---|---|---|---|
-| `REJECT` | reviewer | refuses the unit | `contradicts` (unchanged) |
+| `REJECT` | reviewer | refuses the unit | `refused` (unchanged) |
 | `WITHDRAW` | the role's own author-side act, posted by the human on the role's behalf when the role itself asks to stop (mirrors a human editing a proposal file to `status: withdrawn`, but for a role's *unit*, not a proposal file) | voluntary stop, no defect asserted | new: `withdrawn` |
 | `DEFER` | either reviewer or author-side | postpone, resumable later | new: `deferred` |
+
+**Correction from review**: the table's right column is a `loop_state`
+value, not a contract §5 `finding.verdict` value — §5's `verdict` enum
+is `Present\|Surface\|Absent\|Incorrect\|Unverifiable` and does not
+contain `contradicts` at all. The earlier draft's use of "contradicts"
+here was a pre-existing mismatch it should have flagged rather than
+propagated; this table is corrected to name what `REJECT` actually
+produces (a `refused` `loop_state`, already shipped in decision 3 of
+the merged full design), and does not assert a §5 verdict mapping this
+design does not define.
 
 Both produce a `finding`-shaped record exactly like `REJECT` does
 today (same `requirement`/`evidence`/`rationale`/`addressed_to` shape),
@@ -149,12 +174,15 @@ apply to it.
 **3. Auto-expiry — reporting-only, always to `deferred`, never
 `rejected`.**
 
-No new polling process: `state.sh`'s existing `SessionStart` open-units
-pass already runs on every session start and already has (per decision
-1 above) `updatedAt` available from widening the same `gh issue view`
-call it already makes (or, for a proposal with no linked issue
-activity, the file's last commit timestamp via `git log -1 --format=%ct
--- <path>`, already-available data, no new git call class). A unit
+No new polling process, and no new `gh` call: `state.sh`'s existing
+`SessionStart` open-units pass already runs on every session start and
+already runs `git log` per proposal file (`state.sh:72`); auto-expiry
+reads the same commit history it already touches — the file's last
+commit timestamp via `git log -1 --format=%ct -- <path>` — never a `gh
+issue view` call. **Correction from review**: decision 1's re-route
+means `state.sh` never gains issue-level `updatedAt` either, so
+staleness here is git-commit-timestamp-only, not a fallback from an
+issue timestamp that no longer exists in this design. A unit
 whose `status`/`loop_state` is still `proposed`/`approved`/in-flight
 and whose most recent signal is older than a configured staleness
 threshold (a `docs/specs/` config value, not hardcoded, mirroring
@@ -174,14 +202,19 @@ recent activity," which is true by construction.
 **4. Refresh the stale lifecycle comments.**
 
 `warrant/README.md:18` and `warrant/hooks/directive.sh:30` both change
-from:
+from (**correction from review**: `directive.sh:30`'s current text
+reads `status: proposed`, not `status: approved` — the two files carry
+different example values today; each keeps its own current value and
+gains the same added comment line):
+```
+status: approved          # proposed -> approved -> landed      (README, unchanged value)
+status: proposed          # proposed -> approved -> landed      (directive.sh, unchanged value)
+```
+to, in each file respectively:
 ```
 status: approved          # proposed -> approved -> landed
-```
-to (README) and the matching one-line change in `directive.sh`'s
-heredoc:
-```
-status: approved          # proposed -> approved -> landed
+                           #   (or: withdrawn, rejected — see warrant/hooks/scope-gate.sh KNOWN_STATES)
+status: proposed          # proposed -> approved -> landed
                            #   (or: withdrawn, rejected — see warrant/hooks/scope-gate.sh KNOWN_STATES)
 ```
 Kept intentionally short and pointing at the source of truth
@@ -250,9 +283,10 @@ document (the contract), and two already-existing README/directive
 files. The one "new" data flow — a role's own record file carrying a
 `recommended_close_reason` field the orchestrator reads — reuses the
 write_scope-routed record surface every role already writes to; no new
-file kind, no new service, no new external dependency. The `updatedAt`
-field used for auto-expiry comes from the same `gh` CLI call already
-made for `state_reason`/`state`.
+file kind, no new service, no new external dependency. The timestamp
+used for auto-expiry comes from `state.sh`'s existing `git log`
+subprocess (`state.sh:72`), not from any `gh` CLI call — `state.sh`
+makes none, and this design keeps it that way.
 
 ## Accumulation
 
@@ -294,8 +328,10 @@ open-ended extension of this one.
 ## Effectiveness
 
 Rides the same pre-registered hypothesis and metric step-1 already
-registered (`docs/issue-189/reports/product-discovery/survey.md`'s
-Acceptance section) — this proposal adds no new metric. What it adds to
+registered. **Correction from review**: that registration lives in
+issue #189's own `## Acceptance` section, not in
+`docs/issue-189/reports/product-discovery/survey.md`, which has no
+"Acceptance" heading — this proposal adds no new metric. What it adds to
 that measurement's inputs: a `state_reason`-aware denial message and
 `WITHDRAW`/`DEFER` tokens give step-4's 20-session measurement window
 two more legible negative-outcome shapes to count against zero-false-
