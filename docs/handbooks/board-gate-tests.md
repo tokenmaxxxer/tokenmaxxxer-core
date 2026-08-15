@@ -537,3 +537,46 @@ denied`, `inline-c-flag-write-shape-denied`, `tee-write-shape-denied`,
 `dd-write-shape-denied` (deny), `python-pytest-still-allowed` (allow),
 `heredoc-unrestricted-session-unaffected` (allow — no `docs/proposals`
 directory at all, so the gate stands down).
+
+## issue-227: `${IFS}` token-fusion and board-gate indirect-tee residuals
+
+Two residuals from core#226's adversarial review of the issue-225 fix
+above, both instances of the same "unanalyzable write shape must deny,
+not fall through to allow" lesson:
+
+`${IFS}`/`$IFS` used in place of a literal space (e.g.
+`python3${IFS}-c${IFS}'open(1)'`) fuses tokens that both gates' parsing
+relies on being whitespace-separated — `gate_head_of`'s `.split()` sees
+one word, not `python3` followed by `-c`, so the interpreter-head+flag
+detection both gates already had never fires, and scope-gate's own
+`\s-[A-Za-z]*[ce]` alternative needs a literal `\s` it never finds.
+Rather than normalize the fused token apart before parsing, both gates
+now treat the bare presence of `$IFS`/`${IFS}` in a write-context
+command as itself an unanalyzable shape and deny — no legitimate gated
+write needs it. board-gate checks this inside
+`_is_unanalyzable_write_shape` (same call site as the heredoc/`-c`/`dd`
+checks); scope-gate adds it as a new `UNANALYZABLE_WRITE_SHAPE`
+alternative.
+
+board-gate separately missed an indirect `tee`: `echo docs/issue-3/
+reports/x.md | xargs tee` resolves, via `gate_head_of`'s existing
+`TRANSPARENT` walk through `xargs`, to head `tee` — but with no trailing
+argument word of its own, since the real target arrives on stdin,
+invisible in the command text. This fell through both the `own_hits`
+scan (which only catches a `tee` naming its target directly) and the
+pre-227 unanalyzable set (heredoc/`-c`/`-e`/`dd` only), landing on `if
+not hits: allow()` unseen. Fixed by adding a `tee`-with-no-visible-
+target branch to `_is_unanalyzable_write_shape`, scoped so a `tee` that
+DOES name a target (`tee docs/x`, or a non-docs `tee /tmp/x`) is
+unaffected. scope-gate.sh already covered this shape (its `\btee\b`
+alternative matches `xargs tee` regardless of indirection); no change
+needed there.
+
+`run-board-gate-tests.sh` pins: `ifs-fused-inline-c-mask-bypass` (deny),
+`ifs-fusion-unrestricted-session-unaffected` (allow — no board contract,
+no role), `indirect-tee-via-xargs` (deny), `direct-tee-visible-target`
+(deny — unaffected by this fix, a regression guard).
+
+`run-scope-gate-tests.sh` pins: `ifs-fused-inline-c-write-shape-denied`
+(deny), `ifs-fusion-unrestricted-session-unaffected` (allow — no
+`docs/proposals` directory at all, so the gate stands down).

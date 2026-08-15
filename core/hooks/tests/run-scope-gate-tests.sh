@@ -209,5 +209,16 @@ run_unrestricted() {
 run_unrestricted allow heredoc-unrestricted-session-unaffected \
   '{"command":"python3 - <<EOF\nopen(\"src/other.py\", \"w\").write(1)\nEOF"}'
 
+# --- issue-227: ${IFS}/$IFS token-fusion fail-open residual from #225 ----
+# `python3${IFS}-c${IFS}'...'` has no literal space before `-c`, so the
+# `\s-[A-Za-z]*[ce]` half of UNANALYZABLE_WRITE_SHAPE's interpreter
+# alternative never matches — the fused shape must still deny while a
+# write-set is enforced (fail-closed), not fall through to "decline to
+# vouch".
+run deny  ifs-fused-inline-c-write-shape-denied Bash \
+  '{"command":"python3${IFS}-c${IFS}'"'"'open(1)'"'"'"}'
+run_unrestricted allow ifs-fusion-unrestricted-session-unaffected \
+  '{"command":"python3${IFS}-c${IFS}'"'"'open(1)'"'"'"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
