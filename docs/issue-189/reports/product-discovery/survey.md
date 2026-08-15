@@ -218,3 +218,116 @@ should be usable as the act that *produces* a `finding` object, not a
 second finding-shaped record living beside it. This is a naming/shape
 constraint on step 2 (architecture), not something this survey can verify
 against #573's actual merged code from inside this repo.
+
+## Re-audit (2026-08-16) — post steps 2-3 delivery, cross-checked against the 2026-08-16 research brief
+
+Since the audit above (06956df), steps 2-3 shipped and merged: architecture
+(e73a58a, PR #192) and implementation (8721d76/dc52e03, PR #194). This
+section re-grades the original four candidates against what is *now*
+deployed on `main`, then checks the four items of the issue's 2026-08-16
+research-brief comment (cross-system convergence sweep: Gerrit/PEP
+1/rfcbot/KEP/IETF/Temporal/GH Actions; recommended REJECT/WITHDRAW/DEFER
+tokens, PR-native belt-and-suspenders, lenient `state_reason` parsing,
+frontmatter `deferred` enum, expiry-to-`deferred`-only) against the same
+deployed surface. Per the issue's own sequencing (audit before mechanism
+proposal), this section states what exists and what is still absent — it
+does not design the remaining mechanism.
+
+### Original four candidates, re-graded
+
+1. **Proposal status vocabulary — RESOLVED.** `warrant/hooks/scope-gate.sh:39`:
+   `KNOWN_STATES = ("proposed", "approved", "landed", "withdrawn", "rejected")`.
+   Matches the emergency fix plus the full lifecycle addition.
+2. **Canonical rejection token — RESOLVED.** `core/hooks/approval-gate.sh:282`:
+   `reject_challenge = "REJECT issue-%s/%s" % (issue_num, role)`, parsed by
+   the same `comment_matches` exact-string/approvers.md-gated machinery as
+   `APPROVE` (lines 258-333). `CHANGES_REQUESTED` now produces a
+   `rejection_finding` block (`verdict: contradicts`, `evidence`,
+   `rationale`, `addressed_to`, `severity`) distinct from `DISMISSED`
+   (lines 315-333) — step-1 finding #7 above is folded in, not left open.
+3. **Board `loop_state` refusal state — RESOLVED.** `core/contract/role-handoff-contract.md:64-69`
+   defines a shared `refused` value, required to carry a pointer to the
+   `finding` block that caused it (§2 preamble, not a per-kind terminal).
+   `core/hooks/tests/run-role-gates-tests.sh:160-165` has the red/green
+   pair step-1 finding #6 flagged as missing: bare `refused` (no finding
+   pointer) denied, `refused` + finding pointer allowed.
+4. **Issue closure distinguishing completed/rejected — STILL PARTIAL, narrower than before.**
+   `approval-gate.sh:254` now reads `issue_state_reason =
+   issue_parsed.get("state_reason") or ""` — the field is fetched. But
+   grepping the full deployed surface for `state_reason` returns exactly
+   these two lines (the API request field list at line 236, and the
+   extraction at line 254) and nothing else: the variable is assigned and
+   never branched on, never surfaced in a finding, never read by
+   `state.sh`'s open-unit reporting or any other gate. The code comment at
+   line 253 states this is deliberate — "design decision 4... Read-only,
+   reporting/routing only... never an enforcement input" — but no
+   reporting/routing consumer was found to exist yet either. The gap
+   narrowed from "nothing reads `state_reason`" to "one variable reads it
+   and nothing consumes it" — still **CONFIRMED** as an open gap, just a
+   smaller one than the original audit found.
+
+### 2026-08-16 research-brief items, checked against deployed code
+
+- **REJECT token — deployed** (candidate 2 above).
+- **WITHDRAW token — NOT deployed.** Only `APPROVE` and `REJECT`
+  challenge strings exist in `approval-gate.sh` (grep for `WITHDRAW\b`
+  across `core/` and `warrant/` returns nothing). `withdrawn` exists only
+  as a proposal-file `status:` value (`KNOWN_STATES`), never as a
+  session-issued act token comparable to `APPROVE`/`REJECT`. The brief's
+  3-way split (reject/withdraw/defer) is one-third built.
+- **DEFER token and `deferred` status — NOT deployed.** No occurrence of
+  `deferred` anywhere in `core/`, `warrant/`, or `docs/specs/` (grepped
+  as a status value, frontmatter enum entry, or loop_state). Neither
+  `KNOWN_STATES` nor the contract's per-kind `loop_state` tables carry
+  it. This is a clean, confirmed gap against the brief's item 4
+  (frontmatter enum) and item 1 (3-way split) — nothing to refute.
+- **PR-native belt-and-suspenders (`gh pr review --request-changes` before close) —
+  not applicable to role-issued code, correctly.** `gh-guard.sh:77,85`
+  denies role sessions `gh pr review --request-changes`/`gh pr|issue
+  close` outright — those stay human-only by design (contract-correct).
+  The brief's "belt" is therefore a human-workflow recommendation, not a
+  code gap this repo's role-session surface could close itself; only the
+  "suspenders" half (the REJECT token) is this repo's to build, and it is
+  already built.
+- **Lenient `state_reason` parsing — already correct, no gap.**
+  `issue_parsed.get("state_reason") or ""` degrades to empty string on any
+  missing/unexpected value rather than hard-matching a fixed set, so a
+  future GitHub-added `state_reason` value (the brief's cited `duplicate`
+  precedent) would not break this line. The parsing itself needs no
+  further work; only *consuming* the parsed value (item 4 above) is open.
+- **Auto-expiry transitioning stale items to `deferred` only, never
+  `rejected` — no auto-expiry mechanism exists to check.** Grepped
+  `core/` and `warrant/` for `expire`/`stale`: the hits found
+  (`hunt-guard.sh`, `directive.sh`, `handbook-trigger-gate.sh`,
+  `record-fields-gate.sh`, README/contract prose) are unrelated to
+  proposal/session lifecycle expiry — no code transitions any status
+  value on a time/staleness basis. This brief item is not yet a gap to
+  close because there is no expiry mechanism yet for it to misuse; it
+  becomes relevant only if/when an expiry mechanism is designed.
+
+### Additional gap found in this re-audit
+
+8. **Stale vocabulary comments in developer-facing docs.** `warrant/README.md:18`
+   and `warrant/hooks/directive.sh:30` both still comment proposal
+   `status:` as `# proposed -> approved -> landed`, unchanged since before
+   `withdrawn`/`rejected` were added to `KNOWN_STATES`. Not a gate defect
+   (the gate itself reads `KNOWN_STATES`, not the comment), but a
+   documentation-drift gap: an author reading either comment would not
+   know `withdrawn`/`rejected` are valid states. **CONFIRMED, low
+   severity** — a docs fix, not a mechanism gap.
+
+### Re-audit summary
+
+Of the issue's original four candidates: three (1, 2, 3) are now
+**RESOLVED** by steps 2-3; one (4) is **still PARTIAL** — narrower than
+originally audited (the field is fetched, still nothing consumes it).
+Of the 2026-08-16 research brief's design menu: the REJECT token and
+lenient `state_reason` parsing are already satisfied by what steps 2-3
+built; WITHDRAW-as-an-act and the `deferred` status/token are confirmed
+absent; the PR-native belt item is correctly not this repo's to build;
+the auto-expiry item has no applicable code yet. One new gap (#8, docs
+drift) was found. No candidate from either the original four or the
+brief's menu was refuted by this re-audit. This ordering — audit before
+mechanism proposal — is what this section (and the git history of the
+commit that adds it) records; no mechanism for closing gap 4, the
+WITHDRAW/DEFER items, or gap 8 is designed here.
