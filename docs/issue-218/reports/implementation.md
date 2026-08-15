@@ -2,6 +2,7 @@
 code_under_review:
   - warrant/hooks/scope-gate.sh
   - core/hooks/tests/run-scope-gate-tests.sh
+  - docs/handbooks/board-gate-tests.md
 type: fix
 breaking: false
 verdict: pass
@@ -49,7 +50,7 @@ issue's own acceptance list was treated as authoritative in its absence.
 
 derived: `bash core/hooks/tests/run-scope-gate-tests.sh`
 ```
-== 25 passed, 0 failed ==
+== 26 passed, 0 failed ==
 ```
 
 derived: `bash core/hooks/tests/run-all.sh`
@@ -63,6 +64,16 @@ ALL OK
 None — the fix direction in the issue mapped directly onto
 `readonly_allowed()`'s existing structure with no dead ends.
 
+## PR #219 review follow-up
+
+Blocking finding: `FIND_EXEC_FLAGS`'s `fprint\b` matched `-fprint` but
+not `-fprint0` — `0` is a word char, so no boundary exists between `t`
+and `0`, and `find . -fprint0 out` (a file write) still received the
+read-only vouch. Fixed by widening the alternative from `fprint` to
+`fprint0?` in `warrant/hooks/scope-gate.sh`. Added
+`malformed-find-fprint0-denied` to `run-scope-gate-tests.sh` (`deny`).
+Both test suites re-run above, all green.
+
 ## Open findings
 
 None.
@@ -72,4 +83,8 @@ None.
 - Decision/rationale content lives in this record's Why/Upstream
   sections and `docs/issue-218/proposals/2026-08-16-scope-gate-readonly-pipe-fix.md`
   (a regex-shaped bugfix; no new env var, dependency, migration, or
-  setup step was introduced, so no handbook update applies).
+  setup step was introduced).
+- The PR #219 review follow-up touched `run-scope-gate-tests.sh`, an
+  operational-surface test script, so its `docs/handbooks/board-gate-tests.md`
+  entry (the `issue-218 follow-up (PR #219 review)` paragraph) lands in
+  the same commit per contract §21.

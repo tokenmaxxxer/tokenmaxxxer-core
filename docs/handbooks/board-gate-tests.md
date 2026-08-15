@@ -449,6 +449,13 @@ pins: `malformed-piped-grep-head-allowed`,
 `malformed-redirect-write-denied`, `malformed-newline-smuggled-denied`,
 `malformed-find-exec-denied` (all `deny`).
 
+issue-218 follow-up (PR #219 review): `FIND_EXEC_FLAGS`'s `fprint\b`
+matched `-fprint` but not `-fprint0`, since `0` is a word char and leaves
+no boundary after `t` — so `find . -fprint0 out`, a file write, still
+passed the read-only vouch. Fixed by widening the alternative to
+`fprint0?`. `run-scope-gate-tests.sh` pins a new
+`malformed-find-fprint0-denied` case (`deny`).
+
 Scope item 2 of issue-149 surveyed the same find-anywhere root cause for
 other false-positive shapes and reported, without fixing, two further
 cases and one examined-and-ruled-out path: (1) a directory name that

@@ -166,6 +166,8 @@ run_malformed deny  malformed-newline-smuggled-denied Bash \
   "$(printf '{"command":"grep a\\nrm x"}')"
 run_malformed deny  malformed-find-exec-denied Bash \
   '{"command":"find . -exec rm {} \\;"}'
+run_malformed deny  malformed-find-fprint0-denied Bash \
+  '{"command":"find . -fprint0 out"}'
 
 # --- issue-218: approved-unit branch, piped all-read-only command gets an
 # explicit vouch (JSON permissionDecision allow), not just a fallthrough.
