@@ -147,7 +147,7 @@ READONLY_ALLOW = [
 # a `find` segment carrying any of these is never read-only regardless of
 # what else it matches.
 FIND_EXEC_FLAGS = re.compile(
-    r"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b")
+    r"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)\b")
 
 
 def _segment_readonly(segment):
