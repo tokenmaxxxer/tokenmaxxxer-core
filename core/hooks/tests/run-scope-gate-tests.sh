@@ -151,5 +151,26 @@ run_malformed deny  malformed-write-still-blocked Write \
 run_malformed deny  malformed-nonreadonly-bash-still-blocked Bash \
   '{"command":"rm somefile"}'
 
+# --- issue-218: readonly_allowed() single-pipe support + chain/redirect
+# rejection, exercised in the malformed-frontmatter branch (the branch
+# that actually turns a non-vouched Bash command into a deny).
+run_malformed allow malformed-piped-grep-head-allowed Bash \
+  '{"command":"grep -rn x tests/ | head"}'
+run_malformed deny  malformed-piped-grep-sh-denied Bash \
+  '{"command":"grep x | sh"}'
+run_malformed deny  malformed-redirect-write-denied Bash \
+  '{"command":"cat a > b"}'
+run_malformed allow malformed-piped-git-log-tail-allowed Bash \
+  '{"command":"git log | tail -5"}'
+run_malformed deny  malformed-newline-smuggled-denied Bash \
+  "$(printf '{"command":"grep a\\nrm x"}')"
+run_malformed deny  malformed-find-exec-denied Bash \
+  '{"command":"find . -exec rm {} \\;"}'
+
+# --- issue-218: approved-unit branch, piped all-read-only command gets an
+# explicit vouch (JSON permissionDecision allow), not just a fallthrough.
+run allow approved-piped-all-readonly-allowed Bash \
+  '{"command":"grep -rn x tests/ | head"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
