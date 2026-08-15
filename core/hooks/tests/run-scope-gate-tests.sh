@@ -220,5 +220,26 @@ run deny  ifs-fused-inline-c-write-shape-denied Bash \
 run_unrestricted allow ifs-fusion-unrestricted-session-unaffected \
   '{"command":"python3${IFS}-c${IFS}'"'"'open(1)'"'"'"}'
 
+# --- issue-227 review: blocking findings ------------------------------------
+# (1) FALSE POSITIVE -- the IFS regex had no boundary after IFS, so any
+# variable merely starting with the four letters IFS tripped it.
+run allow ifs-lookalike-var-ifshome-read  Bash \
+  '{"command":"cat \"$IFSHOME/notes.md\""}'
+run allow ifs-lookalike-var-ifsdir-read   Bash \
+  '{"command":"cat \"${IFS_DIR}/x\""}'
+# (2) the token-fusion class survives via $()/backtick fusion and a
+# variable-indirected interpreter head.
+run deny  dollar-paren-fused-inline-c     Bash \
+  '{"command":"python3$(printf '"'"' '"'"')-c '"'"'open(1)'"'"'"}'
+run deny  backtick-fused-inline-c         Bash \
+  '{"command":"python3`printf '"'"' '"'"'`-c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-interpreter-head Bash \
+  '{"command":"P=python3; $P -c '"'"'open(1)'"'"'"}'
+# awk/gawk/ed/ex are write-capable and were absent from the write set.
+run deny  awk-begin-block-write           Bash \
+  '{"command":"awk '"'"'BEGIN{print \"x\" > \"src/other.py\"}'"'"'"}'
+run deny  ed-script-write                 Bash \
+  '{"command":"ed -s src/other.py"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

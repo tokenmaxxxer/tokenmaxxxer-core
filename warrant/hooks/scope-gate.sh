@@ -168,12 +168,33 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
+    # issue-227: awk/gawk/nawk/mawk can write a file straight from its
+    # program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`) or via
+    # `ed`/`ex` script commands (`w file`) -- neither takes a `-c`/`-e`
+    # flag the interpreter branch above would catch, and the write target
+    # lives inside the program/script text this gate does not parse.
+    r"|(?:^|\s)(?:awk|gawk|nawk|mawk|ed|ex)\b"
+    # issue-227 review: `python3$(printf " ")-c '...'` / backtick fusion
+    # glues the interpreter name straight onto the command-substitution
+    # token, so the interpreter head above (which requires literal `\s`
+    # before `-c`/`-e`) never fires -- gate_head_of never even sees a bare
+    # `python3` word. Fusion via `$(` or a backtick immediately after an
+    # interpreter name is itself unanalyzable.
+    r"|\b(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b\S*(?:\$\(|`)"
+    # issue-227 review: `P=python3; $P -c '...'` indirects the interpreter
+    # head through a variable, so no literal interpreter name sits next to
+    # `-c`/`-e` at all. Caught only when the same variable is assigned an
+    # interpreter name earlier in the same command text.
+    r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*\$\1\b[^\n]*-[ce]\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
     # defeating the literal-`\s`-before-`-c`/`-e` requirement in the
     # pattern above. No legitimate gated write needs `$IFS` in its
     # command text, so its bare presence is itself an unanalyzable shape.
-    r"|\$\{?IFS\}?"
+    # Anchored so `$IFSHOME`/`${IFS_DIR}` -- distinct variable names that
+    # merely start with the four letters IFS -- are plain reads, not hits
+    # (issue-227 review finding 1: the unanchored form denied both).
+    r"|\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])"
 )
 
 

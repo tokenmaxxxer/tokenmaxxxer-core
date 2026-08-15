@@ -102,24 +102,73 @@ quotes only, no nested double-quote escaping) instead.
 
 None.
 
+## Amendment: PR #228 adversarial review (both findings fixed)
+
+`gh pr view 228 --comments` surfaced an independent adversarial review
+with two blocking findings against the commit above. Both addressed in
+`core/hooks/board-gate.sh`, `warrant/hooks/scope-gate.sh`, and their two
+test suites.
+
+- **Finding 1 — FALSE POSITIVE.** `IFS_TOKEN_RE`/the scope-gate `$IFS`
+  alternative had no boundary after `IFS`, so `$IFSHOME`, `${IFS_DIR}`
+  (distinct variable names merely starting with the letters IFS) tripped
+  the same deny as an actual `$IFS`/`${IFS}` fusion. Anchored both:
+  `\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])` — matches `$IFS`/`${IFS}`/
+  `${IFS:0:1}` but not `$IFSHOME`/`${IFS_DIR}`. Added red-then-green
+  regression tests to both suites for the exact reads the review
+  demonstrated (`cat "$IFSHOME/notes.md"`, `cat "${IFS_DIR}/x"` — now
+  allow).
+- **Finding 2 — token-fusion class survives via other spellings.** Fixed
+  all four spellings the review demonstrated:
+  - `$(...)`/backtick fusion (`python3$(printf " ")-c '...'`,
+    `` python3`printf " "`-c '...' ``): added `FUSED_INTERP_RE` (board-
+    gate) / an inline alternative (scope-gate) matching an interpreter
+    name immediately followed by `$(` or a backtick.
+  - Variable-indirected interpreter head (`P=python3; $P -c '...'`):
+    added `VAR_INTERP_RE` — a backreference pattern requiring the same
+    variable be assigned an interpreter name earlier in the same command
+    text. In board-gate this needed a signature change
+    (`_is_unanalyzable_write_shape` gained a `full_cmd` parameter) because
+    the gate splits on `;` into per-segment `stripped` text before this
+    check runs, so the assignment and the indirected call are never in
+    the same segment; scope-gate's check runs over the whole raw command
+    already, no signature change needed there.
+  - `awk`/`gawk`/`nawk`/`mawk`/`ed`/`ex` writes: added to board-gate's
+    new `WRITE_UNSAFE_HEADS` tuple (alongside `dd`) and to scope-gate's
+    `UNANALYZABLE_WRITE_SHAPE` as a head alternative — these write from
+    inside their program/script text (`BEGIN{print > "f"}`, `ed`'s `w`
+    command), which the gates don't parse, so their mere invocation
+    while a write-set is enforced is now itself unanalyzable/denied
+    (same fail-closed posture as `dd`), never over-blocking any other
+    read command.
+  - Scope kept at what the review demonstrated (real masked writes with
+    reproductions): did not additionally chase `process substitution`
+    (review flagged this non-blocking, consistent with the existing
+    decline-to-vouch posture) or every conceivable further indirection
+    spelling — those remain open ground for a future review round, not
+    silently declared closed.
+- Added 7 new regression tests to each suite (board-gate and scope-gate):
+  2 false-positive-reads (allow) + 5 fusion/write-capable-class cases
+  (deny) — see Test evidence below for exact names and counts.
+
 ## Test evidence
 
 derived: `bash core/hooks/tests/run-board-gate-tests.sh`
 ```
-== 119 passed, 0 failed ==
+== 126 passed, 0 failed ==
 ```
-(115 pre-existing + 4 new: ifs-fused-inline-c-mask-bypass,
-ifs-fusion-unrestricted-session-unaffected, indirect-tee-via-xargs,
-direct-tee-visible-target — all passing, no SKIPPED lines, no
-regressions.)
+(119 pre-existing + 7 new: ifs-lookalike-var-ifshome-read (allow),
+ifs-lookalike-var-ifsdir-read (allow), dollar-paren-fused-inline-c
+(deny), backtick-fused-inline-c (deny), var-indirected-interpreter-head
+(deny), awk-begin-block-write (deny), ed-script-write (deny) — all
+passing, no SKIPPED lines, no regressions.)
 
 derived: `bash core/hooks/tests/run-scope-gate-tests.sh`
 ```
-== 35 passed, 0 failed ==
+== 42 passed, 0 failed ==
 ```
-(33 pre-existing + 2 new: ifs-fused-inline-c-write-shape-denied,
-ifs-fusion-unrestricted-session-unaffected — all passing, no SKIPPED
-lines, no regressions.)
+(35 pre-existing + 7 new: same names as above, adapted to scope-gate's
+write set — all passing, no SKIPPED lines, no regressions.)
 
 derived: `bash core/hooks/tests/run-all.sh`
 ```

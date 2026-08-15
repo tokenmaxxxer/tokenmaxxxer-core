@@ -580,3 +580,50 @@ no role), `indirect-tee-via-xargs` (deny), `direct-tee-visible-target`
 `run-scope-gate-tests.sh` pins: `ifs-fused-inline-c-write-shape-denied`
 (deny), `ifs-fusion-unrestricted-session-unaffected` (allow — no
 `docs/proposals` directory at all, so the gate stands down).
+
+## issue-227 amendment: PR #228 review — IFS boundary + wider fusion coverage
+
+An independent adversarial review of the fix above found two more issues.
+
+**False positive:** the `IFS_TOKEN_RE`/scope-gate `$IFS` alternative had
+no boundary after `IFS`, so any variable merely starting with those four
+letters (`$IFSHOME`, `${IFS_DIR}`) tripped the same deny as a real
+`$IFS`/`${IFS}` fusion. Anchored to
+`\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])` — matches `$IFS`, `${IFS}`,
+`${IFS:0:1}`, never a longer variable name that happens to start with
+`IFS`. `ifs-lookalike-var-ifshome-read`/`ifs-lookalike-var-ifsdir-read`
+pin both reads now allowing, in both suites.
+
+**Token-fusion class survived via other spellings:** the interpreter-`-c`/
+`-e` check requires literal whitespace before the flag, so three more ways
+of gluing the interpreter head to its flag also went undetected, plus a
+head class that never needed a `-c`/`-e` flag at all:
+- `$(...)`/backtick command-substitution fusion (`python3$(printf "
+  ")-c '...'`) — new `FUSED_INTERP_RE` (board-gate) / inline alternative
+  (scope-gate): an interpreter name immediately followed by `$(` or a
+  backtick.
+- Variable-indirected interpreter head (`P=python3; $P -c '...'`) — new
+  `VAR_INTERP_RE`, a backreference requiring the same variable be assigned
+  an interpreter name earlier in the same command text. board-gate splits
+  segments on `;` before this check runs, so the assignment and the
+  indirected call never share one `stripped` segment;
+  `_is_unanalyzable_write_shape` gained a `full_cmd` parameter so this one
+  check runs against the whole raw command instead. scope-gate's check
+  already runs over the whole command, no signature change there.
+- `awk`/`gawk`/`nawk`/`mawk`/`ed`/`ex` — these write from inside their own
+  program/script text (`BEGIN{print > "f"}`, `ed`'s `w` command), no
+  `-c`/`-e` flag involved at all, and were absent from the write-capable
+  set entirely. Added to board-gate's `WRITE_UNSAFE_HEADS` tuple
+  (alongside `dd`) and to scope-gate's `UNANALYZABLE_WRITE_SHAPE` as a new
+  head alternative — mere invocation while a write-set is enforced now
+  denies, same posture as `dd`.
+
+Process substitution was flagged by the review as a separate, non-blocking
+residual (consistent with the gates' existing decline-to-vouch posture for
+that shape) and is left open, not silently declared closed.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin 7 new
+cases: `ifs-lookalike-var-ifshome-read`, `ifs-lookalike-var-ifsdir-read`
+(allow); `dollar-paren-fused-inline-c`, `backtick-fused-inline-c`,
+`var-indirected-interpreter-head`, `awk-begin-block-write`,
+`ed-script-write` (deny).

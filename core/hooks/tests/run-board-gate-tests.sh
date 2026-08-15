@@ -624,5 +624,22 @@ run deny  indirect-tee-via-xargs          Bash '{"command":"echo '$BOARD'/report
 # (own_hits finds it -- unaffected by this fix).
 run deny  direct-tee-visible-target       Bash '{"command":"echo pwn | tee '$BOARD'/reports/x.md"}'
 
+# --- issue-227 review: blocking findings ------------------------------------
+# (1) FALSE POSITIVE -- the IFS regex had no boundary after IFS, so any
+# variable merely starting with the four letters IFS tripped it even though
+# it is a distinct variable name, not the $IFS token-fusion shape at all.
+run allow ifs-lookalike-var-ifshome-read  Bash '{"command":"cat \"$IFSHOME/notes.md\""}'
+run allow ifs-lookalike-var-ifsdir-read   Bash '{"command":"cat \"${IFS_DIR}/x\""}'
+# (2) the token-fusion class survives via other spellings than literal
+# whitespace before -c/-e: $(...) fusion, backtick fusion, and a
+# variable-indirected interpreter head.
+run deny  dollar-paren-fused-inline-c     Bash '{"command":"cd '$BOARD' && python3$(printf '"'"' '"'"')-c '"'"'open(1)'"'"'"}'
+run deny  backtick-fused-inline-c         Bash '{"command":"cd '$BOARD' && python3`printf '"'"' '"'"'`-c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-interpreter-head Bash '{"command":"cd '$BOARD' && P=python3; $P -c '"'"'open(1)'"'"'"}'
+# awk/gawk/ed/ex are write-capable (redirection/`w` live inside the program
+# text this gate does not parse) and were absent from the write-capable set.
+run deny  awk-begin-block-write           Bash '{"command":"cd '$BOARD' && awk '"'"'BEGIN{print \"x\" > \"pwn.md\"}'"'"'"}'
+run deny  ed-script-write                 Bash '{"command":"cd '$BOARD' && ed -s pwn.md"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
