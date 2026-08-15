@@ -431,6 +431,24 @@ classifies the current tool call. `run-scope-gate-tests.sh`'s
 `allow`); `malformed-write-still-blocked`,
 `malformed-nonreadonly-bash-still-blocked` (both `deny`, unchanged).
 
+issue-218: `readonly_allowed()`'s `SHELL_CHAIN` used to reject any command
+containing `|`, so single-pipe read-only inspection pipelines
+(`grep ... | head`, `git log | tail`) fail-closed instead of vouching,
+while `SAFE_ARG`'s argument char class admitted `<`/`>`, letting a
+redirection write (`cat a > b`) match the read-only allowlist. Fixed:
+`SHELL_CHAIN` no longer disqualifies on a bare `|` (now rejects `;`, `&`,
+backtick, `$(`, `||`, `<`, `>`, and embedded newlines instead);
+`readonly_allowed()` splits the command on `|` and vouches only when
+every segment independently matches `READONLY_ALLOW`; `SAFE_ARG` excludes
+`<`/`>`; and a new `FIND_EXEC_FLAGS` guard refuses the vouch when a
+`find` segment carries an exec-capable flag (`-exec`/`-execdir`/`-ok`/
+`-okdir`/`-delete`/`-fprint`/`-fprintf`/`-fls`). `run-scope-gate-tests.sh`
+pins: `malformed-piped-grep-head-allowed`,
+`malformed-piped-git-log-tail-allowed`, `approved-piped-all-readonly-allowed`
+(all `allow`); `malformed-piped-grep-sh-denied`,
+`malformed-redirect-write-denied`, `malformed-newline-smuggled-denied`,
+`malformed-find-exec-denied` (all `deny`).
+
 Scope item 2 of issue-149 surveyed the same find-anywhere root cause for
 other false-positive shapes and reported, without fixing, two further
 cases and one examined-and-ruled-out path: (1) a directory name that
