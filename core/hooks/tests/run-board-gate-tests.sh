@@ -509,5 +509,60 @@ internal_error() {
 }
 internal_error
 
+# --- R4 maintenance-targets exception (issue-222) --------------------------
+# stub_gh_maint <dir> <body>: gh issue view --json body returns {"body": body}.
+# If <dir> is empty, no stub is written (the mismatch call errors --
+# used to prove the same-issue path never invokes gh at all).
+stub_gh_maint() {
+  cat > "$1/gh" <<SCRIPT
+#!/bin/sh
+printf '%s' '{"body":$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$2")}'
+SCRIPT
+  chmod +x "$1/gh"
+}
+
+# maint_run <want> <name> <branch> <file_path> <issue-body> — always CLAUDE_ROLE=implementation
+maint_run() {
+  want="$1"; name="$2"; branch="$3"; fp="$4"; body="$5"
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b "$branch"
+  mkdir -p "$td/docs/specs"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  repo_td="$td"; mktd; stubdir="$td"; td="$repo_td"
+  stub_gh_maint "$stubdir" "$body"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=implementation CORE_GH="$stubdir/gh" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td" "$stubdir"
+  report "$want" "$got" "$name"
+}
+
+maint_run deny  maint-refused-no-decl issue-222/implementation docs/issue-9/reports/implementation.md ""
+maint_run allow maint-permitted-decl  issue-222/implementation docs/issue-9/reports/implementation.md "maintenance-targets: docs/issue-9/"
+maint_run deny  maint-unlisted-refused issue-222/implementation docs/issue-9/reports/implementation.md "maintenance-targets: docs/issue-711/"
+
+# own-issue writes never invoke gh: point CORE_GH at a nonexistent path so
+# any invocation errors out (subprocess OSError -> deny), then assert allow.
+maint_own_issue_no_gh_call() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b issue-9/implementation
+  mkdir -p "$td/docs/specs"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-9/reports/implementation.md","content":"x"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=implementation CORE_GH="/nonexistent/gh-should-not-be-called" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report allow "$got" "maint-own-issue-never-calls-gh"
+}
+maint_own_issue_no_gh_call
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -468,3 +468,26 @@ path was examined and found not to carry the URL false positive (a `cd`
 to a URL is not a real shell operation) -- it carries case (1) only, not
 a new shape. See the issue-149 proposal's Out of scope section for the
 full survey.
+
+## R4 maintenance-targets exception (issue-222)
+
+R4 ("board write happens only on branch issue-<n>/<role>") now carries a
+narrow, operator-controlled exception: when the current branch's own
+issue (`issue-<n>/<role>` matching `CLAUDE_ROLE`) has a body containing a
+literal `maintenance-targets: <tree list>` line, that branch may ALSO
+write the listed other `docs/issue-<m>/` trees. The declaration is read
+live via `gh issue view <own-issue> --json body` (the `CORE_GH` test
+seam, same shape as `approval-gate.sh`'s issue-state check) — never
+cached to a repo file, since a repo file would be exactly the surface a
+role's own tools could self-expand. The lazy fetch fires only on a
+same-issue mismatch (never on the ordinary own-issue write path), and
+any `gh` failure or unparseable body is treated as an empty declaration
+set — fail closed, same as no declaration existed. Accepted target
+tokens: `docs/issue-<n>` or `issue-<n>` (comma/whitespace separated).
+
+`run-board-gate-tests.sh` pins: `maint-refused-no-decl` (deny, no
+declaration — byte-identical to pre-issue-222 R4), `maint-permitted-decl`
+(allow, matching `maintenance-targets:` entry), `maint-unlisted-refused`
+(deny, declaration present but not naming the target tree),
+`maint-own-issue-never-calls-gh` (allow, with `CORE_GH` pointed at a
+nonexistent path — proves the own-issue path never shells out).

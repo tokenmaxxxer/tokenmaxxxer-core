@@ -605,14 +605,58 @@ if not branch:
     deny("cannot resolve the current git branch for a board write; a role "
          "writes its issue tree only from issue-<n>/<role>")
 
+
+# R4 maintenance-targets exception (issue-222): a role's own issue may
+# declare, in its GitHub issue BODY (not writable by the role's own
+# tools — gh-guard.sh already denies role sessions `gh issue edit`), a
+# literal `maintenance-targets: <tree list>` line naming OTHER
+# docs/issue-<n>/ trees it may also write. Read live via `gh issue view`
+# on mismatch only, never cached to a repo file (a repo file would be
+# exactly the self-expandable surface the exception must not open).
+_bm = re.match(r"^issue-([0-9]+)/(.+)$", branch)
+_own_issue = _bm.group(1) if _bm and _bm.group(2) == role else None
+_maint_targets = None  # lazily resolved set of "issue-<n>" strings; None = not fetched yet
+
+def _resolve_maintenance_targets():
+    if _own_issue is None:
+        return set()
+    gh = os.environ.get("CORE_GH") or "gh"
+    try:
+        out = subprocess.run([gh, "issue", "view", _own_issue, "--json", "body"],
+                             capture_output=True, text=True, cwd=root)
+    except OSError:
+        return set()
+    if out.returncode != 0:
+        return set()
+    try:
+        body = json.loads(out.stdout).get("body") or ""
+    except (ValueError, AttributeError):
+        return set()
+    m = re.search(r"^maintenance-targets:\s*(.+)$", body, re.MULTILINE)
+    if not m:
+        return set()
+    targets = set()
+    for tok in re.split(r"[,\s]+", m.group(1).strip()):
+        tm = re.match(r"^(?:docs/)?(issue-[0-9]+)/?$", tok)
+        if tm:
+            targets.add(tm.group(1))
+    return targets
+
 for parts in issue_hits:
     issue_dir = parts[0]
     expected = "%s/%s" % (issue_dir, role)
-    if branch != expected:
-        deny("writing docs/%s/ requires branch %s (current: %s). Every "
-             "role output reaches main only through a PR the human merges "
-             "— never a direct write from another branch. (contract v3 s10)"
-             % (issue_dir, expected, branch))
+    if branch == expected:
+        continue
+    if _maint_targets is None:
+        _maint_targets = _resolve_maintenance_targets()
+    if issue_dir in _maint_targets:
+        continue
+    deny("writing docs/%s/ requires branch %s (current: %s), and issue "
+         "#%s's body declares no matching `maintenance-targets:` entry "
+         "for %s. Every role output reaches main only through a PR the "
+         "human merges — never a direct write from another branch. "
+         "(contract v3 s10)"
+         % (issue_dir, expected, branch, _own_issue or "?", issue_dir))
 
 # --- R5: reports/ ownership ---------------------------------------------
 for parts in issue_hits:
