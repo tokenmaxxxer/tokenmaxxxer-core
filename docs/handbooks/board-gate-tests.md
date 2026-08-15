@@ -491,3 +491,49 @@ declaration — byte-identical to pre-issue-222 R4), `maint-permitted-decl`
 (deny, declaration present but not naming the target tree),
 `maint-own-issue-never-calls-gh` (allow, with `CORE_GH` pointed at a
 nonexistent path — proves the own-issue path never shells out).
+
+## Un-analyzable write-capable Bash shapes (issue-225)
+
+A script interpreter invocation with an inline body — a heredoc
+(`python3 - <<EOF`, `bash <<EOF`), an interpreter `-c`/`-e` flag
+(python3/python/bash/sh/zsh/perl/ruby/node), or `dd` — carries its real
+write target somewhere the gate cannot read it from the visible command
+text. `_mask_heredocs` (issue-198) already blanks heredoc bodies before
+the segment scan runs, so a write hidden inside one contributed zero
+candidates and the whole call fell through `if not hits: allow()` as a
+plain read — the exact bypass on-the-record PR #1627 hit live (`python3
+- <<EOF` after board-gate had already denied a direct cross-issue
+`Edit`).
+
+board-gate now tracks, per write-capable-and-unproven segment, whether it
+is also "unanalyzable" this way AND contributed no docs/-shaped candidate
+of its own; when a role is set and the repo is a board
+(`docs/specs/approvers.md` present), any such segment denies the whole
+call before the `if not hits: allow()` fallthrough. `warrant/hooks/
+scope-gate.sh` carries the matching fix: the same shape check runs ahead
+of `withheld()`/`readonly_allowed()` in the Bash branch that only
+executes while exactly one proposal is `approved` (a write-set is
+actively enforced) — `tee`/`dd` previously matched `withheld()`'s own
+entries and only declined to vouch (the same fallthrough posture as any
+unrecognized command); they now deny explicitly, same as heredocs/`-c`/
+`-e`.
+
+Both fixes apply only where a write-set is actually being enforced — an
+unrestricted session (no `CLAUDE_ROLE`, or no approved proposal in
+progress), and a repo with no enforceable write-set, keep today's
+behavior byte-identical. `python3 -m pytest` and every other provably
+read-only call remain unaffected.
+
+`run-board-gate-tests.sh` pins: `heredoc-python-mask-bypass`,
+`heredoc-bash-mask-bypass`, `inline-c-flag-mask-bypass` (deny — the live
+bypass shape and its bash/`-c` siblings), `heredoc-unrestricted-session-
+unaffected` (allow — no board contract, no role), `python-pytest-still-
+allowed` (allow — provably read-only, even alongside an unrelated docs/
+mention on the same line).
+
+`run-scope-gate-tests.sh` pins the matching cases against an approved
+write-set: `heredoc-write-shape-denied`, `bash-heredoc-write-shape-
+denied`, `inline-c-flag-write-shape-denied`, `tee-write-shape-denied`,
+`dd-write-shape-denied` (deny), `python-pytest-still-allowed` (allow),
+`heredoc-unrestricted-session-unaffected` (allow — no `docs/proposals`
+directory at all, so the gate stands down).
