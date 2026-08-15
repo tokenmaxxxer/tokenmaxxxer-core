@@ -130,22 +130,44 @@ def frontmatter(path):
 # read leaves the session unable to even inspect the file the gate is
 # complaining about (issue-216, observed as on-the-record#1581).
 READ_TOOLS = {"Read", "Grep", "Glob", "NotebookRead"}
-SHELL_CHAIN = re.compile(r"[;&|`]|\$\(")
-SAFE_ARG = r"(?:\s+[^\s;&|`$]+)*"
+# `|` is deliberately NOT in here: a single pipe of read-only commands
+# (`grep ... | head`) is the dominant real-world read shape and is vetted by
+# splitting on `|` below instead. Everything else that can chain in an
+# unvetted second command, redirect a write, or smuggle a second command via
+# a newline stays disqualifying.
+SHELL_CHAIN = re.compile(r"[;&`]|\$\(|\|\||[<>]|\n")
+SAFE_ARG = r"(?:\s+[^\s;&|`$<>]+)*"
 READONLY_ALLOW = [
     re.compile(r"^git\s+(status|diff|log|show|branch|rev-parse|blame)" + SAFE_ARG + r"\s*$"),
     re.compile(r"^(ls|cat|pwd|echo|which|head|tail|wc|find|grep|file)" + SAFE_ARG + r"\s*$"),
     re.compile(r"^python3\s+-m\s+pytest" + SAFE_ARG + r"\s*$"),
     re.compile(r"^bash\s+\S+/(run-gate-lib-tests|run-role-gates-tests)\.sh" + SAFE_ARG + r"\s*$"),
 ]
+# find's exec-capable flags run arbitrary commands or mutate the filesystem;
+# a `find` segment carrying any of these is never read-only regardless of
+# what else it matches.
+FIND_EXEC_FLAGS = re.compile(
+    r"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)\b")
+
+
+def _segment_readonly(segment):
+    if not any(pattern.match(segment) for pattern in READONLY_ALLOW):
+        return False
+    if re.match(r"^find\b", segment) and FIND_EXEC_FLAGS.search(segment):
+        return False
+    return True
 
 
 def readonly_allowed(command):
     if SHELL_CHAIN.search(command):
-        # Chaining can hide an unvetted second command; do not try to parse it.
+        # Chaining/redirection/newline-smuggling can hide an unvetted second
+        # command or a write; do not try to parse it.
         return False
     stripped = command.strip()
-    return any(pattern.match(stripped) for pattern in READONLY_ALLOW)
+    segments = [seg.strip() for seg in stripped.split("|")]
+    if not segments or any(not seg for seg in segments):
+        return False
+    return all(_segment_readonly(seg) for seg in segments)
 
 
 def call_is_readonly():
