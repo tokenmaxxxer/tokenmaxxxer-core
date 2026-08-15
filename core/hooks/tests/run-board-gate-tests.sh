@@ -564,5 +564,34 @@ maint_own_issue_no_gh_call() {
 }
 maint_own_issue_no_gh_call
 
+# --- issue-225: script-heredoc writes must not mask their targets --------
+# on-the-record PR #1627's exact live bypass: board-gate denied a direct
+# cross-issue Edit, and the same session rewrote the file via
+# `python3 - <<EOF` instead — the heredoc body (where the real write
+# target lived) was masked before the segment scan ever ran, so the call
+# contributed zero candidates and fell through to allow().
+run deny  heredoc-python-mask-bypass      Bash '{"command":"python3 - <<'"'"'EOF'"'"'\nopen(\"'$BOARD'/reports/review.md\", \"w\").write(\"pwn\")\nEOF"}'
+run deny  heredoc-bash-mask-bypass        Bash '{"command":"bash <<'"'"'EOF'"'"'\necho pwn > '$BOARD'/reports/review.md\nEOF"}'
+run deny  inline-c-flag-mask-bypass       Bash '{"command":"cd '$BOARD' && python3 -c \"import sys; sys.stdout.write(1)\""}'
+# an unrestricted session (no board contract at all -- no
+# docs/specs/approvers.md, no CLAUDE_ROLE) is unaffected: same heredoc
+# shape, but no write-set is being enforced for anyone to bypass.
+runUnrestrictedHeredoc() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  mkdir -p "$td/docs"
+  printf '{"tool_name":"Bash","tool_input":{"command":"python3 - <<EOF\\nopen(\\"docs/notes.md\\", \\"w\\").write(\\"x\\")\\nEOF"},"cwd":"%s"}' "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report allow "$got" "heredoc-unrestricted-session-unaffected"
+}
+runUnrestrictedHeredoc
+# provably read-only interpreter calls stay unaffected, even alongside an
+# unrelated docs/ mention on the same line (the fast-path/word check).
+run allow python-pytest-still-allowed     Bash '{"command":"echo see '$BOARD'/x.md ; python3 -m pytest -q"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
