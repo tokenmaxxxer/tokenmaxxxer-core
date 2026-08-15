@@ -118,6 +118,17 @@ next-steps/resolution-path is denied the same as any other non-terminal
 state missing that pointer, and one paired with it is allowed.
 `run-role-gates-tests.sh` pins both halves of that pair.
 
+issue-189 (narrow negative-lifecycle remainder): `withdrawn` — the second
+shared `loop_state` value added to the contract §2 preamble alongside
+`refused` — is likewise deliberately NOT added to any kind's
+`KIND_TERMINAL_DEFAULTS`; the existing next-steps/resolution-path
+requirement for non-terminal states already enforces "a bare `withdrawn`
+with no finding pointer is not a valid consumption" mechanically, same
+as `refused`. `run-role-gates-tests.sh` pins both halves of that pair.
+`deferred`, the third shared value, is deliberately non-terminal by
+design (a deferred unit stays resumable) and gets no terminal-spelling
+coverage here.
+
 Wired into `core/hooks/tests/run-all.sh`.
 
 ## Canon invocation from a rulebook (issue-69)

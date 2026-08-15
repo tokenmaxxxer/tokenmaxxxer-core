@@ -394,6 +394,12 @@ also gained a `reject_forgery_probe`, symmetric to its existing
 `forgery_probe`: an off-branch forged board write is refused the same way
 regardless of whether its content spells approval or rejection (no new
 trust boundary — see `docs/issue-189/proposals/2026-08-10-rejection-withdrawal-lifecycle-design.md`).
+The narrow negative-lifecycle remainder (2026-08-16) added a third,
+`withdraw_forgery_probe`, same assertion for `loop_state: withdrawn`
+content — `approval-gate.sh` gained `WITHDRAW`/`DEFER` issue-comment
+tokens symmetric to `REJECT` (see `docs/handbooks/approval-gate-tests.md`),
+and this probe confirms the off-branch forgery denial is unaffected by
+which of the four tokens the forged content spells.
 
 A before-landing warrant-hunt (stance 1) found the first version of this
 denylist too broad: `trap - EXIT` (restore-default) is the project-wide

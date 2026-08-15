@@ -256,6 +256,16 @@ except (ValueError, AttributeError):
     deny("unreadable issue JSON from gh; refusing rather than assuming "
          "approval")
 if issue_state != "OPEN":
+    # issue-189 decision 1: interpolate state_reason (already fetched
+    # above, previously unused) when GitHub supplied one, so a session or
+    # human reading the refusal knows shipped-vs-abandoned without a
+    # separate `gh issue view`. Lenient: an absent/unrecognized reason
+    # falls back to the original message verbatim — no new failure mode.
+    if issue_state_reason:
+        deny("issue #%s is not open (state: %s, reason: %s) — a closed "
+             "issue's board is not live for any role, regardless of any "
+             "standing PR review or APPROVE comment. (contract v3 s19)"
+             % (issue_num, issue_state or "unknown", issue_state_reason))
     deny("issue #%s is not open (state: %s) — a closed issue's board is "
          "not live for any role, regardless of any standing PR review or "
          "APPROVE comment. (contract v3 s19)"
@@ -280,6 +290,15 @@ challenge = "APPROVE issue-%s/%s" % (issue_num, role)
 # string, no new trust boundary. Read-only: recognizing it never writes
 # or auto-denies anything on its own (design's explicit deferred item).
 reject_challenge = "REJECT issue-%s/%s" % (issue_num, role)
+# issue-189 decision 2: WITHDRAW/DEFER complete the REJECT/APPROVE-
+# symmetric token family — same exact-match/approvers.md-gated/
+# isMinimized-skip machinery, two more challenge strings, no new
+# function, no new trust boundary. WITHDRAW is the role's own
+# author-side voluntary stop (posted by the human on the role's
+# behalf); DEFER is a postponement either side may post. Neither
+# asserts a defect the way REJECT does.
+withdraw_challenge = "WITHDRAW issue-%s/%s" % (issue_num, role)
+defer_challenge = "DEFER issue-%s/%s" % (issue_num, role)
 
 def comment_matches(challenge_str):
     for c in issue_comments:
@@ -347,6 +366,8 @@ if pr_out.returncode == 0:
 
 comment_approved = comment_matches(challenge)
 comment_rejected = comment_matches(reject_challenge)
+comment_withdrawn = comment_matches(withdraw_challenge)
+comment_deferred = comment_matches(defer_challenge)
 if comment_rejected and rejection_finding is None:
     rejection_finding = {
         "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
@@ -355,6 +376,32 @@ if comment_rejected and rejection_finding is None:
         "rationale": "issue-level REJECT token",
         "addressed_to": role,
         "severity": "blocking",
+    }
+
+# issue-189 decision 2: WITHDRAW/DEFER produce a finding-shaped record
+# exactly like REJECT does, but severity: advisory — withdrawal and
+# deferral are not defects being flagged, so they must not read as
+# blocking findings the way REJECT's does. No `verdict` field: contract
+# §5's finding schema does not define one (the pre-existing
+# rejection_finding's `verdict: contradicts` predates this design and is
+# not this decision's shape to reuse).
+withdraw_finding = None
+if comment_withdrawn:
+    withdraw_finding = {
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "evidence": "issue comment exactly '%s' from a listed approver" % withdraw_challenge,
+        "rationale": "issue-level WITHDRAW token — voluntary stop, no defect asserted",
+        "addressed_to": role,
+        "severity": "advisory",
+    }
+defer_finding = None
+if comment_deferred:
+    defer_finding = {
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "evidence": "issue comment exactly '%s' from a listed approver" % defer_challenge,
+        "rationale": "issue-level DEFER token — postponed, resumable later",
+        "addressed_to": role,
+        "severity": "advisory",
     }
 
 approved = pr_approved or comment_approved
@@ -369,6 +416,22 @@ if not approved:
                 rejection_finding["verdict"], rejection_finding["evidence"],
                 rejection_finding["rationale"], rejection_finding["addressed_to"],
                 rejection_finding["severity"]))
+    if withdraw_finding is not None:
+        deny("issue-%s/%s was withdrawn, not merely unapproved: finding "
+             "{requirement: %s, evidence: %s, rationale: %s, addressed_to: "
+             "%s, severity: %s}. loop_state: withdrawn. (contract v3 s19, "
+             "issue-189 decision 2)"
+             % (issue_num, role, withdraw_finding["requirement"],
+                withdraw_finding["evidence"], withdraw_finding["rationale"],
+                withdraw_finding["addressed_to"], withdraw_finding["severity"]))
+    if defer_finding is not None:
+        deny("issue-%s/%s was deferred, not merely unapproved: finding "
+             "{requirement: %s, evidence: %s, rationale: %s, addressed_to: "
+             "%s, severity: %s}. loop_state: deferred. (contract v3 s19, "
+             "issue-189 decision 2)"
+             % (issue_num, role, defer_finding["requirement"],
+                defer_finding["evidence"], defer_finding["rationale"],
+                defer_finding["addressed_to"], defer_finding["severity"]))
     deny("neither the PR for %s nor issue #%s carries an approval from a "
          "listed human approver (%s): no Approve review on an open PR, "
          "and no issue comment that is exactly '%s'. Free-text comments "

@@ -25,12 +25,22 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 root = os.environ["WARRANT_ROOT"]
 branch = os.environ.get("WARRANT_BRANCH", "")
 proposals = os.path.join(root, "docs", "proposals")
 
 STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
+
+# issue-189 decision 3: reporting-only auto-expiry. Mirrors hunt-guard.sh's
+# STALE_SECONDS pattern (hunt-guard.sh:85) for a different kind of
+# staleness in the same repo. No new `gh` call: this reads the same
+# per-file `git log` this pass already runs (line below), never an issue
+# timestamp. A stale open unit is labeled "deferred (auto, stale since
+# <timestamp>)" in the report — never a write to the unit's own
+# status:/loop_state field; only an actual human/role act changes those.
+STALE_SECONDS = 60 * 60 * 24 * 14  # 14 days
 
 
 def frontmatter(path):
@@ -63,6 +73,23 @@ for name in sorted(os.listdir(proposals)):
 if not open_units and not closed_units:
     sys.exit(0)
 
+def stale_suffix(path):
+    try:
+        out = subprocess.run(
+            ["git", "-C", root, "log", "-1", "--format=%ct", "--", path],
+            capture_output=True, text=True, timeout=10,
+        )
+        ts = int(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        ts = None
+    if ts is None:
+        return ""
+    if time.time() - ts < STALE_SECONDS:
+        return ""
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+    return " — deferred (auto, stale since %s)" % stamp
+
+
 lines = []
 if open_units:
     lines.append("warrant: open work units in this repository —")
@@ -78,12 +105,13 @@ for status, path in open_units:
             shipped = []
         lines.append(
             "  APPROVED, in progress: %s — %d commit(s) so far, branch %s. "
-            "Read it before writing anything; the write set in its frontmatter is still frozen."
-            % (path, len(shipped), branch or "?")
+            "Read it before writing anything; the write set in its frontmatter is still frozen.%s"
+            % (path, len(shipped), branch or "?", stale_suffix(path))
         )
     else:
         lines.append(
-            "  AWAITING APPROVAL: %s — do not start this work until the user approves it." % path
+            "  AWAITING APPROVAL: %s — do not start this work until the user approves it.%s"
+            % (path, stale_suffix(path))
         )
 
 if closed_units:
