@@ -543,3 +543,131 @@ denied`, `inline-c-flag-write-shape-denied`, `tee-write-shape-denied`,
 `dd-write-shape-denied` (deny), `python-pytest-still-allowed` (allow),
 `heredoc-unrestricted-session-unaffected` (allow — no `docs/proposals`
 directory at all, so the gate stands down).
+
+## issue-227: `${IFS}` token-fusion and board-gate indirect-tee residuals
+
+Two residuals from core#226's adversarial review of the issue-225 fix
+above, both instances of the same "unanalyzable write shape must deny,
+not fall through to allow" lesson:
+
+`${IFS}`/`$IFS` used in place of a literal space (e.g.
+`python3${IFS}-c${IFS}'open(1)'`) fuses tokens that both gates' parsing
+relies on being whitespace-separated — `gate_head_of`'s `.split()` sees
+one word, not `python3` followed by `-c`, so the interpreter-head+flag
+detection both gates already had never fires, and scope-gate's own
+`\s-[A-Za-z]*[ce]` alternative needs a literal `\s` it never finds.
+Rather than normalize the fused token apart before parsing, both gates
+now treat the bare presence of `$IFS`/`${IFS}` in a write-context
+command as itself an unanalyzable shape and deny — no legitimate gated
+write needs it. board-gate checks this inside
+`_is_unanalyzable_write_shape` (same call site as the heredoc/`-c`/`dd`
+checks); scope-gate adds it as a new `UNANALYZABLE_WRITE_SHAPE`
+alternative.
+
+board-gate separately missed an indirect `tee`: `echo docs/issue-3/
+reports/x.md | xargs tee` resolves, via `gate_head_of`'s existing
+`TRANSPARENT` walk through `xargs`, to head `tee` — but with no trailing
+argument word of its own, since the real target arrives on stdin,
+invisible in the command text. This fell through both the `own_hits`
+scan (which only catches a `tee` naming its target directly) and the
+pre-227 unanalyzable set (heredoc/`-c`/`-e`/`dd` only), landing on `if
+not hits: allow()` unseen. Fixed by adding a `tee`-with-no-visible-
+target branch to `_is_unanalyzable_write_shape`, scoped so a `tee` that
+DOES name a target (`tee docs/x`, or a non-docs `tee /tmp/x`) is
+unaffected. scope-gate.sh already covered this shape (its `\btee\b`
+alternative matches `xargs tee` regardless of indirection); no change
+needed there.
+
+`run-board-gate-tests.sh` pins: `ifs-fused-inline-c-mask-bypass` (deny),
+`ifs-fusion-unrestricted-session-unaffected` (allow — no board contract,
+no role), `indirect-tee-via-xargs` (deny), `direct-tee-visible-target`
+(deny — unaffected by this fix, a regression guard).
+
+`run-scope-gate-tests.sh` pins: `ifs-fused-inline-c-write-shape-denied`
+(deny), `ifs-fusion-unrestricted-session-unaffected` (allow — no
+`docs/proposals` directory at all, so the gate stands down).
+
+## issue-227 amendment: PR #228 review — IFS boundary + wider fusion coverage
+
+An independent adversarial review of the fix above found two more issues.
+
+**False positive:** the `IFS_TOKEN_RE`/scope-gate `$IFS` alternative had
+no boundary after `IFS`, so any variable merely starting with those four
+letters (`$IFSHOME`, `${IFS_DIR}`) tripped the same deny as a real
+`$IFS`/`${IFS}` fusion. Anchored to
+`\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])` — matches `$IFS`, `${IFS}`,
+`${IFS:0:1}`, never a longer variable name that happens to start with
+`IFS`. `ifs-lookalike-var-ifshome-read`/`ifs-lookalike-var-ifsdir-read`
+pin both reads now allowing, in both suites.
+
+**Token-fusion class survived via other spellings:** the interpreter-`-c`/
+`-e` check requires literal whitespace before the flag, so three more ways
+of gluing the interpreter head to its flag also went undetected, plus a
+head class that never needed a `-c`/`-e` flag at all:
+- `$(...)`/backtick command-substitution fusion (`python3$(printf "
+  ")-c '...'`) — new `FUSED_INTERP_RE` (board-gate) / inline alternative
+  (scope-gate): an interpreter name immediately followed by `$(` or a
+  backtick.
+- Variable-indirected interpreter head (`P=python3; $P -c '...'`) — new
+  `VAR_INTERP_RE`, a backreference requiring the same variable be assigned
+  an interpreter name earlier in the same command text. board-gate splits
+  segments on `;` before this check runs, so the assignment and the
+  indirected call never share one `stripped` segment;
+  `_is_unanalyzable_write_shape` gained a `full_cmd` parameter so this one
+  check runs against the whole raw command instead. scope-gate's check
+  already runs over the whole command, no signature change there.
+- `awk`/`gawk`/`nawk`/`mawk`/`ed`/`ex` — these write from inside their own
+  program/script text (`BEGIN{print > "f"}`, `ed`'s `w` command), no
+  `-c`/`-e` flag involved at all, and were absent from the write-capable
+  set entirely. Added to board-gate's `WRITE_UNSAFE_HEADS` tuple
+  (alongside `dd`) and to scope-gate's `UNANALYZABLE_WRITE_SHAPE` as a new
+  head alternative — mere invocation while a write-set is enforced now
+  denies, same posture as `dd`.
+
+Process substitution was flagged by the review as a separate, non-blocking
+residual (consistent with the gates' existing decline-to-vouch posture for
+that shape) and is left open, not silently declared closed.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin 7 new
+cases: `ifs-lookalike-var-ifshome-read`, `ifs-lookalike-var-ifsdir-read`
+(allow); `dollar-paren-fused-inline-c`, `backtick-fused-inline-c`,
+`var-indirected-interpreter-head`, `awk-begin-block-write`,
+`ed-script-write` (deny).
+
+## issue-227 second amendment: PR #228 re-review — brace indirection, awk system(), awk over-block
+
+A second adversarial review of the amendment above found it overstated:
+three issues remained live in the exact code the "closed" claim covered.
+
+- **B1 — brace-form indirection.** `${P}`/`${B}` never matched `\$\1\b`
+  (needs a literal `$name`, not `${name}`). Both gates' variable-
+  indirection regex widened its reference match to
+  `(?:\$\{\1\}|\$\1\b)`.
+- **B2 — awk/gawk `system()` write, board-gate only.**
+  `_segment_is_failing` only checked `-i`/a literal `>` for awk/gawk, so
+  `awk 'BEGIN{system("touch f")}'` (no redirect syntax) never reached the
+  already-correct `WRITE_UNSAFE_HEADS` check — that check only runs on
+  segments already flagged failing. `awk-begin-block-write` had passed
+  for the wrong reason (its own unrelated literal `>`). Added
+  `SYSTEM_CALL_RE` as a second write trigger in that branch. scope-gate
+  was unaffected — its awk clause denied unconditionally already
+  (that's finding d, not a miss).
+- **Finding d — new over-block, scope-gate only.** The unconditional
+  `(?:awk|gawk|nawk|mawk|ed|ex)\b` alternative added by the first
+  amendment hard-denied every awk-family call, including plain reads
+  (`awk '{print $1}' file.txt`). Fixed by keeping `ed`/`ex` unconditional
+  (they write via unparseable script commands, same posture as
+  `tee`/`dd`) and scoping `awk`/`gawk`/`nawk`/`mawk` to a lookahead
+  requiring `system(`, a literal `>`, or `-i` in the command text — the
+  same three markers board-gate's `_segment_is_failing` now checks. A
+  read with none of those still falls through to the ordinary
+  decline-to-vouch `allow()`.
+- The prior round's two non-blocking items (`eval` bypassing board-gate;
+  an interpreter given a script FILE argument) are still open — explicitly
+  out of scope for this amendment, not claimed fixed. Follow-up issue
+  territory.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin 4 new
+cases: `var-indirected-brace-interpreter-head`,
+`var-indirected-brace-bash-head`, `awk-system-call-write` (deny);
+`awk-pure-read-not-overblocked` (allow).

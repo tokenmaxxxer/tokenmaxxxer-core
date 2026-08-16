@@ -209,5 +209,59 @@ run_unrestricted() {
 run_unrestricted allow heredoc-unrestricted-session-unaffected \
   '{"command":"python3 - <<EOF\nopen(\"src/other.py\", \"w\").write(1)\nEOF"}'
 
+# --- issue-227: ${IFS}/$IFS token-fusion fail-open residual from #225 ----
+# `python3${IFS}-c${IFS}'...'` has no literal space before `-c`, so the
+# `\s-[A-Za-z]*[ce]` half of UNANALYZABLE_WRITE_SHAPE's interpreter
+# alternative never matches — the fused shape must still deny while a
+# write-set is enforced (fail-closed), not fall through to "decline to
+# vouch".
+run deny  ifs-fused-inline-c-write-shape-denied Bash \
+  '{"command":"python3${IFS}-c${IFS}'"'"'open(1)'"'"'"}'
+run_unrestricted allow ifs-fusion-unrestricted-session-unaffected \
+  '{"command":"python3${IFS}-c${IFS}'"'"'open(1)'"'"'"}'
+
+# --- issue-227 review: blocking findings ------------------------------------
+# (1) FALSE POSITIVE -- the IFS regex had no boundary after IFS, so any
+# variable merely starting with the four letters IFS tripped it.
+run allow ifs-lookalike-var-ifshome-read  Bash \
+  '{"command":"cat \"$IFSHOME/notes.md\""}'
+run allow ifs-lookalike-var-ifsdir-read   Bash \
+  '{"command":"cat \"${IFS_DIR}/x\""}'
+# (2) the token-fusion class survives via $()/backtick fusion and a
+# variable-indirected interpreter head.
+run deny  dollar-paren-fused-inline-c     Bash \
+  '{"command":"python3$(printf '"'"' '"'"')-c '"'"'open(1)'"'"'"}'
+run deny  backtick-fused-inline-c         Bash \
+  '{"command":"python3`printf '"'"' '"'"'`-c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-interpreter-head Bash \
+  '{"command":"P=python3; $P -c '"'"'open(1)'"'"'"}'
+# awk/gawk/ed/ex are write-capable and were absent from the write set.
+run deny  awk-begin-block-write           Bash \
+  '{"command":"awk '"'"'BEGIN{print \"x\" > \"src/other.py\"}'"'"'"}'
+run deny  ed-script-write                 Bash \
+  '{"command":"ed -s src/other.py"}'
+
+# --- issue-227 re-review: blocking findings ---------------------------------
+# (B1) brace-form interpreter indirection: `${P}` never matched `\$\1\b`
+# (which requires a literal `$name`, not `${name}`) -- the variable-
+# indirection check was silently blind to the brace spelling.
+run deny  var-indirected-brace-interpreter-head Bash \
+  '{"command":"P=python3; ${P} -c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-brace-bash-head  Bash \
+  '{"command":"B=bash; ${B} -c '"'"'echo hi > src/other.py'"'"'"}'
+# (B2) awk/gawk write via `system(...)` with no `>` and no `-i` in the
+# invocation text -- the prior awk-begin-block-write test above only
+# passed because of its own literal `>`; system() alone is a distinct
+# write path that must be caught too.
+run deny  awk-system-call-write           Bash \
+  '{"command":"awk '"'"'BEGIN{system(\"touch src/other.py\")}'"'"'"}'
+# (d) NEW over-block: the awk-family clause used to hard-deny every
+# awk/gawk/nawk/mawk invocation unconditionally, including a plain read
+# with no write marker at all -- a real regression for the dominant safe
+# use of these tools. This must fall through to the ordinary
+# decline-to-vouch allow, same as any other unlisted read command.
+run allow awk-pure-read-not-overblocked   Bash \
+  '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

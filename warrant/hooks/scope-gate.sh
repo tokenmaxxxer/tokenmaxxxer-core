@@ -168,6 +168,46 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
+    # issue-227: `ed`/`ex` write via script commands (`w file`) that this
+    # gate cannot parse out of the invocation text -- any invocation is
+    # treated as unanalyzable, same as `tee`/`dd`.
+    r"|(?:^|\s)(?:ed|ex)\b"
+    # issue-227: awk/gawk/nawk/mawk can ALSO write a file straight from
+    # their program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`,
+    # or gawk's own `-i inplace`) -- but awk/gawk/nawk/mawk are ordinary
+    # read commands by default (`awk '{print $1}' file.txt`), unlike
+    # ed/ex. issue-227 re-review finding (d): an earlier, unconditional
+    # version of this clause hard-denied every awk-family invocation,
+    # including plain reads -- a real over-block regression for the
+    # dominant, safe use of these tools. Scoped with a lookahead so only
+    # an invocation that ALSO carries a write marker (`system(`, a `>`
+    # redirect, or `-i`) trips it; a read with none of those keeps
+    # falling through to readonly_allowed()'s ordinary decline-to-vouch.
+    r"|(?:^|\s)(?:awk|gawk|nawk|mawk)\b(?=[^\n]*(?:system\s*\(|>|-i\b))"
+    # issue-227 review: `python3$(printf " ")-c '...'` / backtick fusion
+    # glues the interpreter name straight onto the command-substitution
+    # token, so the interpreter head above (which requires literal `\s`
+    # before `-c`/`-e`) never fires -- gate_head_of never even sees a bare
+    # `python3` word. Fusion via `$(` or a backtick immediately after an
+    # interpreter name is itself unanalyzable.
+    r"|\b(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b\S*(?:\$\(|`)"
+    # issue-227 review: `P=python3; $P -c '...'` indirects the interpreter
+    # head through a variable, so no literal interpreter name sits next to
+    # `-c`/`-e` at all. Caught only when the same variable is assigned an
+    # interpreter name earlier in the same command text. issue-227
+    # re-review B1: the brace form (`${P}`) also indirects and was missed
+    # by `\$\1\b`, which never matches `${P}`.
+    r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b"
+    # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
+    # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
+    # defeating the literal-`\s`-before-`-c`/`-e` requirement in the
+    # pattern above. No legitimate gated write needs `$IFS` in its
+    # command text, so its bare presence is itself an unanalyzable shape.
+    # Anchored so `$IFSHOME`/`${IFS_DIR}` -- distinct variable names that
+    # merely start with the four letters IFS -- are plain reads, not hits
+    # (issue-227 review finding 1: the unanchored form denied both).
+    r"|\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])"
 )
 
 

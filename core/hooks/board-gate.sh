@@ -107,6 +107,14 @@ READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
 # finder's record) — measured: a role resolving findings could not open
 # review.md via `sed -n` and had to work from a prompt summary.
 READ_UNLESS_INPLACE = ("sed", "awk", "gawk")
+# issue-227 re-review B2: awk/gawk also write via their own `system(...)`
+# call -- a shell escape run from inside the program text, independent of
+# both `-i` and a literal `>` redirect. Without this, `awk 'BEGIN{system
+# ("touch pwn.md")}'` had no INPLACE match and no FILE_REDIR match, so
+# _segment_is_failing called it read-only and the call never even reached
+# _is_unanalyzable_write_shape's unconditional WRITE_UNSAFE_HEADS check --
+# that check only fires for segments already flagged failing.
+SYSTEM_CALL_RE = re.compile(r"\bsystem\s*\(")
 # A file is written by `> f`, `>> f`, `2> f`, `&> f`. It is NOT written by
 # `2>&1` or `>&2`, which duplicate a file descriptor and create nothing —
 # hence the (?!&). The previous catch-all `[>|`]` counted both those and
@@ -247,7 +255,8 @@ def _segment_is_failing(seg, stripped):
         # -- the wrapped program argument is not inert data here, same
         # reasoning issue-98/Finding-1 turns on for `bash -c` (issue-98).
         if not writes and head in ("awk", "gawk"):
-            writes = FILE_REDIR.search(stripped) is not None
+            writes = (FILE_REDIR.search(stripped) is not None
+                       or SYSTEM_CALL_RE.search(stripped) is not None)
         if not writes and head == "sed":
             writes = SED_WRITE_CMD.search(stripped) is not None
         return writes
@@ -415,16 +424,52 @@ unanalyzable = []
 INTERPRETER_HEADS = ("python3", "python", "python2", "bash", "sh", "zsh",
                       "perl", "ruby", "node", "nodejs")
 INLINE_FLAG_WORDS = ("-c", "-e")
+# issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what
+# would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."` reads,
+# to whitespace-splitting code, as ONE word) -- gate_head_of's
+# `.split()` and gate_trailing_words see no interpreter head and no `-c`
+# flag at all, so the INTERPRETER_HEADS branch above never fires. No
+# legitimate gated write needs `$IFS` in its command text, so its mere
+# presence is itself treated as an unanalyzable write shape rather than
+# attempting to normalize the fused token apart (issue #227 direction).
+# Anchored so `$IFSHOME`/`${IFS_DIR}` -- distinct variable names that merely
+# start with the four letters IFS -- are plain reads, not hits (issue-227
+# review finding 1: the unanchored `\$\{?IFS\}?` denied both).
+IFS_TOKEN_RE = re.compile(r"\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])")
+# issue-227 review finding 2: `awk`/`gawk`/`nawk`/`mawk` write a file
+# straight from program text (`BEGIN{print "x" > "f"}`, `system(...)`) and
+# `ed`/`ex` write via script commands (`w file`) -- neither takes a `-c`/`-e`
+# flag the interpreter branch below would catch, so they were absent from
+# the write-capable set entirely.
+WRITE_UNSAFE_HEADS = ("dd", "awk", "gawk", "nawk", "mawk", "ed", "ex")
+# issue-227 review finding 2: fusion glues an interpreter name straight onto
+# a command-substitution/backtick token (`python3$(printf " ")-c '...'`), so
+# gate_head_of never resolves a bare interpreter word and the flag check
+# below never fires.
+FUSED_INTERP_RE = re.compile(
+    r"\b(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b\S*(?:\$\(|`)")
+# issue-227 review finding 2: `P=python3; $P -c '...'` indirects the
+# interpreter head through a variable -- caught only when the same variable
+# is assigned an interpreter name earlier in the same command text. issue-227
+# re-review B1: the brace form (`${P}`) also indirects and was missed --
+# `\$\1\b` never matches `${P}` (the `{` breaks the literal-`$`-then-name
+# match), so `${P} -c '...'` sailed through denied only by luck of no other
+# clause catching it.
+VAR_INTERP_RE = re.compile(
+    r"\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b")
 
 
-def _is_unanalyzable_write_shape(stripped, head):
+def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     """True when `stripped` is a write-capable command whose actual write
     target(s) cannot be read from the command text itself: an inline
-    heredoc body, a shell/interpreter '-c'/'-e' string, or a `dd`
-    invocation. Called only when the ordinary token scan already found no
-    docs/-shaped hit of its own (own_hits empty) -- a heredoc/-c/dd whose
-    visible text DOES name a docs/ path is still caught by that scan and
-    never reaches here.
+    heredoc body, a shell/interpreter '-c'/'-e' string, a `dd`
+    invocation, a `tee` invocation with no visible target of its own
+    (piped in indirectly, e.g. via `xargs`), or a command carrying an
+    `$IFS`/`${IFS}` token-fusion space substitute. Called only when the
+    ordinary token scan already found no docs/-shaped hit of its own
+    (own_hits empty) -- a heredoc/-c/dd/tee whose visible text DOES name a
+    docs/ path is still caught by that scan and never reaches here.
 
     This is the gap on-the-record PR #1627 hit live: `python3 - <<EOF`
     masked its body via `_mask_heredocs` before the segment scan ever ran,
@@ -437,7 +482,29 @@ def _is_unanalyzable_write_shape(stripped, head):
     if head in INTERPRETER_HEADS:
         if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
             return True
-    if head == "dd":
+    if head in WRITE_UNSAFE_HEADS:
+        return True
+    if FUSED_INTERP_RE.search(stripped):
+        return True
+    # `P=python3; $P -c ...` splits into separate `;`-delimited segments
+    # (the assignment and the indirected call are never in the same
+    # `stripped` segment), so this one checks the whole raw command text
+    # instead of the current segment.
+    if full_cmd is not None and VAR_INTERP_RE.search(full_cmd):
+        return True
+    # issue-227: `echo docs/issue-3/reports/x.md | xargs tee` resolves
+    # (via gate_head_of's TRANSPARENT walk through xargs) to head=="tee"
+    # with no trailing word of its own -- its real write target arrives
+    # on stdin, invisible in the command text. A `tee` with a visible
+    # non-flag trailing word (docs/-shaped or not, e.g. `tee /tmp/x`) is
+    # analyzable -- own_hits already caught a docs/-shaped one via
+    # `_write_target_windows`'s head=="tee" branch, and a non-docs/ one is
+    # a genuine non-board write, not a masked target -- so this only
+    # fires when tee names NO target of its own to inspect.
+    if head == "tee" and not [w for w in gate_lib.gate_trailing_words(stripped)
+                               if not w.startswith("-")]:
+        return True
+    if IFS_TOKEN_RE.search(stripped):
         return True
     return False
 
@@ -497,7 +564,7 @@ elif tool == "Bash":
                 candidates.append(DOCS + cd_tail)
             if not own_hits:
                 head = gate_lib.gate_head_of(stripped)
-                if _is_unanalyzable_write_shape(stripped, head):
+                if _is_unanalyzable_write_shape(stripped, head, cmdline):
                     unanalyzable.append(stripped)
 else:
     allow()

@@ -593,5 +593,66 @@ runUnrestrictedHeredoc
 # unrelated docs/ mention on the same line (the fast-path/word check).
 run allow python-pytest-still-allowed     Bash '{"command":"echo see '$BOARD'/x.md ; python3 -m pytest -q"}'
 
+# --- issue-227: residuals from #225's review -------------------------------
+# (1) `${IFS}`/`$IFS` used as a literal-space substitute fuses what would
+# otherwise be separate tokens (`python3${IFS}-c` reads as ONE word to
+# gate_head_of's whitespace split), so the interpreter-head + `-c` shape
+# above goes undetected -- the write it performs is invisible to the token
+# scan and the call must still deny (fail-closed) rather than fall through
+# `if not hits: allow()`.
+run deny  ifs-fused-inline-c-mask-bypass  Bash '{"command":"cd '$BOARD' && python3${IFS}-c${IFS}\"open(1)\""}'
+# unrestricted session: same $IFS shape, but no write-set is enforced.
+runUnrestrictedIfs() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  mkdir -p "$td/docs"
+  printf '{"tool_name":"Bash","tool_input":{"command":"python3${IFS}-c${IFS}%s"},"cwd":"%s"}' \
+    "'open(1)'" "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report allow "$got" "ifs-fusion-unrestricted-session-unaffected"
+}
+runUnrestrictedIfs
+# (2) indirect tee: the write target arrives on stdin via `xargs`, never as
+# a visible tee argument in the command text -- board-gate's unanalyzable
+# set previously covered heredoc/-c/-e/dd only.
+run deny  indirect-tee-via-xargs          Bash '{"command":"echo '$BOARD'/reports/x.md | xargs tee"}'
+# a direct tee with a visible target keeps being caught the ordinary way
+# (own_hits finds it -- unaffected by this fix).
+run deny  direct-tee-visible-target       Bash '{"command":"echo pwn | tee '$BOARD'/reports/x.md"}'
+
+# --- issue-227 review: blocking findings ------------------------------------
+# (1) FALSE POSITIVE -- the IFS regex had no boundary after IFS, so any
+# variable merely starting with the four letters IFS tripped it even though
+# it is a distinct variable name, not the $IFS token-fusion shape at all.
+run allow ifs-lookalike-var-ifshome-read  Bash '{"command":"cat \"$IFSHOME/notes.md\""}'
+run allow ifs-lookalike-var-ifsdir-read   Bash '{"command":"cat \"${IFS_DIR}/x\""}'
+# (2) the token-fusion class survives via other spellings than literal
+# whitespace before -c/-e: $(...) fusion, backtick fusion, and a
+# variable-indirected interpreter head.
+run deny  dollar-paren-fused-inline-c     Bash '{"command":"cd '$BOARD' && python3$(printf '"'"' '"'"')-c '"'"'open(1)'"'"'"}'
+run deny  backtick-fused-inline-c         Bash '{"command":"cd '$BOARD' && python3`printf '"'"' '"'"'`-c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-interpreter-head Bash '{"command":"cd '$BOARD' && P=python3; $P -c '"'"'open(1)'"'"'"}'
+# awk/gawk/ed/ex are write-capable (redirection/`w` live inside the program
+# text this gate does not parse) and were absent from the write-capable set.
+run deny  awk-begin-block-write           Bash '{"command":"cd '$BOARD' && awk '"'"'BEGIN{print \"x\" > \"pwn.md\"}'"'"'"}'
+run deny  ed-script-write                 Bash '{"command":"cd '$BOARD' && ed -s pwn.md"}'
+
+# --- issue-227 re-review: blocking findings ------------------------------------
+# (B1) brace-form interpreter indirection: `${P}` never matched `\$\1\b`.
+run deny  var-indirected-brace-interpreter-head Bash '{"command":"cd '$BOARD' && P=python3; ${P} -c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-brace-bash-head  Bash '{"command":"cd '$BOARD' && B=bash; ${B} -c '"'"'echo hi > pwn.md'"'"'"}'
+# (B2) awk system() write with no literal `>` and no `-i` -- the
+# awk-begin-block-write test above only passes because of its own `>`;
+# system() is a distinct, previously-uncaught write path.
+run deny  awk-system-call-write           Bash '{"command":"cd '$BOARD' && awk '"'"'BEGIN{system(\"touch pwn.md\")}'"'"'"}'
+# (d) awk/gawk stay read-classified when neither -i/redirect/system() is
+# present -- confirms the fix above did not widen awk into an unconditional
+# write-unsafe head the way scope-gate's sibling clause once did.
+run allow awk-pure-read-not-overblocked   Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
