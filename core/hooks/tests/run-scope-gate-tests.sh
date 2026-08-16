@@ -241,5 +241,27 @@ run deny  awk-begin-block-write           Bash \
 run deny  ed-script-write                 Bash \
   '{"command":"ed -s src/other.py"}'
 
+# --- issue-227 re-review: blocking findings ---------------------------------
+# (B1) brace-form interpreter indirection: `${P}` never matched `\$\1\b`
+# (which requires a literal `$name`, not `${name}`) -- the variable-
+# indirection check was silently blind to the brace spelling.
+run deny  var-indirected-brace-interpreter-head Bash \
+  '{"command":"P=python3; ${P} -c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-brace-bash-head  Bash \
+  '{"command":"B=bash; ${B} -c '"'"'echo hi > src/other.py'"'"'"}'
+# (B2) awk/gawk write via `system(...)` with no `>` and no `-i` in the
+# invocation text -- the prior awk-begin-block-write test above only
+# passed because of its own literal `>`; system() alone is a distinct
+# write path that must be caught too.
+run deny  awk-system-call-write           Bash \
+  '{"command":"awk '"'"'BEGIN{system(\"touch src/other.py\")}'"'"'"}'
+# (d) NEW over-block: the awk-family clause used to hard-deny every
+# awk/gawk/nawk/mawk invocation unconditionally, including a plain read
+# with no write marker at all -- a real regression for the dominant safe
+# use of these tools. This must fall through to the ordinary
+# decline-to-vouch allow, same as any other unlisted read command.
+run allow awk-pure-read-not-overblocked   Bash \
+  '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

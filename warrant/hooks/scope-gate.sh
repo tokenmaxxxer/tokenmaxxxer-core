@@ -168,12 +168,22 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
-    # issue-227: awk/gawk/nawk/mawk can write a file straight from its
-    # program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`) or via
-    # `ed`/`ex` script commands (`w file`) -- neither takes a `-c`/`-e`
-    # flag the interpreter branch above would catch, and the write target
-    # lives inside the program/script text this gate does not parse.
-    r"|(?:^|\s)(?:awk|gawk|nawk|mawk|ed|ex)\b"
+    # issue-227: `ed`/`ex` write via script commands (`w file`) that this
+    # gate cannot parse out of the invocation text -- any invocation is
+    # treated as unanalyzable, same as `tee`/`dd`.
+    r"|(?:^|\s)(?:ed|ex)\b"
+    # issue-227: awk/gawk/nawk/mawk can ALSO write a file straight from
+    # their program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`,
+    # or gawk's own `-i inplace`) -- but awk/gawk/nawk/mawk are ordinary
+    # read commands by default (`awk '{print $1}' file.txt`), unlike
+    # ed/ex. issue-227 re-review finding (d): an earlier, unconditional
+    # version of this clause hard-denied every awk-family invocation,
+    # including plain reads -- a real over-block regression for the
+    # dominant, safe use of these tools. Scoped with a lookahead so only
+    # an invocation that ALSO carries a write marker (`system(`, a `>`
+    # redirect, or `-i`) trips it; a read with none of those keeps
+    # falling through to readonly_allowed()'s ordinary decline-to-vouch.
+    r"|(?:^|\s)(?:awk|gawk|nawk|mawk)\b(?=[^\n]*(?:system\s*\(|>|-i\b))"
     # issue-227 review: `python3$(printf " ")-c '...'` / backtick fusion
     # glues the interpreter name straight onto the command-substitution
     # token, so the interpreter head above (which requires literal `\s`
@@ -184,8 +194,11 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # issue-227 review: `P=python3; $P -c '...'` indirects the interpreter
     # head through a variable, so no literal interpreter name sits next to
     # `-c`/`-e` at all. Caught only when the same variable is assigned an
-    # interpreter name earlier in the same command text.
-    r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*\$\1\b[^\n]*-[ce]\b"
+    # interpreter name earlier in the same command text. issue-227
+    # re-review B1: the brace form (`${P}`) also indirects and was missed
+    # by `\$\1\b`, which never matches `${P}`.
+    r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
     # defeating the literal-`\s`-before-`-c`/`-e` requirement in the

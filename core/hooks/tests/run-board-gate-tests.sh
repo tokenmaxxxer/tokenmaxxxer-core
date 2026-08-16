@@ -641,5 +641,18 @@ run deny  var-indirected-interpreter-head Bash '{"command":"cd '$BOARD' && P=pyt
 run deny  awk-begin-block-write           Bash '{"command":"cd '$BOARD' && awk '"'"'BEGIN{print \"x\" > \"pwn.md\"}'"'"'"}'
 run deny  ed-script-write                 Bash '{"command":"cd '$BOARD' && ed -s pwn.md"}'
 
+# --- issue-227 re-review: blocking findings ------------------------------------
+# (B1) brace-form interpreter indirection: `${P}` never matched `\$\1\b`.
+run deny  var-indirected-brace-interpreter-head Bash '{"command":"cd '$BOARD' && P=python3; ${P} -c '"'"'open(1)'"'"'"}'
+run deny  var-indirected-brace-bash-head  Bash '{"command":"cd '$BOARD' && B=bash; ${B} -c '"'"'echo hi > pwn.md'"'"'"}'
+# (B2) awk system() write with no literal `>` and no `-i` -- the
+# awk-begin-block-write test above only passes because of its own `>`;
+# system() is a distinct, previously-uncaught write path.
+run deny  awk-system-call-write           Bash '{"command":"cd '$BOARD' && awk '"'"'BEGIN{system(\"touch pwn.md\")}'"'"'"}'
+# (d) awk/gawk stay read-classified when neither -i/redirect/system() is
+# present -- confirms the fix above did not widen awk into an unconditional
+# write-unsafe head the way scope-gate's sibling clause once did.
+run allow awk-pure-read-not-overblocked   Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

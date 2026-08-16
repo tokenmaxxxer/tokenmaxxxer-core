@@ -177,3 +177,94 @@ ALL OK
 (board gate, scope gate/warrant, approval gate, gh guard, role-agnostic
 gates, and sibling-plugin test suites all pass clean; no SKIPPED lines,
 no regressions.)
+
+## Amendment 2: PR #228 second adversarial re-review (3 blocking fixed)
+
+`gh pr view 228 --comments` surfaced a second independent adversarial
+review of head `44bbab5`. It found the prior "closed" claim overstated —
+the same fusion/write-unsafe class remained open at two spots the tests
+never exercised, plus a new over-block the second amendment itself
+introduced. Correcting the record: Amendment 1 above should NOT have
+been read as closing the awk/gawk-family and variable-indirection class
+in full — B1/B2/d below were live gaps in that same code at the time.
+
+- **B1 — brace-form indirection `${P}`/`${B}` survived both gates.**
+  `VAR_INTERP_RE` (board-gate) and scope-gate's matching alternative both
+  used `\$\1\b`, which matches `$P` but never `${P}` — the brace form
+  sailed through as an unrecognized shape. Fixed in both by widening the
+  reference match to `(?:\$\{\1\}|\$\1\b)`. Red tests added and now
+  green: `var-indirected-brace-interpreter-head`
+  (`P=python3; ${P} -c '...'`),  `var-indirected-brace-bash-head`
+  (`B=bash; ${B} -c 'echo hi > ...'`) — both suites.
+- **B2 — awk/gawk `system()` writes survived BOARD-gate.**
+  `_segment_is_failing` classified awk/gawk as read-only unless `-i` or a
+  literal `>` was present in the segment text, so a `system("touch
+  ...")` call — a shell escape with no redirect syntax of its own — never
+  even reached `_is_unanalyzable_write_shape`'s (already-correct)
+  `WRITE_UNSAFE_HEADS` check, because that check only runs on segments
+  already flagged failing. The existing `awk-begin-block-write` test only
+  passed because its own program text also carried a literal `>` for an
+  unrelated reason (failing test for the wrong reason, per the review).
+  Fixed by adding `SYSTEM_CALL_RE` (`\bsystem\s*\(`) as a second write
+  trigger alongside `FILE_REDIR` inside the awk/gawk branch of
+  `_segment_is_failing`. scope-gate was never affected here — its
+  `UNANALYZABLE_WRITE_SHAPE` regex denied all awk-family invocations
+  unconditionally already (see finding d). New red test now green:
+  `awk-system-call-write` (board-gate suite; command has no `>`, no `-i`,
+  only `system(...)`).
+- **Finding d — NEW over-block, scope-gate only.** Amendment 1's
+  unconditional `(?:awk|gawk|nawk|mawk|ed|ex)\b` alternative in
+  `UNANALYZABLE_WRITE_SHAPE` hard-denied every awk-family invocation,
+  including a plain read (`awk '{print $1}' file.txt`) — a real
+  regression for the dominant safe use of these tools, and inconsistent
+  with board-gate's own conditional (`READ_UNLESS_INPLACE`) treatment of
+  the same heads. Fixed by keeping `ed`/`ex` unconditional (they write
+  via script commands this gate cannot parse out of the invocation text
+  at all, same posture as `tee`/`dd`) but scoping `awk`/`gawk`/`nawk`/
+  `mawk` to a lookahead requiring one of `system(`, a literal `>`, or
+  `-i` somewhere in the command text — same three markers board-gate's
+  fixed `_segment_is_failing` now checks. A read with none of those falls
+  through to the ordinary decline-to-vouch `allow()`, same as any other
+  unlisted read command. New red test now green (scope-gate suite):
+  `awk-pure-read-not-overblocked` (want=allow; was deny before this fix).
+  Added the equivalent regression guard to board-gate's suite too
+  (`awk-pure-read-not-overblocked`) confirming the board-gate fix for B2
+  did not also widen awk into an unconditional write-unsafe head.
+- Non-blocking items from the first review round (`eval 'python3 -c
+  ...'` bypassing board-gate; an interpreter given a script FILE argument,
+  e.g. `sh -x file.sh`, being unanalyzable) are explicitly **left open,
+  out of scope for this amendment** — not fixed, not claimed fixed. They
+  match the standing decline-to-vouch/process-substitution posture the
+  first review itself called non-blocking. A follow-up issue should track
+  them; this record does not claim them closed.
+- 3 new tests added to each suite (board-gate and scope-gate): 2 deny
+  (B1's two indirection spellings) + 1 allow (finding d's pure-read
+  guard) for scope-gate; board-gate gets the same 3 plus B2's
+  `awk-system-call-write` deny (board-gate needed this test, scope-gate
+  did not — its awk clause already covered `system()` unconditionally
+  pre-fix).
+
+derived: `bash core/hooks/tests/run-board-gate-tests.sh`
+```
+== 130 passed, 0 failed ==
+```
+(126 pre-existing + 4 new: var-indirected-brace-interpreter-head (deny),
+var-indirected-brace-bash-head (deny), awk-system-call-write (deny),
+awk-pure-read-not-overblocked (allow) — all passing, no SKIPPED lines,
+no regressions.)
+
+derived: `bash core/hooks/tests/run-scope-gate-tests.sh`
+```
+== 46 passed, 0 failed ==
+```
+(42 pre-existing + 4 new: var-indirected-brace-interpreter-head (deny),
+var-indirected-brace-bash-head (deny), awk-system-call-write (deny),
+awk-pure-read-not-overblocked (allow) — all passing, no SKIPPED lines,
+no regressions.)
+
+derived: `bash core/hooks/tests/run-all.sh`
+```
+ALL OK
+```
+(same full sweep as Amendment 1, re-run clean after this amendment's
+changes; no SKIPPED lines, no regressions.)

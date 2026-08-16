@@ -107,6 +107,14 @@ READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
 # finder's record) — measured: a role resolving findings could not open
 # review.md via `sed -n` and had to work from a prompt summary.
 READ_UNLESS_INPLACE = ("sed", "awk", "gawk")
+# issue-227 re-review B2: awk/gawk also write via their own `system(...)`
+# call -- a shell escape run from inside the program text, independent of
+# both `-i` and a literal `>` redirect. Without this, `awk 'BEGIN{system
+# ("touch pwn.md")}'` had no INPLACE match and no FILE_REDIR match, so
+# _segment_is_failing called it read-only and the call never even reached
+# _is_unanalyzable_write_shape's unconditional WRITE_UNSAFE_HEADS check --
+# that check only fires for segments already flagged failing.
+SYSTEM_CALL_RE = re.compile(r"\bsystem\s*\(")
 # A file is written by `> f`, `>> f`, `2> f`, `&> f`. It is NOT written by
 # `2>&1` or `>&2`, which duplicate a file descriptor and create nothing —
 # hence the (?!&). The previous catch-all `[>|`]` counted both those and
@@ -247,7 +255,8 @@ def _segment_is_failing(seg, stripped):
         # -- the wrapped program argument is not inert data here, same
         # reasoning issue-98/Finding-1 turns on for `bash -c` (issue-98).
         if not writes and head in ("awk", "gawk"):
-            writes = FILE_REDIR.search(stripped) is not None
+            writes = (FILE_REDIR.search(stripped) is not None
+                       or SYSTEM_CALL_RE.search(stripped) is not None)
         if not writes and head == "sed":
             writes = SED_WRITE_CMD.search(stripped) is not None
         return writes
@@ -441,9 +450,14 @@ FUSED_INTERP_RE = re.compile(
     r"\b(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b\S*(?:\$\(|`)")
 # issue-227 review finding 2: `P=python3; $P -c '...'` indirects the
 # interpreter head through a variable -- caught only when the same variable
-# is assigned an interpreter name earlier in the same command text.
+# is assigned an interpreter name earlier in the same command text. issue-227
+# re-review B1: the brace form (`${P}`) also indirects and was missed --
+# `\$\1\b` never matches `${P}` (the `{` breaks the literal-`$`-then-name
+# match), so `${P} -c '...'` sailed through denied only by luck of no other
+# clause catching it.
 VAR_INTERP_RE = re.compile(
-    r"\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*\$\1\b[^\n]*-[ce]\b")
+    r"\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):

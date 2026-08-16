@@ -627,3 +627,41 @@ cases: `ifs-lookalike-var-ifshome-read`, `ifs-lookalike-var-ifsdir-read`
 (allow); `dollar-paren-fused-inline-c`, `backtick-fused-inline-c`,
 `var-indirected-interpreter-head`, `awk-begin-block-write`,
 `ed-script-write` (deny).
+
+## issue-227 second amendment: PR #228 re-review — brace indirection, awk system(), awk over-block
+
+A second adversarial review of the amendment above found it overstated:
+three issues remained live in the exact code the "closed" claim covered.
+
+- **B1 — brace-form indirection.** `${P}`/`${B}` never matched `\$\1\b`
+  (needs a literal `$name`, not `${name}`). Both gates' variable-
+  indirection regex widened its reference match to
+  `(?:\$\{\1\}|\$\1\b)`.
+- **B2 — awk/gawk `system()` write, board-gate only.**
+  `_segment_is_failing` only checked `-i`/a literal `>` for awk/gawk, so
+  `awk 'BEGIN{system("touch f")}'` (no redirect syntax) never reached the
+  already-correct `WRITE_UNSAFE_HEADS` check — that check only runs on
+  segments already flagged failing. `awk-begin-block-write` had passed
+  for the wrong reason (its own unrelated literal `>`). Added
+  `SYSTEM_CALL_RE` as a second write trigger in that branch. scope-gate
+  was unaffected — its awk clause denied unconditionally already
+  (that's finding d, not a miss).
+- **Finding d — new over-block, scope-gate only.** The unconditional
+  `(?:awk|gawk|nawk|mawk|ed|ex)\b` alternative added by the first
+  amendment hard-denied every awk-family call, including plain reads
+  (`awk '{print $1}' file.txt`). Fixed by keeping `ed`/`ex` unconditional
+  (they write via unparseable script commands, same posture as
+  `tee`/`dd`) and scoping `awk`/`gawk`/`nawk`/`mawk` to a lookahead
+  requiring `system(`, a literal `>`, or `-i` in the command text — the
+  same three markers board-gate's `_segment_is_failing` now checks. A
+  read with none of those still falls through to the ordinary
+  decline-to-vouch `allow()`.
+- The prior round's two non-blocking items (`eval` bypassing board-gate;
+  an interpreter given a script FILE argument) are still open — explicitly
+  out of scope for this amendment, not claimed fixed. Follow-up issue
+  territory.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin 4 new
+cases: `var-indirected-brace-interpreter-head`,
+`var-indirected-brace-bash-head`, `awk-system-call-write` (deny);
+`awk-pure-read-not-overblocked` (allow).
