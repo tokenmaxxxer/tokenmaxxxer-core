@@ -102,3 +102,47 @@ regexes and message text, not the phase-4a classification report's
 **Tests.** `core/hooks/tests/run-facet-keyword-gate-tests.sh`
 (live-fire, real subprocess invocations), run as part of
 `core/hooks/tests/run-all.sh`.
+
+## `ordering-norm-gate.sh` — parameterized ordering-methodology-family gate (issue #257)
+
+Folds the 18 classification-report rows / 15 distinct source files of the
+`ordering-methodology` family (11 rulebooks: conformance-review,
+customer-support, defect-verification, execution-observation,
+issue-retrospective, observability, performance-engineering,
+pr-communications, risk-management, user-discovery, ux-engineering) into
+one core gate, `core/hooks/ordering-norm-gate.sh`, driven by
+`core/hooks/ordering-norm-config.json`. Promote-first: none of the 15
+source hooks were removed or modified.
+
+**Dispatch.** Reads `CLAUDE_ROLE` and looks up that key in the config
+file (one entry per rulebook, each a list of rows — observability carries
+3); a role with no entry, or a missing/unreadable config file, passes
+through silently (exit 0). Each row carries `mode` (`gate` or `tracker`)
+and `event` (`PreToolUse`, `SessionStart`, or `PostToolUse`/`SessionStart+PostToolUse`).
+
+**`mode: gate` rows** (9 of 15 files — PreToolUse deniers): `target_path_regex`
+match on the reconstructed write, then an ordered `step_sequence:
+[{label, marker_regex}]` position compare when non-empty, then a list of
+named `extra_checks` (`distinct_pair`, `adjacency_required`,
+`heading_before_forbidden`, `artifact_exists_before`,
+`citation_adjacency`, `needle_any_missing`, `conditional_race_sequence`,
+`hypothesis_state_or_marker`, `sources_or_paths_required`) reproducing
+each hook's bundled non-order sub-checks — transcribed from the 15
+source hooks' actual regexes and message text, not the classification
+report's flat `{step_sequence, marker_regex}` guess (only 5 of 15 files
+are a clean step-sequence check at all; per-hook detail lives in
+`docs/issue-257/reports/implementation/survey.md`).
+
+**`mode: tracker` rows** (6 of 15 files — SessionStart/PostToolUse
+siblings that never deny): a named `tracker_action`
+(`context_informer`, `loop_state_rank_bump`, `marker_file_reset_or_touch`,
+`needle_state_record`, `hypothesis_state_sync`) that best-effort
+reads/derives state and writes it to the same on-disk location the
+source hook used (e.g. `.claude/verify-state-issue-<n>.json`,
+`.observability-phase1-methods/<n>.json`); any internal failure is
+swallowed silently, matching every source tracker's own "never crash or
+block the session" contract.
+
+**Tests.** `core/hooks/tests/run-ordering-norm-gate-tests.sh`
+(live-fire, real subprocess invocations, 27 cases), run as part of
+`core/hooks/tests/run-all.sh`.

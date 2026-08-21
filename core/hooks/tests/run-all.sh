@@ -28,6 +28,9 @@ echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ===
 echo; echo "=== facet-keyword gate ==="
 /bin/bash "$here/run-facet-keyword-gate-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== ordering-norm gate ==="
+/bin/bash "$here/run-ordering-norm-gate-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== stub-check canon combination forms ==="
 /bin/bash "$here/run-stub-canon-forms-tests.sh" | tail -2 || rc=1
 
