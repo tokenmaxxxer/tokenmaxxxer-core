@@ -25,6 +25,9 @@ echo; echo "=== gh guard ==="
 echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ==="
 /bin/bash "$here/run-role-gates-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== facet-keyword gate ==="
+/bin/bash "$here/run-facet-keyword-gate-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== stub-check canon combination forms ==="
 /bin/bash "$here/run-stub-canon-forms-tests.sh" | tail -2 || rc=1
 
