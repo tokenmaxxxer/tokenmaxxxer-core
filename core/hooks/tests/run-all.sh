@@ -31,6 +31,9 @@ echo; echo "=== facet-keyword gate ==="
 echo; echo "=== ordering-norm gate ==="
 /bin/bash "$here/run-ordering-norm-gate-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== citation gate ==="
+/bin/bash "$here/run-citation-gate-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== stub-check canon combination forms ==="
 /bin/bash "$here/run-stub-canon-forms-tests.sh" | tail -2 || rc=1
 
