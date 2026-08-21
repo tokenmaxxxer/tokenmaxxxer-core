@@ -1,0 +1,1454 @@
+{
+  "accessibility": [
+    {
+      "check_type": "checklist_entry_fields",
+      "confidence": "low",
+      "hook": "wcag-em-gate/hooks/methodology-gate.sh",
+      "kill_switch_env": "WCAG_EM_GATE_OFF",
+      "required_keys": [
+        "fail"
+      ],
+      "target_path_regex": "docs/issue-10/proposals/gate-remediation.md"
+    }
+  ],
+  "api-design": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "api-design/plugins/adr-section-gate/hooks/gate.sh",
+      "kill_switch_env": "ADR_SECTION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*api-design*.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "api-design/plugins/deprecation-plan-gate/hooks/gate.sh",
+      "kill_switch_env": "DEPRECATION_PLAN_GATE_OFF",
+      "required_tokens": [
+        "Deprecation",
+        "Edit",
+        "MultiEdit",
+        "Sunset",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/api-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "api-design/plugins/interface-spec-gate/hooks/gate.sh",
+      "kill_switch_env": "INTERFACE_SPEC_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/api-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "api-design/plugins/resource-model-gate/hooks/gate.sh",
+      "kill_switch_env": "RESOURCE_MODEL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/api-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "api-design/plugins/versioning-strategy-gate/hooks/gate.sh",
+      "kill_switch_env": "VERSIONING_STRATEGY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/api-design.md"
+    }
+  ],
+  "architecture": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "arch-adr-content-gate/hooks/adr-content-gate.sh",
+      "kill_switch_env": "ARCH_ADR_CONTENT_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/architecture.md"
+    }
+  ],
+  "brand-design": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "brand-design-guide-and-spec/hooks/methodology-gate.sh",
+      "kill_switch_env": "BRAND_DESIGN_GUIDE_AND_SPEC_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/brand-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "brand-design-kapferer-scope-guard/hooks/methodology-gate.sh",
+      "kill_switch_env": "BRAND_DESIGN_KAPFERER_SCOPE_GUARD_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-1/proposals/2026-07-31-brand-design-methodology-charter.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "brand-design-system-handoff/hooks/methodology-gate.sh",
+      "kill_switch_env": "BRAND_DESIGN_SYSTEM_HANDOFF_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/brand-design.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "brand-design-wcag-consistency/hooks/methodology-gate.sh",
+      "kill_switch_env": "BRAND_DESIGN_WCAG_CONSISTENCY_GATE_OFF",
+      "required_tokens": [
+        "Edit",
+        "MultiEdit",
+        "Plugin set overview",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/brand-design.md"
+    }
+  ],
+  "capacity-planning": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "capacity-planning/hooks/capacity-fields-gate.sh",
+      "kill_switch_env": "CAPACITY_FIELDS_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-\\d+/reports/capacity-planning\\.md"
+    }
+  ],
+  "conformance-review": [
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "review-proposal-completeness/hooks/proposal-completeness-gate.sh",
+      "kill_switch_env": "REVIEW_PROPOSAL_COMPLETENESS_GATE_OFF",
+      "required_tokens": [
+        "Bash",
+        "Constraints",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "Request",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/review.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "review-record-norm/hooks/closed-checks-gate.sh",
+      "kill_switch_env": "REVIEW_RECORD_NORM_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-42/proposals/conformance-review.md"
+    }
+  ],
+  "content-design": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "content-design-decision-rationale/hooks/decision-rationale-gate.sh",
+      "kill_switch_env": "CONTENT_DESIGN_DECISION_RATIONALE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.*content-design.*\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "content-design-self-critique/hooks/self-critique-gate.sh",
+      "kill_switch_env": "CONTENT_DESIGN_SELF_CRITIQUE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/content-design\\.md"
+    }
+  ],
+  "customer-support": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "customer-support-evidence-metric/hooks/evidence-metric-gate.sh",
+      "kill_switch_env": "CUSTOMER_SUPPORT_EVIDENCE_METRIC_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-1/proposals/customer-support.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "customer-support-record-fields/hooks/record-fields-gate.sh",
+      "kill_switch_env": "CUSTOMER_SUPPORT_RECORD_FIELDS_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/customer-support\\.md"
+    }
+  ],
+  "data-engineering": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "data-quality-gate/hooks/data-quality-gate.sh",
+      "kill_switch_env": "DATA_ENGINEERING_DATA_QUALITY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/data\\-engineering\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "failure-handling-gate/hooks/failure-handling-gate.sh",
+      "kill_switch_env": "DATA_ENGINEERING_FAILURE_HANDLING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/data\\-engineering\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "pipeline-design-gate/hooks/pipeline-design-gate.sh",
+      "kill_switch_env": "DATA_ENGINEERING_PIPELINE_DESIGN_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/data\\-engineering\\.md"
+    }
+  ],
+  "data-modeling": [
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "data-modeling-datavault/hooks/datavault-gate.sh",
+      "kill_switch_env": "DATA_MODELING_DATAVAULT_GATE_OFF",
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.+\\.md",
+      "topic_tokens": [
+        "datavault",
+        "inmon",
+        "kimball"
+      ]
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "data-modeling-inmon/hooks/inmon-gate.sh",
+      "kill_switch_env": "DATA_MODELING_INMON_GATE_OFF",
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.+\\.md",
+      "topic_tokens": [
+        "datavault",
+        "inmon",
+        "kimball"
+      ]
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "data-modeling-kimball/hooks/kimball-gate.sh",
+      "kill_switch_env": "DATA_MODELING_KIMBALL_GATE_OFF",
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.+\\.md",
+      "topic_tokens": [
+        "datavault",
+        "dimensional model",
+        "inmon",
+        "kimball",
+        "star schema"
+      ]
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "data-modeling-structure/hooks/structure-gate.sh",
+      "kill_switch_env": "DATA_MODELING_STRUCTURE_GATE_OFF",
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.+\\.md",
+      "topic_tokens": [
+        "datavault",
+        "dimensional model",
+        "inmon",
+        "kimball",
+        "star schema"
+      ]
+    }
+  ],
+  "defect-verification": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "verify-finding-gate/hooks/finding-gate.sh",
+      "kill_switch_env": "VERIFY_FINDING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/verify.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "verify-outcome-gate/hooks/outcome-gate.sh",
+      "kill_switch_env": "VERIFY_OUTCOME_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/verify.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "verify-state-guard/hooks/state-guard.sh",
+      "kill_switch_env": "VERIFY_STATE_GUARD_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/verify.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "verify/hooks/closed-checks-gate.sh",
+      "kill_switch_env": "DEFECT_VERIFICATION_RULEBOOK_CLOSED_CHECKS_GATE_SH_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/verify.md"
+    }
+  ],
+  "devrel": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "diataxis-record/hooks/record-fields-devrel-gate.sh",
+      "kill_switch_env": "DIATAXIS_RECORD_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/devrel.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "metric-record/hooks/metric-record-gate.sh",
+      "kill_switch_env": "METRIC_RECORD_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/devrel.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "rfc-seven-section/hooks/proposal-sections-gate.sh",
+      "kill_switch_env": "RFC_SEVEN_SECTION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    }
+  ],
+  "execution-observation": [
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "execution-observation/plugins/eo-methodology-gate/hooks/methodology-gate.sh",
+      "kill_switch_env": "EXECUTION_OBSERVATION_METHODOLOGY_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/proposals/*execution-observation*.md",
+      "topic_tokens": []
+    }
+  ],
+  "finance-unit-economics": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "finance-cac-payback/hooks/cac-payback-gate.sh",
+      "kill_switch_env": "FINANCE_CAC_PAYBACK_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/finance-unit-economics\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "finance-ltv-cac-band/hooks/ltv-cac-band-gate.sh",
+      "kill_switch_env": "FINANCE_LTV_CAC_BAND_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/finance-unit-economics\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "finance-ltv-churn-assumption/hooks/ltv-churn-assumption-gate.sh",
+      "kill_switch_env": "FINANCE_LTV_CHURN_ASSUMPTION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/finance-unit-economics\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "finance-proposal-shape/hooks/proposal-shape-gate.sh",
+      "kill_switch_env": "FINANCE_PROPOSAL_SHAPE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/finance\\-unit\\-economics\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "finance-unit-economics/hooks/produces-fields-gate.sh",
+      "kill_switch_env": "FINANCE_UNIT_ECONOMICS_CYCLE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/finance-unit-economics\\.md"
+    }
+  ],
+  "growth-analytics": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ga-funnel/hooks/ga-funnel-gate.sh",
+      "kill_switch_env": "GA_FUNNEL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-10/proposals/gate-a-plus.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "ga-prereg/hooks/ga-prereg-gate.sh",
+      "kill_switch_env": "GA_PREREG_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ga-trust/hooks/ga-trust-gate.sh",
+      "kill_switch_env": "GA_TRUST_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-10/proposals/gate-a-plus.md"
+    }
+  ],
+  "implementation": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "coding/hooks/coding-progress-gate.sh",
+      "kill_switch_env": "CODING_CYCLE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/verify.md"
+    }
+  ],
+  "incident-response": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "incident-response-action-item-gate/hooks/action-item-gate.sh",
+      "kill_switch_env": "INCIDENT_RESPONSE_ACTION_ITEM_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/incident-response.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "incident-response-proposal-evidence-gate/hooks/evidence-gate.sh",
+      "kill_switch_env": "INCIDENT_RESPONSE_PROPOSAL_EVIDENCE_GATE_OFF",
+      "required_tokens": [
+        "Bash",
+        "Edit",
+        "MultiEdit",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/incident-response*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "incident-response-rca-method-gate/hooks/rca-method-gate.sh",
+      "kill_switch_env": "INCIDENT_RESPONSE_RCA_METHOD_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/incident-response.md"
+    }
+  ],
+  "interaction-design": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "interaction-design/plugins/id-accessibility-floor/hooks/accessibility-gate.sh",
+      "kill_switch_env": "ID_ACCESSIBILITY_FLOOR_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [
+        "## Accessibility floor\\"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/interaction-design.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "interaction-design/plugins/id-nielsen-heuristics/hooks/nielsen-gate.sh",
+      "kill_switch_env": "ID_NIELSEN_HEURISTICS_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/reports/interaction-design.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "interaction-design/plugins/id-persona-goal/hooks/persona-goal-gate.sh",
+      "kill_switch_env": "ID_PERSONA_GOAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-21/proposals/issue-21-interaction-design-gate-machine.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "interaction-design/plugins/id-proposal-shape/hooks/proposal-shape-gate.sh",
+      "kill_switch_env": "ID_PROPOSAL_SHAPE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "interaction-design/plugins/id-state-completeness/hooks/state-completeness-gate.sh",
+      "kill_switch_env": "ID_STATE_COMPLETENESS_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/interaction-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "interaction-design/plugins/id-task-flow/hooks/task-flow-gate.sh",
+      "kill_switch_env": "ID_TASK_FLOW_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-21/proposals/issue-21-interaction-design-gate-machine.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "interaction-design/plugins/id-usability-test-plan/hooks/usability-test-gate.sh",
+      "kill_switch_env": "ID_USABILITY_TEST_PLAN_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/interaction-design.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "interaction-design/plugins/id-wireframe-staging/hooks/wireframe-staging-gate.sh",
+      "kill_switch_env": "ID_WIREFRAME_STAGING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-21/proposals/issue-21-interaction-design-gate-machine.md"
+    }
+  ],
+  "issue-retrospective": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "action-item-shape-gate/hooks/action-item-shape-gate.sh",
+      "kill_switch_env": "ISSUE_RETROSPECTIVE_ACTION_ITEM_SHAPE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/issue-retrospective.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "contributing-factors-gate/hooks/contributing-factors-gate.sh",
+      "kill_switch_env": "ISSUE_RETROSPECTIVE_CONTRIBUTING_FACTORS_GATE_OFF",
+      "required_tokens": [
+        "Contributing factors",
+        "Edit",
+        "MultiEdit",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/issue-retrospective.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "freelunch-completeness-gate/hooks/freelunch-completeness-gate.sh",
+      "kill_switch_env": "ISSUE_RETROSPECTIVE_FREELUNCH_COMPLETENESS_GATE_OFF",
+      "required_tokens": [
+        "Edit",
+        "MultiEdit",
+        "Upstream basis",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*issue-retrospective*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "recurred-prediction-gate/hooks/recurred-prediction-gate.sh",
+      "kill_switch_env": "ISSUE_RETROSPECTIVE_RECURRED_PREDICTION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/issue-retrospective.md"
+    }
+  ],
+  "knowledge-management": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "km-adr-proposal/hooks/adr-shape-gate.sh",
+      "kill_switch_env": "KM_ADR_PROPOSAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/knowledge\\-management\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "km-cross-index/hooks/index-pairing-gate.sh",
+      "kill_switch_env": "KM_CROSS_INDEX_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/knowledge\\-management\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "km-cross-index/hooks/index-shape-gate.sh",
+      "kill_switch_env": "KM_CROSS_INDEX_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/knowledge\\-management\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "km-pattern-entry/hooks/pattern-entry-gate.sh",
+      "kill_switch_env": "KM_PATTERN_ENTRY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/knowledge\\-management\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "km-supersession/hooks/supersession-pairing-gate.sh",
+      "kill_switch_env": "KM_SUPERSESSION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/knowledge\\-management\\.md"
+    }
+  ],
+  "legal-compliance": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "legal-compliance-fanout-completeness-gate/hooks/gate.sh",
+      "kill_switch_env": "LEGAL_COMPLIANCE_FANOUT_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/.*legal-compliance.*\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "legal-compliance-phase1-proposal-gate/hooks/gate.sh",
+      "kill_switch_env": "LEGAL_COMPLIANCE_PHASE1_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-\\d+/proposals/.*legal-compliance.*\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "legal-compliance-phase2-record-gate/hooks/gate.sh",
+      "kill_switch_env": "LEGAL_COMPLIANCE_PHASE2_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/legal-compliance.md"
+    }
+  ],
+  "localization": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "localization/hooks/record-fields-localization-gate.sh",
+      "kill_switch_env": "RECORD_FIELDS_LOCALIZATION_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/localization.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "localization/plugins/mqm-tagging/hooks/mqm-tagging-gate.sh",
+      "kill_switch_env": "LOCALIZATION_MQM_TAGGING_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/localization.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "localization/plugins/proposal-gate/hooks/methodology-gate.sh",
+      "kill_switch_env": "LOCALIZATION_PROPOSAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*localization*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "localization/plugins/verdict-axis/hooks/verdict-axis-gate.sh",
+      "kill_switch_env": "LOCALIZATION_VERDICT_AXIS_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/localization.md"
+    }
+  ],
+  "market-analysis": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "market-analysis/plugins/competitor-mapping/hooks/gate.sh",
+      "kill_switch_env": "COMPETITOR_MAPPING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/market-analysis.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "market-analysis/plugins/evidence-rigor/hooks/gate.sh",
+      "kill_switch_env": "EVIDENCE_RIGOR_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [
+        "## Sources"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "market-analysis/plugins/five-forces/hooks/gate.sh",
+      "kill_switch_env": "FIVE_FORCES_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/market-analysis.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "market-analysis/plugins/jtbd-fit/hooks/gate.sh",
+      "kill_switch_env": "JTBD_FIT_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/market-analysis.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "market-analysis/plugins/mece-proposal/hooks/gate.sh",
+      "kill_switch_env": "MECE_PROPOSAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    }
+  ],
+  "marketing": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "marketing-channel/hooks/channel-gate.sh",
+      "kill_switch_env": "MARKETING_CHANNEL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*marketing*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "marketing-messaging/hooks/messaging-gate.sh",
+      "kill_switch_env": "MARKETING_MESSAGING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*marketing*.md"
+    },
+    {
+      "check_type": "checklist_entry_fields",
+      "confidence": "low",
+      "hook": "marketing-segment/hooks/segment-gate.sh",
+      "kill_switch_env": "MARKETING_SEGMENT_GATE_OFF",
+      "required_keys": [
+        "Bash"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*marketing*.md"
+    }
+  ],
+  "ml-engineering": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ml-engineering-adr-proposal/hooks/methodology-gate.sh",
+      "kill_switch_env": "ML_ENGINEERING_ADR_PROPOSAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*ml-engineering*.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "ml-engineering-eval-discipline/hooks/methodology-gate.sh",
+      "kill_switch_env": "ML_ENGINEERING_EVAL_DISCIPLINE_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/reports/ml-engineering.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "ml-engineering-ml-test-score/hooks/methodology-gate.sh",
+      "kill_switch_env": "ML_ENGINEERING_ML_TEST_SCORE_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/reports/ml-engineering.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ml-engineering-model-provenance/hooks/methodology-gate.sh",
+      "kill_switch_env": "ML_ENGINEERING_MODEL_PROVENANCE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/ml-engineering.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "ml-engineering-slo-serving/hooks/methodology-gate.sh",
+      "kill_switch_env": "ML_ENGINEERING_SLO_SERVING_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/reports/ml-engineering.md",
+      "topic_tokens": []
+    }
+  ],
+  "observability": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "observability-cardinality-budget/hooks/cardinality-budget-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_CARDINALITY_BUDGET_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*observability*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "observability-explorability/hooks/explorability-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_EXPLORABILITY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*observability*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "observability-signal-golden/hooks/signal-golden-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_SIGNAL_GOLDEN_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/observability.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "observability-signal-red/hooks/signal-red-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_SIGNAL_RED_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/observability.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "observability-signal-use/hooks/signal-use-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_SIGNAL_USE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/observability.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "observability/hooks/observability-produces-gate.sh",
+      "kill_switch_env": "OBSERVABILITY_PRODUCES_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/observability.md"
+    }
+  ],
+  "partnerships-bd": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "batna-zopa/hooks/batna-zopa-gate.sh",
+      "kill_switch_env": "BATNA_ZOPA_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/(proposals/.*\\.md|reports/partnerships-bd\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "evidence-discipline/hooks/evidence-discipline-gate.sh",
+      "kill_switch_env": "EVIDENCE_DISCIPLINE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.*\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "multi-axis-scoring/hooks/multi-axis-scoring-gate.sh",
+      "kill_switch_env": "MULTI_AXIS_SCORING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/(proposals/.*\\.md|reports/partnerships-bd\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "strategic-fit-gate/hooks/strategic-fit-gate.sh",
+      "kill_switch_env": "STRATEGIC_FIT_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/proposals/.*\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "term-sheet-structure/hooks/term-sheet-structure-gate.sh",
+      "kill_switch_env": "TERM_SHEET_STRUCTURE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/partnerships-bd\\.md"
+    }
+  ],
+  "performance-engineering": [
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "performance-engineering-proposal-gate/hooks/proposal-gate.sh",
+      "kill_switch_env": "PERFORMANCE_ENGINEERING_PROPOSAL_GATE_OFF",
+      "required_tokens": [
+        "Bash",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "performance-engineering-record-gate/hooks/record-gate.sh",
+      "kill_switch_env": "PERFORMANCE_ENGINEERING_RECORD_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/performance-engineering.md"
+    }
+  ],
+  "pr-communications": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "key-message-tiers/hooks/key-message-gate.sh",
+      "kill_switch_env": "PR_COMMUNICATIONS_RULEBOOK_KEY_MESSAGE_GATE_SH_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-*/reports/pr-communications.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "qa-preapproval/hooks/qa-preapproval-gate.sh",
+      "kill_switch_env": "PR_COMMUNICATIONS_RULEBOOK_QA_PREAPPROVAL_GATE_SH_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-*/reports/pr-communications.md"
+    }
+  ],
+  "pricing": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "pricing/plugins/pricing-design-rigor/hooks/design-gate.sh",
+      "kill_switch_env": "PRICING_DESIGN_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*pricing*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "pricing/plugins/pricing-method-family/hooks/family-gate.sh",
+      "kill_switch_env": "PRICING_FAMILY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*pricing*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "pricing/plugins/pricing-scope-gate/hooks/scope-gate.sh",
+      "kill_switch_env": "PRICING_SCOPE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*pricing*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "pricing/plugins/pricing-verdict-report/hooks/report-gate.sh",
+      "kill_switch_env": "PRICING_REPORT_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*pricing*.md"
+    }
+  ],
+  "product-discovery": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "product-assumption-mapping/hooks/methodology-gate.sh",
+      "kill_switch_env": "PRODUCT_ASSUMPTION_MAPPING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-*/proposals/*product-discovery*.md|docs/issue-*/proposals/*product-discovery*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "product-guardrail-metrics/hooks/methodology-gate.sh",
+      "kill_switch_env": "PRODUCT_GUARDRAIL_METRICS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*product-discovery*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "product-hypothesis-testing/hooks/methodology-gate.sh",
+      "kill_switch_env": "PRODUCT_HYPOTHESIS_TESTING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*product-discovery*.md"
+    },
+    {
+      "check_type": "field_literal_token_cooccurrence",
+      "confidence": "high",
+      "hook": "product-one-pager/hooks/methodology-gate.sh",
+      "kill_switch_env": "PRODUCT_ONE_PAGER_GATE_OFF",
+      "required_tokens": [
+        "Bash",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "Write"
+      ],
+      "target_path_regex": "docs/issue-42/proposals/2026-07-31-methodology-gate-machine.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "product-opportunity-solution-tree/hooks/methodology-gate.sh",
+      "kill_switch_env": "PRODUCT_OPPORTUNITY_SOLUTION_TREE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*product-discovery*.md"
+    }
+  ],
+  "refactoring-legacy": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "characterization-tests/hooks/methodology-gate.sh",
+      "kill_switch_env": "CHARACTERIZATION_TESTS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-13/proposals/proposal.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "proposal-norm/hooks/methodology-gate.sh",
+      "kill_switch_env": "PROPOSAL_NORM_GATE_OFF",
+      "target_path_regex": "docs/issue-13/proposals/proposal.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "refactoring-legacy/hooks/refactoring-legacy-progress-gate.sh",
+      "kill_switch_env": "REFACTORING_LEGACY_PROGRESS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/refactoring\\-legacy\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "refactoring-steps/hooks/methodology-gate.sh",
+      "kill_switch_env": "REFACTORING_STEPS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-13/proposals/proposal.md"
+    }
+  ],
+  "release-engineering": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "error-budget-policy/hooks/error-budget-gate.sh",
+      "kill_switch_env": "ERROR_BUDGET_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/release\\-engineering\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "postmortem/hooks/postmortem-review-gate.sh",
+      "kill_switch_env": "POSTMORTEM_REVIEW_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/release\\-engineering\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "proposal-norm/hooks/proposal-fields-gate.sh",
+      "kill_switch_env": "PROPOSAL_FIELDS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [
+        "## risk"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "readiness-checklist/hooks/readiness-fields-gate.sh",
+      "kill_switch_env": "READINESS_FIELDS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/release\\-engineering\\.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "rollout-plan/hooks/rollout-plan-fields-gate.sh",
+      "kill_switch_env": "ROLLOUT_PLAN_FIELDS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/release\\-engineering\\.md"
+    }
+  ],
+  "requirements-engineering": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "ambiguity-resolution-gate/hooks/ambiguity-resolution-gate.sh",
+      "kill_switch_env": "AMBIGUITY_RESOLUTION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-1/proposals/requirements-engineering.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "proposal-discipline-gate/hooks/proposal-discipline-gate.sh",
+      "kill_switch_env": "PROPOSAL_DISCIPLINE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [
+        "## status"
+      ],
+      "target_path_regex": "docs/issue-<n>/proposals/*requirements-engineering*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "req-id-gate/hooks/req-id-gate.sh",
+      "kill_switch_env": "REQ_ID_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-13/proposals/requirements-engineering-gate-a-plus.md"
+    }
+  ],
+  "risk-management": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "phase1-proposal-norms/hooks/proposal-shape-gate.sh",
+      "kill_switch_env": "PHASE1_PROPOSAL_NORMS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/**.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "phase2-record-norms/hooks/record-shape-gate.sh",
+      "kill_switch_env": "PHASE2_RECORD_NORMS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-2/proposals/core-canon-reference-conversion.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "risk-register-methodology/hooks/register-fields-gate.sh",
+      "kill_switch_env": "RISK_REGISTER_METHODOLOGY_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-7/proposals/risk-management-plugin-enforcement.md"
+    }
+  ],
+  "sales": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "sales-proposal-norm/hooks/proposal-norm-gate.sh",
+      "kill_switch_env": "SALES_PROPOSAL_NORM_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-1/proposals/methodology-norms.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "sales-qualification-meddpicc/hooks/qualification-gate.sh",
+      "kill_switch_env": "SALES_QUALIFICATION_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/reports/sales.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "sales-stage-definitions/hooks/stage-definitions-gate.sh",
+      "kill_switch_env": "SALES_STAGE_DEFINITIONS_GATE_OFF",
+      "target_path_regex": "docs/issue-1/proposals/methodology-norms.md",
+      "topic_tokens": []
+    }
+  ],
+  "secure-coding": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "asvs-verification/hooks/level-gate.sh",
+      "kill_switch_env": "ASVS_VERIFICATION_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-10/proposals/enforcement-machine.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "cwe-cvss-findings/hooks/finding-gate.sh",
+      "kill_switch_env": "CWE_CVSS_FINDINGS_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/secure-coding.md"
+    }
+  ],
+  "security-threat-model": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "security-threat-model-mitigation/hooks/methodology-gate.sh",
+      "kill_switch_env": "SECURITY_THREAT_MODEL_MITIGATION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*security-threat-model*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "security-threat-model-residual-signoff/hooks/methodology-gate.sh",
+      "kill_switch_env": "SECURITY_THREAT_MODEL_RESIDUAL_SIGNOFF_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*security-threat-model*.md"
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "security-threat-model-risk-rating/hooks/methodology-gate.sh",
+      "kill_switch_env": "SECURITY_THREAT_MODEL_RISK_RATING_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/proposals/*security-threat-model*.md",
+      "topic_tokens": []
+    },
+    {
+      "check_type": "methodology_checklist_gated",
+      "confidence": "high",
+      "hook": "security-threat-model-stride/hooks/methodology-gate.sh",
+      "kill_switch_env": "SECURITY_THREAT_MODEL_STRIDE_GATE_OFF",
+      "target_path_regex": "docs/issue-<n>/proposals/*security-threat-model*.md",
+      "topic_tokens": []
+    }
+  ],
+  "technical-feasibility": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "madr-options/hooks/options-gate.sh",
+      "kill_switch_env": "MADR_OPTIONS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*technical-feasibility*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "nygard-adr-spine/hooks/spine-gate.sh",
+      "kill_switch_env": "NYGARD_ADR_SPINE_GATE_OFF",
+      "loop_state_gated": true,
+      "required_sections": [
+        "## Status"
+      ],
+      "target_path_regex": "docs/issue-[0-9]+/reports/technical-feasibility\\.md"
+    }
+  ],
+  "technical-writing": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "plugins/tw-diataxis/hooks/diataxis-type-gate.sh",
+      "kill_switch_env": "TW_DIATAXIS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/technical-writing.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "plugins/tw-minimalism/hooks/minimalism-check-gate.sh",
+      "kill_switch_env": "TW_MINIMALISM_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [
+        "## Minimalism check"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/technical-writing.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "plugins/tw-rfc-proposal/hooks/rfc-structure-gate.sh",
+      "kill_switch_env": "TW_RFC_PROPOSAL_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*technical-writing*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "plugins/tw-style-guide/hooks/style-guide-gate.sh",
+      "kill_switch_env": "TW_STYLE_GUIDE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/technical-writing.md"
+    }
+  ],
+  "test-authoring": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "adr-proposal-shape/hooks/proposal-shape-gate.sh",
+      "kill_switch_env": "ADR_PROPOSAL_SHAPE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ep-bva-technique/hooks/technique-gate.sh",
+      "kill_switch_env": "EP_BVA_TECHNIQUE_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/test-authoring.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "xunit-suite-patterns/hooks/suite-patterns-gate.sh",
+      "kill_switch_env": "XUNIT_SUITE_PATTERNS_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/test-authoring.md"
+    }
+  ],
+  "user-discovery": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "user-discovery-evidence-tagging/hooks/evidence-tagging-gate.sh",
+      "kill_switch_env": "USER_DISCOVERY_EVIDENCE_TAGGING_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/user-discovery.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "user-discovery-proposal-norm/hooks/proposal-norm-gate.sh",
+      "kill_switch_env": "USER_DISCOVERY_PROPOSAL_NORM_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/proposals/*.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "user-discovery-saturation/hooks/saturation-gate.sh",
+      "kill_switch_env": "USER_DISCOVERY_SATURATION_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/user-discovery.md"
+    }
+  ],
+  "ux-engineering": [
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "low",
+      "hook": "ux-migration-handoff/hooks/migration-handoff-gate.sh",
+      "kill_switch_env": "UX_MIGRATION_HANDOFF_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-<n>/reports/ux-engineering.md"
+    },
+    {
+      "check_type": "section_markers_conditional",
+      "confidence": "high",
+      "hook": "ux-token-schema/hooks/token-schema-gate.sh",
+      "kill_switch_env": "UX_TOKEN_SCHEMA_GATE_OFF",
+      "loop_state_gated": false,
+      "required_sections": [],
+      "target_path_regex": "docs/issue-[0-9]+/reports/ux-engineering\\.md"
+    },
+    {
+      "check_type": "checklist_entry_fields",
+      "confidence": "high",
+      "hook": "ux-wcag-onpair/hooks/wcag-onpair-gate.sh",
+      "kill_switch_env": "UX_WCAG_ONPAIR_GATE_OFF",
+      "required_keys": [
+        "Bash",
+        "large",
+        "normal"
+      ],
+      "target_path_regex": "docs/issue-<n>/reports/ux-engineering.md"
+    }
+  ]
+}
