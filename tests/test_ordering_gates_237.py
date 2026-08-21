@@ -45,7 +45,7 @@ def test_arch_sequence_gate_allows_when_survey_exists(tmp_path):
     (root / "docs" / "issue-1" / "reports" / "architecture").mkdir(parents=True)
     (root / "docs" / "issue-1" / "reports" / "architecture" / "survey.md").write_text("x")
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/architecture-thing.md", "content")
     proc = run_gate("arch-sequence-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 
@@ -53,7 +53,7 @@ def test_arch_sequence_gate_allows_when_survey_exists(tmp_path):
 def test_arch_sequence_gate_refuses_missing_survey(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/architecture-thing.md", "content")
     proc = run_gate("arch-sequence-gate.sh", payload, root)
     assert proc.returncode == 2
     assert "refused" in proc.stderr
@@ -62,6 +62,16 @@ def test_arch_sequence_gate_refuses_missing_survey(tmp_path):
 def test_arch_sequence_gate_empty_state_passes_through(tmp_path):
     root = _init_project(tmp_path)
     payload = write_payload("core/hooks/unrelated.sh", "#!/usr/bin/env bash\n")
+    proc = run_gate("arch-sequence-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_arch_sequence_gate_allows_foreign_role_proposal_without_survey(tmp_path):
+    # issue-242 regression: a plain (non-architecture) proposal write must
+    # not be gated by architecture's own survey requirement.
+    root = _init_project(tmp_path)
+    (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
+    payload = write_payload("docs/issue-1/proposals/consolidation.md", "content")
     proc = run_gate("arch-sequence-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 
@@ -103,7 +113,7 @@ def test_devrel_phase_order_gate_allows_when_survey_exists(tmp_path):
     (root / "docs" / "issue-1" / "reports" / "devrel").mkdir(parents=True)
     (root / "docs" / "issue-1" / "reports" / "devrel" / "survey.md").write_text("x")
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/devrel-thing.md", "content")
     proc = run_gate("devrel-phase-order-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 
@@ -111,7 +121,7 @@ def test_devrel_phase_order_gate_allows_when_survey_exists(tmp_path):
 def test_devrel_phase_order_gate_refuses_missing_survey(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/devrel-thing.md", "content")
     proc = run_gate("devrel-phase-order-gate.sh", payload, root)
     assert proc.returncode == 2
     assert "refused" in proc.stderr
@@ -120,6 +130,14 @@ def test_devrel_phase_order_gate_refuses_missing_survey(tmp_path):
 def test_devrel_phase_order_gate_empty_state_passes_through(tmp_path):
     root = _init_project(tmp_path)
     payload = write_payload("core/hooks/unrelated.sh", "#!/usr/bin/env bash\n")
+    proc = run_gate("devrel-phase-order-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_devrel_phase_order_gate_allows_foreign_role_proposal_without_survey(tmp_path):
+    root = _init_project(tmp_path)
+    (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
+    payload = write_payload("docs/issue-1/proposals/consolidation.md", "content")
     proc = run_gate("devrel-phase-order-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 
@@ -163,7 +181,7 @@ def test_interaction_design_stage_order_gate_allows_when_both_exist(tmp_path):
     (rd / "survey.md").write_text("x")
     (rd / "scout-brief.md").write_text("x")
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/interaction-design-thing.md", "content")
     proc = run_gate("interaction-design-stage-order-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 
@@ -171,7 +189,7 @@ def test_interaction_design_stage_order_gate_allows_when_both_exist(tmp_path):
 def test_interaction_design_stage_order_gate_refuses_missing_artifacts(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
-    payload = write_payload("docs/issue-1/proposals/thing.md", "content")
+    payload = write_payload("docs/issue-1/proposals/interaction-design-thing.md", "content")
     proc = run_gate("interaction-design-stage-order-gate.sh", payload, root)
     assert proc.returncode == 2
     assert "refused" in proc.stderr
@@ -180,6 +198,14 @@ def test_interaction_design_stage_order_gate_refuses_missing_artifacts(tmp_path)
 def test_interaction_design_stage_order_gate_empty_state_passes_through(tmp_path):
     root = _init_project(tmp_path)
     payload = write_payload("core/hooks/unrelated.sh", "#!/usr/bin/env bash\n")
+    proc = run_gate("interaction-design-stage-order-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_interaction_design_stage_order_gate_allows_foreign_role_proposal_without_artifacts(tmp_path):
+    root = _init_project(tmp_path)
+    (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
+    payload = write_payload("docs/issue-1/proposals/consolidation.md", "content")
     proc = run_gate("interaction-design-stage-order-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
 

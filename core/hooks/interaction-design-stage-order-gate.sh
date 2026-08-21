@@ -103,7 +103,7 @@ try:
         deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (stage-order).")
 
     root = posixpath.normpath(os.environ["SG_ROOT"].replace("\\", "/"))
-    PROPOSAL_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/.*\.md$')
+    PROPOSAL_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/.*interaction-design.*\.md$', re.I)
     RECORD_RE = re.compile(r'^docs/issue-([0-9]+)/reports/interaction-design\.md$')
 
     path = None
