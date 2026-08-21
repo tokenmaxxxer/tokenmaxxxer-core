@@ -189,6 +189,20 @@ if [ "$row_json" != "null" ]; then
   run allow "methodology_checklist_gated[$role]: topic not triggered -> allow" "$role" "$path" "$td/mg-ok.md"
 fi
 
+# --- Bash-tool write to a matched row fails closed (unreconstructible content) ---
+row_json="$(get checklist_entry_fields)"
+if [ "$row_json" != "null" ]; then
+  role="$(printf '%s' "$row_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["role"])')"
+  path="$(printf '%s' "$row_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])')"
+  bash_cmd="echo bad > $path"
+  bash_payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","tool_input":{"command":sys.argv[1]}}))' "$bash_cmd")"
+  out="$(printf '%s' "$bash_payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  report deny "$got" "Bash-tool write to a matched row[$role]: unreconstructible content -> refuse"
+  [ "$got" = deny ] || echo "       output: $out"
+fi
+
 echo
 echo "record-shape-gate (issue-263 fold): $pass passed, $fail failed"
 [ "$fail" = 0 ]

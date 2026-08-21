@@ -360,6 +360,28 @@ both scope-narrowing rather than scope-exceeding:
   malformed fixture. Replaced with `awk '{print $0": present"}'`, which
   produced the intended `key: present` lines and the allow case passed.
 
+## Warrant hunt
+
+Dispatched at end of phase-2 build, stance "Bash-tool-write path — fail
+closed vs silently pass on config-dispatch matched rows"
+(`docs/issue-263/reports/implementation/2026-08-21-hunt-record-shape-gate-fold.md`).
+
+FINDING: the config-driven `CHECKERS` dispatch silently allowed
+(exit 0) a Bash-tool write matching a governed row's
+`target_path_regex`, instead of failing closed like `citation-gate.sh`/
+`ordering-norm-gate.sh` do for the identical "unreconstructible Bash
+write" case. Fixed: the `tool == "Bash"` branch now `deny()`s with an
+unverifiable-write message naming the matched row(s), consistent with
+the two sibling gates. A regression case
+("Bash-tool write to a matched row[...]: unreconstructible content ->
+refuse") was added to `run-record-shape-gate-tests.sh`; the fast tier
+(`run-all.sh`) is green again with 53 record-shape-gate cases (was 52).
+
+closed_checks:
+- check: Bash-tool-write path fails closed on config-dispatch matched rows
+  code_under_review: core/hooks/record-shape-gate.sh
+  resolution: fixed in this same commit (deny() instead of exit 0 for tool == "Bash")
+
 ## Open findings
 
 None.

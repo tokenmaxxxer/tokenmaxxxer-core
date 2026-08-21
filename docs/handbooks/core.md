@@ -224,6 +224,9 @@ methodology field-set enumeration itself is deferred to a future
 hand-verification pass — an untriggered write always allows).
 
 **Tests.** `core/hooks/tests/run-record-shape-gate-tests.sh` (live-fire,
-real subprocess invocations, 52 cases: all 43 roles, all 4 check_types,
-empty-state, no-config-file), run as part of
-`core/hooks/tests/run-all.sh`.
+real subprocess invocations, 53 cases: all 43 roles, all 4 check_types,
+empty-state, no-config-file, and a Bash-tool-write-fails-closed
+regression), run as part of `core/hooks/tests/run-all.sh`. A Bash-tool
+command whose target matches a governed row fails closed (unverifiable
+write) rather than passing through, matching `citation-gate.sh`'s/
+`ordering-norm-gate.sh`'s behavior for the same situation.

@@ -309,7 +309,13 @@ try:
         sys.exit(0)
 
     if tool == "Bash":
-        sys.exit(0)  # cannot reconstruct a Bash-written file's content — same fail-open-on-Bash as before dispatch existed
+        names = ", ".join(r["hook"] for r, _p in matched_rows)
+        deny(
+            f"a Bash-tool command targets a file governed by record-section-shape row(s) "
+            f"[{names}], and the gate cannot reconstruct a Bash-written file's "
+            "resulting content to check it; refusing an unverifiable write rather "
+            "than passing it through (consistent with citation-gate.sh/ordering-norm-gate.sh)"
+        )
 
     file_path = ti.get("file_path", "") or ""
     abs_path = file_path if os.path.isabs(file_path) else os.path.join(root, file_path)
