@@ -64,6 +64,40 @@ runb() {
   report "$want" "$got" "$name"
 }
 
+# runs <want> <name> <branch> <brole> <fp> <sidecar> — R4 sidecar dual-read
+# matrix (issue-1827). sidecar is one of:
+#   none               — no .on-the-record/role.json written
+#   corrupt             — role.json written but not valid JSON
+#   <issue>:<role>       — role.json written with that issue/role pair
+runs() {
+  want="$1"; name="$2"; branch="$3"; brole="$4"; fp="$5"; sidecar="$6"
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b "$branch"
+  mkdir -p "$td/docs/specs"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  case "$sidecar" in
+    none) ;;
+    corrupt)
+      mkdir -p "$td/.on-the-record"
+      printf '{not valid json' > "$td/.on-the-record/role.json"
+      ;;
+    *)
+      sc_issue="${sidecar%%:*}"; sc_role="${sidecar#*:}"
+      mkdir -p "$td/.on-the-record"
+      printf '{"role":"%s","issue":%s}' "$sc_role" "$sc_issue" > "$td/.on-the-record/role.json"
+      ;;
+  esac
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE="$brole" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report "$want" "$got" "$name"
+}
+
 BOARD=docs/issue-3
 
 # --- R1: docs/ layout -----------------------------------------------------
@@ -653,6 +687,26 @@ run deny  awk-system-call-write           Bash '{"command":"cd '$BOARD' && awk '
 # present -- confirms the fix above did not widen awk into an unconditional
 # write-unsafe head the way scope-gate's sibling clause once did.
 run allow awk-pure-read-not-overblocked   Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
+
+# --- R4 sidecar dual-read (issue-1827) -----------------------------------
+# 1. sidecar present, role-free branch: identity comes from the sidecar,
+#    not from the branch string, so a branch that carries no role segment
+#    still allows when the sidecar names the right issue/role.
+runs allow sidecar-role-free-branch     issue-3        qa "$BOARD/reports/qa.md" 3:qa
+# 2. sidecar present, legacy full branch, values agree: still allows (the
+#    sidecar path and a fully-formed legacy branch are not in tension).
+runs allow sidecar-legacy-branch-agree  issue-3/qa     qa "$BOARD/reports/qa.md" 3:qa
+# 3. no sidecar, legacy branch: byte-identical to today's board-right-branch
+#    case above (same want, same branch/role/file shape).
+runs allow no-sidecar-legacy            issue-3/qa     qa "$BOARD/reports/qa.md" none
+# 4. sidecar present but disagrees with an independently-parseable legacy
+#    branch: fail-closed refuse naming both values, not a silent
+#    sidecar-wins or a warning.
+runs deny  sidecar-branch-mismatch      issue-3/qa     qa "$BOARD/reports/qa.md" 4:coding
+# 5. sidecar present but malformed JSON: falls through to the legacy
+#    branch-string check unchanged (here the legacy branch is wrong, so it
+#    denies exactly as board-wrong-issue does above).
+runs deny  corrupt-sidecar-falls-back   issue-4/qa     qa "$BOARD/reports/qa.md" corrupt
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
