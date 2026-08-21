@@ -1,0 +1,189 @@
+{
+  "api-design": [
+    {
+      "hook": "evidence-citation-gate",
+      "kill_switch_env": "EVIDENCE_CITATION_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/proposals/.*api-design.*\\.md$",
+      "check_type": "claim_adjacent_marker",
+      "scope": "paragraph",
+      "claim_regex": "\\b(standard practice|common practice|established practice|is standard|conventionally)\\b",
+      "marker_regexes": [
+        "\\bRFC\\s*\\d+\\b",
+        "\\b(?:per|sourced to|following|as documented by|as specified by)\\s+(?:[A-Z][A-Za-z0-9]*\\s?){1,4}(?:'s)?\\b(?:guidelines?|guidance|design (?:review|practice|guide)|api|rfc|spec(?:ification)?s?)?"
+      ],
+      "deny_message_template": "evidence-citation discipline (issue #1) requires every 'standard/common/established practice' claim to name a source (org guideline, RFC number, or named prior-art API) in the same paragraph; found: {missing}"
+    }
+  ],
+  "architecture": [
+    {
+      "hook": "arch-citation-gate",
+      "kill_switch_env": "ARCH_CITATION_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/(proposals/[^/]+\\.md|reports/architecture\\.md)$",
+      "check_type": "claim_adjacent_marker",
+      "scope": "section_or_window",
+      "window_lines": 15,
+      "claim_regex": "(industry practice|well-established|well established|widely used|업계 표준|널리 쓰이는|일반적으로[^.!?\\n]{0,30}?(?:쓰이는|쓰이다|쓰인다|사용되는|사용되다|사용된다|채택되는|채택되다|채택된다|알려진|알려져|알려지다|받아들여지는|받아들여진다|받아들여지다))",
+      "marker_regexes": [
+        "https?://\\S+",
+        "^\\s*sources:\\s*\\S"
+      ],
+      "deny_message_template": "asserts external/industry knowledge ('{trigger}') with no URL or Sources: entry in the same section (or, for headingless files, within 15 lines). Per issue-1's citation-format rule, cite the claim or restate it as an assumption."
+    }
+  ],
+  "capacity-planning": [
+    {
+      "hook": "capacity-order-enforcement",
+      "kill_switch_env": "CAPACITY_ORDER_ENFORCEMENT_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/(reports/capacity-planning/(survey|scout-brief)\\.md|proposals/.*\\.md)$",
+      "check_type": "sequencing_filename_anchor",
+      "survey_exempt_regex": "^docs/issue-[0-9]+/reports/capacity-planning/survey\\.md$",
+      "scout_brief_regex": "^docs/issue-[0-9]+/reports/capacity-planning/scout-brief\\.md$",
+      "proposal_regex": "^docs/issue-[0-9]+/proposals/.*\\.md$",
+      "terminal_trigger_regex": "loop_state:\\s*terminal|state:\\s*(done|terminal|complete)",
+      "scout_brief_extra_trigger_regex": "^##[[:space:]]*sources",
+      "proposal_extra_trigger_regex": "^##[[:space:]]*rationale",
+      "anchor_regex": "(basis:|sources:|^##.*rationale|^##.*sources)",
+      "anchor_window": 200,
+      "scout_brief_required_names": ["survey\\.md"],
+      "proposal_required_names": ["survey\\.md", "scout-brief\\.md"],
+      "deny_message_template": "document-sequencing precondition failed: {missing}. Citation must be adjacent to a Basis:/Sources: marker or a Rationale/Sources heading (within ~200 chars), not just anywhere in the document."
+    }
+  ],
+  "conformance-review": [
+    {
+      "hook": "review-traceability",
+      "kill_switch_env": "REVIEW_TRACEABILITY_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/(proposals/review\\.md|reports/(conformance-)?review\\.md)$",
+      "check_type": "verdict_field_required_plus_list_shape",
+      "phase1_regex": "^docs/issue-[0-9]+/proposals/review\\.md$",
+      "phase2_regex": "^docs/issue-[0-9]+/reports/(conformance-)?review\\.md$",
+      "phase1_bullet_regex": "^\\s*[-*]\\s+\\S",
+      "phase1_numbered_regex": "^\\s*\\d+[.)]\\s+\\S",
+      "phase1_min_list_items": 2,
+      "phase1_sampling_regex": "sampling derivation",
+      "phase1_deny_message": "phase-1 mode (proposals/review.md) requires a requirement list (numbered or bulleted enumeration) or a stated sampling derivation; neither was found in the proposed content.",
+      "verdict_line_regex": "(?im)^[ \\t]*verdict:[ \\t]*(Present|Surface|Absent|Incorrect|Unverifiable)\\b",
+      "spec_ref_regex": "spec_ref\\s*:",
+      "evidence_regex": "evidence\\s*:",
+      "unverifiable_value": "unverifiable",
+      "block_split_regex": "(?:\\n\\s*\\n)|(?=^#{1,6}\\s)",
+      "missing_spec_ref_message": "phase-2 verdict '{verdict}' (on a verdict: field) found without a spec_ref: field in its surrounding block; every requirement's verdict must name the spec locator it was checked against (issues #30/#37/#38).",
+      "missing_evidence_message": "phase-2 verdict '{verdict}' (on a verdict: field) found without an evidence: field in its surrounding block; every non-Unverifiable verdict must name the artifact pointer it was checked against (issues #30/#37/#38).",
+      "bash_write_refuses": true,
+      "bash_refuse_message": "a Bash command appears to target this role's own proposal/record directly; this gate can only judge Write/Edit/MultiEdit content, so a Bash-authored write to this role's own proposal/record is refused rather than silently passed through uninspected."
+    }
+  ],
+  "finance-unit-economics": [
+    {
+      "hook": "finance-evidence-chain",
+      "kill_switch_env": "FINANCE_EVIDENCE_CHAIN_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/proposals/[^/]+\\.md$",
+      "check_type": "whole_doc_metric_source_and_paragraph_pair",
+      "trigger_needles": ["cac", "ltv", "payback", "sensitivity"],
+      "source_needles": ["http://", "https://", "working from named-framework assumption"],
+      "mandate_words": ["mandate", "단위경제상 성립"],
+      "causal_words": ["necessary", "필요", "→", "therefore", "따라서"],
+      "deny_message_template": "phase-1 proposal is missing: {missing}. Per docs/handbooks/finance-unit-economics/methodology.md, every adopted metric must be sourced or assumption-labeled, and chained to this role's own mandate (단위경제상 성립하는가) within the SAME paragraph as the mandate reference — a mandate word in one paragraph and a causal word in an unrelated paragraph does not satisfy this."
+    }
+  ],
+  "interaction-design": [
+    {
+      "hook": "id-citation-format",
+      "kill_switch_env": "ID_CITATION_FORMAT_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/proposals/.*\\.md$",
+      "check_type": "bullet_adjacent_plus_doc_sources",
+      "trigger_regex": "\\b(exemplar|product|nn/g|nng|ixdf|about face|established practice|convention|per\\s)\\b",
+      "cite_regex": "\\bsources?:|https?://|\\battributed to\\b|\\bestablished-practice assumption\\b|\\bassumption\\b|가정",
+      "sources_heading_regex": "^#+\\s*sources?\\b",
+      "heading_regex": "^(#+)\\s",
+      "no_access_regex": "no (live )?research access|established-practice assumption",
+      "url_or_path_regex": "https?://\\S+|(?:[\\w.\\-]+/)+[\\w.\\-]+|\\.[A-Za-z0-9]{1,5}\\b",
+      "bullet_deny_message_template": "claim bullet without a source/assumption marker (line {line}): {text}",
+      "no_sources_heading_message": "no Sources section with a file/path or URL (no heading matching /^#+\\s*sources?\\b/i found, and the document's own preamble does not state no live research access existed)",
+      "empty_sources_heading_message": "no Sources section with a file/path or URL (Sources heading present but lists no file/path or URL)"
+    },
+    {
+      "hook": "id-traceability",
+      "kill_switch_env": "ID_TRACEABILITY_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/reports/interaction-design\\.md$",
+      "check_type": "section_required_fields",
+      "heading_regex": "^#+\\s*.*\\b(traceability|scope\\s+growth)\\b",
+      "no_heading_message": "no traceability/scope-growth heading found (expected a heading matching /^#+\\s*.*\\b(traceability|scope growth)\\b/i). Per the interaction-design gate machine (row 10), the phase-2 record must name this section explicitly.",
+      "blank_body_message": "the traceability/scope-growth heading is present but its body is blank (stub). It must state the spec-only output boundary and at least one scope-growth flag field.",
+      "required_fields": [
+        {"tag": "spec-only boundary statement", "regex": "\\bspec[\\s-]only\\b", "detail": "no explicit spec-only boundary statement (expected wording matching /\\bspec[\\s-]only\\b/i)"},
+        {"tag": "scope-growth field", "regex": "scope[\\s-]growth", "detail": "no scope-growth flag field present (a line/bullet with the field key \"scope growth\" or \"scope-growth\", even if its value is \"none\")"},
+        {"tag": "feedback field", "regex": "\\bfeedback\\s*:", "detail": "no feedback: field present (what the system tells the user for at least one traced element)"}
+      ],
+      "deny_message_template": "traceability write is missing required element(s): {missing}."
+    }
+  ],
+  "requirements-engineering": [
+    {
+      "hook": "traceability-matrix-gate",
+      "kill_switch_env": "TRACEABILITY_MATRIX_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/reports/requirements-engineering\\.md$",
+      "check_type": "table_req_membership",
+      "section_needle": "traceability matrix",
+      "no_section_message": "no 'traceability matrix' section found. Per docs/issue-1/proposals/requirements-engineering.md (b)(2)/(c), the record must carry a traceability matrix (ID, Description, Source, Downstream Link) with a row for every REQ-<id>.",
+      "no_table_message": "traceability-matrix section has no markdown table (a header row followed by a '| --- |'-style separator row). Per docs/issue-1/proposals/requirements-engineering.md (b)(2)/(c), the traceability matrix must be an actual fixed-column table, not prose mentioning the required column names.",
+      "columns": [
+        {"label": "ID", "aliases": ["id"]},
+        {"label": "Description", "aliases": ["description", "desc"]},
+        {"label": "Source", "aliases": ["source"]},
+        {"label": "Downstream Link", "aliases": ["downstream link", "downstream", "link"]}
+      ],
+      "missing_columns_message_template": "traceability-matrix table header is missing column(s): {missing}. Per docs/issue-1/proposals/requirements-engineering.md (b)(2)/(c), the table must carry all four columns (ID, Description, Source, Downstream Link) as actual header cells.",
+      "req_id_regex": "\\bREQ-[0-9A-Za-z-]+\\b",
+      "missing_row_message_template": "row missing for {missing}. Per docs/issue-1/proposals/requirements-engineering.md (b)(2)/(c), every REQ-<id> in the record must have a row in the traceability matrix.",
+      "reference_shape_check": true,
+      "shape_deny_message_template": "traceability-matrix row for {req_id} has a {label} cell ({value!r}) that is free prose, not a resolvable reference shape (repo-relative path, 7-40 char hex commit sha, or bracketed/linked citation) and is not the 'not yet linked' placeholder. This is a shape check per the spec's reference_resolution rule, not an existence check — see docs/issue-19/proposals/spec-alignment.md item 4.",
+      "status_column_aliases": ["status"],
+      "empty_status_message_template": "traceability-matrix row for {req_id} has an empty Status cell. Per docs/issue-19/proposals/spec-alignment.md item 5, once the optional Status column is present in the table header, every row must carry a non-empty Status value."
+    }
+  ],
+  "security-threat-model": [
+    {
+      "hook": "security-threat-model-canon-citation",
+      "kill_switch_env": "SECURITY_THREAT_MODEL_CANON_CITATION_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/(proposals/.*security-threat-model.*\\.md|reports/security-threat-model\\.md)$",
+      "check_type": "anti_pattern_section",
+      "marker_regex": "^\\s{0,3}#{1,6}\\s*canon-references\\b.*$|^\\s*[*_`\"']*canon-references[*_`\"']*\\s*:?\\s*$",
+      "forbidden_shebang_regex": "#!/",
+      "forbidden_tokens": ["PreToolUse", "set -uo pipefail", "CLAUDE_PLUGIN_ROOT"],
+      "deny_message_template": "the `canon-references` section appears to contain {problems}. Cite external canon (core's `warrant/` plugin, sibling `methodology-gate.sh` scripts, etc.) by path/description only — never paste script content. This check is a best-effort mechanical backstop, not a substitute for review."
+    }
+  ],
+  "technical-feasibility": [
+    {
+      "hook": "evidence-citation",
+      "kill_switch_env": "EVIDENCE_CITATION_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/(proposals/.*technical-feasibility.*\\.md|reports/technical-feasibility\\.md)$",
+      "check_type": "claim_adjacent_marker_phase_scoped",
+      "phase1_regex": "^docs/issue-[0-9]+/proposals/.*technical-feasibility.*\\.md$",
+      "phase2_regex": "^docs/issue-[0-9]+/reports/technical-feasibility\\.md$",
+      "phase1_section_heading_regex": "^##\\s*Evidence format\\s*$",
+      "claim_line_regex": "^\\s*(?!#)(?!\\s*$).*[.:]\\s*$",
+      "citation_regex": "(?:—|--| - )\\s*.*(?:source:|https?://|[\\w./-]+:\\d+)",
+      "adjacency_lines": 1,
+      "phase1_deny_message_template": "the '## Evidence format' section has claim-shaped line(s) with no citation on the same or an adjacent line: {missing}. Required format: '<claim> — <source: URL | path:line | check-name score>' (ASCII '--' or ' - ' also accepted).",
+      "phase2_deny_message_template": "this record has claim-shaped line(s) with no citation on the same or an adjacent line, and not verbatim-carried-forward from the phase-1 proposal: {missing}. Citations from phase 1 must be carried forward, and any new claim needs its own citation ('<claim> — <source: URL | path:line | check-name score>').",
+      "phase2_proposal_glob": "docs/issue-{n}/proposals/*technical-feasibility*.md",
+      "bash_write_refuses": true,
+      "bash_refuse_message": "a Bash command appears to write to a citation-gate-owned path; this gate cannot verify content written outside Write/Edit/MultiEdit, so it refuses rather than silently allowing an unchecked write."
+    }
+  ],
+  "test-authoring": [
+    {
+      "hook": "traceability-line",
+      "kill_switch_env": "TRACEABILITY_LINE_GATE_OFF",
+      "target_path_regex": "^docs/issue-[0-9]+/reports/test-authoring\\.md$",
+      "check_type": "whole_doc_keyword_and_ref_plus_branch",
+      "keyword_needles": ["traces", "traceability", "covers issue", "requirement:"],
+      "issue_ref_regex": "issue-(\\d+)|#(\\d+)",
+      "missing_message": "test-authoring phase-2 record is missing a traceability line. Per docs/issue-1/proposals/test-authoring-methodology-norms.md (b) item 5 (IEEE 829's transferable traceability principle), each suite section needs a one-line statement — containing one of \"traces\"/\"traceability\"/\"covers issue\"/\"requirement:\" combined with an issue-<n> or #<n> reference — tying it back to the requirement it covers.",
+      "branch_regex": "^issue-(\\d+)/",
+      "branch_mismatch_message_template": "test-authoring phase-2 record carries a traceability reference to issue(s) {refs}, but the current branch ({branch!r}) is scoped to issue-{branch_issue}. A traceability line must cite the issue it actually traces — a cross-reference to a different issue number is a mismatch, not a valid traceability line."
+    }
+  ]
+}

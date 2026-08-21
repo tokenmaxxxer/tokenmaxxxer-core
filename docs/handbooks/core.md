@@ -146,3 +146,42 @@ block the session" contract.
 **Tests.** `core/hooks/tests/run-ordering-norm-gate-tests.sh`
 (live-fire, real subprocess invocations, 27 cases), run as part of
 `core/hooks/tests/run-all.sh`.
+
+## `citation-gate.sh` — parameterized citation-sourcing-family gate (issue #260)
+
+Folds the 11 `citation-sourcing`-family hooks (9 rulebooks: api-design,
+architecture, capacity-planning, conformance-review,
+finance-unit-economics, interaction-design x2, requirements-engineering,
+security-threat-model, technical-feasibility, test-authoring) into one
+core gate, `core/hooks/citation-gate.sh`, driven by
+`core/hooks/citation-config.json`. Promote-first: none of the 11 source
+hooks were removed or modified.
+
+**Dispatch.** Reads `CLAUDE_ROLE` and looks up that key in the config
+file (one entry per rulebook, each a list of rows — interaction-design
+carries 2); a role with no entry, or a missing/unreadable config file,
+passes through silently (exit 0). Each row's `target_path_regex` is
+matched against the reconstructed write's normalized path, then
+dispatched to its `check_type` handler.
+
+**`check_type` vocabulary** (transcribed from the 11 source hooks' real
+regexes and message text, not the classification report's flat
+`{claim_patterns, citation_markers, adjacency_window}` guess — only 3 of
+11 hooks are that clean claim-adjacent-to-marker shape; per-hook detail
+lives in `docs/issue-260/reports/implementation/survey.md`):
+`claim_adjacent_marker` (paragraph or section/window scope),
+`claim_adjacent_marker_phase_scoped` (technical-feasibility's phase-1/
+phase-2 split plus cross-file carry-forward exemption),
+`whole_doc_metric_source_and_paragraph_pair`,
+`section_required_fields`, `whole_doc_keyword_and_ref_plus_branch`,
+`table_req_membership` (with an optional reference-shape + Status-column
+check), `sequencing_filename_anchor`, `anti_pattern_section`,
+`bullet_adjacent_plus_doc_sources`, and
+`verdict_field_required_plus_list_shape`. A `bash_write_refuses` row
+flag reproduces the source hooks (conformance-review,
+technical-feasibility) that refuse a Bash-tool write to their own
+governed path as unverifiable rather than silently passing it through.
+
+**Tests.** `core/hooks/tests/run-citation-gate-tests.sh` (live-fire,
+real subprocess invocations, 24 cases), run as part of
+`core/hooks/tests/run-all.sh`.
