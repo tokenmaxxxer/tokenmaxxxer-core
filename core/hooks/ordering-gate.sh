@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# PreToolUse gate (Write|Edit|MultiEdit|Bash) — consolidates the 8
+# PreToolUse gate (Write|Edit|MultiEdit|Bash) — consolidates 7 of the 8
 # role-scoped ordering gates promoted by core#234/#237 into one
 # parameterized dispatcher (issue-240). Each role's surface regex(es),
 # required file(s), and verification mechanism are carried over verbatim
 # from the original per-role script (the #237 equivalence table is the
 # frozen spec) into the ROLES table inside this script's Python payload.
-# Dispatch is first-match-wins over ROLES in the order below: every
-# filename-scoped role is tried before survey-order (the one unscoped,
-# any-proposal rule), so a proposal write that matches a scoped role's
-# surface is judged only by that role — never additionally re-judged by
-# survey-order's generic rule, mirroring how the two would have run as
-# fully independent PreToolUse entries whenever a scoped role's own gate
-# already claims the write as its business.
+# Dispatch is first-match-wins over ROLES in the order below.
+#
+# survey-order-gate.sh (the 8th gate) is deliberately NOT folded in here
+# — see the note beside ROLES below and
+# docs/issue-240/reports/implementation.md's Rationale for deviations.
 #
 # Kill switch per role: each role's env var name is preserved verbatim
-# (e.g. SURVEY_ORDER_GATE_OFF, ARCH_SEQUENCE_GATE_OFF, ...) so existing
-# operator overrides keep working unchanged. Checked once the role's
-# surface has matched; a role whose kill switch is on is treated as
-# "not this role's business" and dispatch continues to the next role in
-# table order (never a global short-circuit).
+# (e.g. ARCH_SEQUENCE_GATE_OFF) so existing operator overrides keep
+# working unchanged. Checked once the role's surface has matched; a role
+# whose kill switch is on is treated as "not this role's business" and
+# dispatch continues to the next role in table order (never a global
+# short-circuit).
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "ordering-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 gate_trap_fail_closed
 set -uo pipefail
@@ -35,7 +33,6 @@ fi
 [ -z "$root" ] && root="$(pwd -P)"
 
 OG_PAYLOAD="$payload" OG_ROOT="$root" GATE_LIB_PY="$GATE_LIB_PY" \
-SURVEY_ORDER_GATE_OFF="${SURVEY_ORDER_GATE_OFF:-}" \
 ARCH_SEQUENCE_GATE_OFF="${ARCH_SEQUENCE_GATE_OFF:-}" \
 CONTENT_DESIGN_PHASE1_BASIS_GATE_OFF="${CONTENT_DESIGN_PHASE1_BASIS_GATE_OFF:-}" \
 PHASE_ORDER_GATE_OFF="${PHASE_ORDER_GATE_OFF:-}" \
@@ -507,45 +504,16 @@ try:
             deny(role, "phase-1 proposal for subject issue-%s (%s) names no scout-brief path and no explicit scout-skip statement. Per the platform scout directive, a phase-1 proposal must either link its scout brief or record why scouting was skipped." % (subject_n, prop_path[len(root):].lstrip("/")))
         return True
 
-    # ---- mechanism: survey-order (file-existence, unscoped fallback) ------
-    def mech_survey_order():
-        role = "survey-order"
-        PROPOSAL_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/.*\.md$')
-        if tool not in ("Write", "Edit", "MultiEdit") or not file_path:
-            return None
-        rel = norm(file_path)
-        if rel is None:
-            return None
-        m = PROPOSAL_RE.match(rel)
-        if not m:
-            return None
-        issue_n = m.group(1)
-        survey_rel = "docs/issue-%s/reports/implementation/survey.md" % issue_n
-        survey_abs = posixpath.join(root, survey_rel)
-        if os.path.isfile(survey_abs):
-            return True
-        abs_path = posixpath.join(root, rel)
-        current = None
-        if os.path.isfile(abs_path):
-            try:
-                with open(abs_path, encoding="utf-8-sig") as fh:
-                    current = fh.read(1 << 20)
-            except OSError:
-                deny(role, "%s exists but cannot be read; failing closed on write order." % rel)
-        new_text, ok = gate_lib.gate_reconstruct_write(tool, ti, current)
-        new_text = new_text if ok else None
-        if new_text is None:
-            deny(role, "%s targets a phase-1 proposal but the survey file %s is absent, and the gate cannot determine the resulting content from the tool input (tool=%r) to check for scout-skip language. Write the full document with Write, or use an Edit/MultiEdit whose old_string matches, so write order can be checked." % (rel, survey_rel, tool))
-        low = new_text.lower()
-        SKIP_MARKERS = ("skip condition", "scouting was skipped", "pure bugfix", "no design decision", "skip record")
-        if any(mk in low for mk in SKIP_MARKERS):
-            return True
-        deny(role, "%s is a phase-1 proposal write for issue-%s, but its survey file %s does not exist on disk, and the proposal's own text states no scout-skip condition. Write the current-state survey first, or — only for a pure bugfix or a spec that leaves no design decision open — state which skip condition applies and why, in the proposal body itself." % (rel, issue_n, survey_rel))
+    # survey-order-gate.sh stays a separate script (not folded in here):
+    # its surface is the sole unscoped, any-proposal rule, and folding it
+    # into this first-match-wins dispatcher makes it fire on every
+    # foreign-role proposal that reaches this table with no matching
+    # scoped role -- which flips 3 frozen tests in
+    # tests/test_ordering_gates_237.py from pass to fail (see
+    # docs/issue-240/reports/implementation.md, Rationale for deviations).
 
-    # role table: (kill-switch env var name, mechanism function).
-    # Filename-scoped roles are tried before survey-order (the sole
-    # unscoped, any-proposal rule) so a scoped role's own surface is never
-    # additionally re-judged by survey-order's generic rule.
+    # role table: (kill-switch env var name, mechanism function) for the
+    # 7 filename-scoped roles only.
     ROLES = [
         ("CONTENT_DESIGN_PHASE1_BASIS_GATE_OFF", mech_content_design),
         ("PHASE_ORDER_GATE_OFF", mech_devrel),
@@ -554,7 +522,6 @@ try:
         ("ID_STAGE_ORDER_GATE_OFF", mech_interaction_design),
         ("ARCH_SEQUENCE_GATE_OFF", mech_arch_sequence),
         ("ISSUE_RETROSPECTIVE_PROPOSAL_ORDER_GATE_OFF", mech_issue_retrospective),
-        ("SURVEY_ORDER_GATE_OFF", mech_survey_order),
     ]
 
     for env_name, mech in ROLES:
