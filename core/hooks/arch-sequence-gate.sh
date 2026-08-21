@@ -74,7 +74,7 @@ ti = ev.get("tool_input")
 
 root = os.path.normpath(os.environ["SG_ROOT"])
 
-PROPOSAL_RE = re.compile(r'^docs/(issue-[0-9]+)/proposals/[^/]+\.md$')
+PROPOSAL_RE = re.compile(r'^docs/(issue-[0-9]+)/proposals/.*architecture.*\.md$', re.I)
 RECORD_RE = re.compile(r'^docs/(issue-[0-9]+)/reports/architecture\.md$')
 
 # Narrow, bounded Bash-tool-write-bypass heuristic (see header comment for
