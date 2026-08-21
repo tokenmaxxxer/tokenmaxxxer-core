@@ -61,7 +61,7 @@ try:
         sys.exit(0)
 
     root = os.environ["GL_ROOT"]
-    TARGET_RE = re.compile(r'^(docs/issue-[^/]+)/proposals/[^/]+\.md$')
+    TARGET_RE = re.compile(r'^(docs/issue-[^/]+)/proposals/.*devrel.*\.md$', re.I)
 
     candidates = []
     if tool in ("Write", "Edit", "MultiEdit"):
