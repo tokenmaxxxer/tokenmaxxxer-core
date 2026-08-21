@@ -25,7 +25,11 @@ GATE_BASH_TARGETS="$(gate_bash_write_targets "$INPUT_JSON")"
 export GATE_BASH_TARGETS
 export GATE_INPUT_JSON="$INPUT_JSON"
 
-RESULT="$(python3 <<'PYEOF'
+# bash 3.2 (macOS system bash) fails to parse a heredoc inside a command
+# substitution ("unexpected EOF") -- the python program is written to a
+# temp file and executed from there instead (issue #245).
+PY_PROG="$(mktemp "${TMPDIR:-/tmp}/phase1-basis-gate.XXXXXX")" || gate_deny "phase1-basis-gate" "cannot create temp file for gate program"
+cat >"$PY_PROG" <<'PYEOF'
 import importlib.util
 import json
 import os
@@ -116,8 +120,10 @@ def main():
 
 main()
 PYEOF
-)"
+
+RESULT="$(python3 "$PY_PROG")"
 PY_EXIT=$?
+rm -f "$PY_PROG"
 
 trap - EXIT
 if [ "$PY_EXIT" -ne 0 ]; then
