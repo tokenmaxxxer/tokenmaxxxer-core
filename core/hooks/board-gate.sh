@@ -730,6 +730,36 @@ if not branch:
     deny("cannot resolve the current git branch for a board write; a role "
          "writes its issue tree only from issue-<n>/<role>")
 
+# R4 sidecar-preferred identity (issue-1827): prefer the workspace role
+# sidecar .on-the-record/role.json (issue-1814) over the branch string
+# itself when present. A present-but-disagreeing sidecar is a hard
+# fail-closed refuse naming both values; an absent/unreadable/malformed
+# sidecar falls through to today's exact-branch-string check, unchanged.
+_sidecar_issue = None
+_sidecar_role = None
+try:
+    with open(os.path.join(root, ".on-the-record", "role.json"),
+              encoding="utf-8") as _f:
+        _sidecar = json.load(_f)
+    if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("role"), str)
+            and isinstance(_sidecar.get("issue"), int)):
+        _sidecar_issue = _sidecar["issue"]
+        _sidecar_role = _sidecar["role"]
+except (OSError, ValueError):
+    pass
+
+if _sidecar_issue is not None:
+    _cross_bm = re.match(r"^issue-([0-9]+)/([\w-]+)$", branch)
+    if _cross_bm:
+        _cross_issue = int(_cross_bm.group(1))
+        _cross_role = _cross_bm.group(2)
+        if _cross_issue != _sidecar_issue or _cross_role != _sidecar_role:
+            deny("sidecar role/issue (issue-%d/%s) disagrees with the "
+                 "branch-parsed role/issue (issue-%d/%s) — workspace "
+                 "state is inconsistent. Make .on-the-record/role.json "
+                 "and the current branch name agree, or remove the stale "
+                 "sidecar. (contract v3 s10)"
+                 % (_sidecar_issue, _sidecar_role, _cross_issue, _cross_role))
 
 # R4 maintenance-targets exception (issue-222): a role's own issue may
 # declare, in its GitHub issue BODY (not writable by the role's own
@@ -770,8 +800,13 @@ def _resolve_maintenance_targets():
 for parts in issue_hits:
     issue_dir = parts[0]
     expected = "%s/%s" % (issue_dir, role)
-    if branch == expected:
-        continue
+    if _sidecar_issue is not None:
+        _hit_issue_num = int(issue_dir.split("-", 1)[1])
+        if _hit_issue_num == _sidecar_issue and _sidecar_role == role:
+            continue
+    else:
+        if branch == expected:
+            continue
     if _maint_targets is None:
         _maint_targets = _resolve_maintenance_targets()
     if issue_dir in _maint_targets:
