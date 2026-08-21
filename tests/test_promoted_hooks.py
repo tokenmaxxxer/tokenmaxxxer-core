@@ -6,10 +6,16 @@ through silently), invoking the promoted gate script as a subprocess —
 mirroring tests/test_side_effect_round.py's existing subprocess pattern.
 """
 import json
+import re
 import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+
+# bash 3.2 (macOS system bash) fails to parse a heredoc inside a command
+# substitution ("unexpected EOF") -- matches `$(cmd <<TAG` / `$(cmd <<'TAG'`
+# with the substitution's own body providing the heredoc (issue #245).
+HEREDOC_IN_CMD_SUBST_RE = re.compile(r"\$\(\s*[^\n)]*<<")
 
 
 def _init_project(tmp_path):
@@ -177,3 +183,24 @@ def test_survey_order_gate_empty_state_passes_through(tmp_path):
     payload = write_payload("core/hooks/unrelated.sh", "#!/usr/bin/env bash\n")
     proc = run_gate("survey-order-gate.sh", payload, root)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_no_hook_script_has_heredoc_inside_command_substitution():
+    """issue #245: `$(cmd <<TAG ... TAG)` parses fine under bash 5 but
+    fails to parse under bash 3.2 (macOS system bash) with "unexpected
+    EOF" -- and since every gate is fail-closed, that parse failure
+    blocks every tool call in the role session it runs under. Guard the
+    live hook/gate scripts (core/hooks/*.sh and core/hooks/lib/*.sh) so
+    the pattern cannot recur; core/hooks/tests/ is excluded because it
+    holds test-fixture strings that illustrate the idiom in comments and
+    quoted literals, not live command substitutions.
+    """
+    hooks_dir = REPO / "core" / "hooks"
+    offenders = []
+    for f in sorted(hooks_dir.glob("*.sh")) + sorted((hooks_dir / "lib").glob("*.sh")):
+        for lineno, line in enumerate(f.read_text().splitlines(), start=1):
+            if line.lstrip().startswith("#"):
+                continue
+            if HEREDOC_IN_CMD_SUBST_RE.search(line):
+                offenders.append(f"{f.relative_to(REPO)}:{lineno}: {line.strip()}")
+    assert not offenders, "heredoc inside command substitution (bash 3.2 parse failure):\n" + "\n".join(offenders)
