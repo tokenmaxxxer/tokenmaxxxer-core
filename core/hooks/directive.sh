@@ -38,7 +38,36 @@ else
   fi
 fi
 if command -v gh >/dev/null 2>&1; then
-  gh auth status >/dev/null 2>&1 || missing="${missing}
+  # gh auth status is a network call (~4s measured, issue-269). Cache the
+  # outcome under the temp dir, keyed by repo root, for CORE_AUTH_PROBE_TTL
+  # seconds (default 300; 0 disables caching). A cached FAILURE is never
+  # served: a broken auth must never hide behind a stale success, so only
+  # a passing probe is worth caching, and every miss re-probes for real.
+  auth_probe_ttl="${CORE_AUTH_PROBE_TTL:-300}"
+  auth_ok=1
+  if [ "$auth_probe_ttl" != "0" ]; then
+    cache_key=$(printf '%s' "$root" | cksum | cut -d' ' -f1)
+    cache_file="${TMPDIR:-/tmp}/core-auth-probe-${cache_key}.cache"
+    now=$(date +%s)
+    cached_at=""
+    if [ -f "$cache_file" ]; then
+      read -r cached_at < "$cache_file" 2>/dev/null || cached_at=""
+    fi
+    if [ -n "$cached_at" ] && [ "$cached_at" -le "$now" ] 2>/dev/null && [ $((now - cached_at)) -lt "$auth_probe_ttl" ]; then
+      auth_ok=0
+    else
+      if gh auth status >/dev/null 2>&1; then
+        auth_ok=0
+        printf '%s\n' "$now" > "$cache_file" 2>/dev/null
+      else
+        auth_ok=1
+        rm -f "$cache_file" 2>/dev/null
+      fi
+    fi
+  else
+    gh auth status >/dev/null 2>&1 && auth_ok=0 || auth_ok=1
+  fi
+  [ "$auth_ok" = 0 ] || missing="${missing}
 - gh is not authenticated. The human must run: gh auth login"
 else
   missing="${missing}
