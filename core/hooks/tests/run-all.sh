@@ -37,6 +37,9 @@ echo; echo "=== citation gate ==="
 echo; echo "=== record-shape gate (issue-263 fold) ==="
 /bin/bash "$here/run-record-shape-gate-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== survey-order gate (issue-271 role-aware path) ==="
+/bin/bash "$here/run-survey-order-gate-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== stub-check canon combination forms ==="
 /bin/bash "$here/run-stub-canon-forms-tests.sh" | tail -2 || rc=1
 
