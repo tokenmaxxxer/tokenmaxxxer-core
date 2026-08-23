@@ -230,3 +230,33 @@ regression), run as part of `core/hooks/tests/run-all.sh`. A Bash-tool
 command whose target matches a governed row fails closed (unverifiable
 write) rather than passing through, matching `citation-gate.sh`'s/
 `ordering-norm-gate.sh`'s behavior for the same situation.
+
+## `survey-order-gate.sh` — role-aware survey path (issue #271)
+
+`survey-order-gate.sh` (research-before-proposal ordering, see
+`docs/specs/role-handoff-contract.md`) previously hardcoded the survey
+path it checked for a phase-1 proposal write as
+`docs/issue-<n>/reports/implementation/survey.md`, regardless of which
+role's session was writing. `board-gate.sh` (contract v3 s11) restricts a
+non-implementation role to writing only under its own
+`docs/issue-<n>/reports/<role>/` tree, so a non-implementation role's real
+survey was invisible to this gate while the path it demanded was one
+`board-gate.sh` itself refused that role's session to write.
+
+**Fix.** The bash wrapper exports `SOG_ROLE="${CLAUDE_ROLE:-}"` and passes
+it into the embedded Python as `PG_ROLE` (mirroring
+`record-shape-gate.sh`'s `RS_ROLE` env-passthrough pattern). The expected
+survey path is now `docs/issue-<n>/reports/<role>/survey.md` when
+`CLAUDE_ROLE` is a non-empty string, else the original hardcoded
+`reports/implementation/survey.md` fallback (preserves existing
+implementation-role behavior with `CLAUDE_ROLE` unset). No
+accept-any-glob: the path is built solely from the acting role, never
+matched against any role's tree, so a survey under a different role's
+`reports/` does not satisfy this role's gate.
+
+**Tests.** `core/hooks/tests/run-survey-order-gate-tests.sh` (live-fire,
+real subprocess invocations, 7 cases: implementation-role unchanged with
+`CLAUDE_ROLE` unset and set, a non-implementation role denied when only
+the implementation survey exists, that same role allowed once its own
+survey exists, and the scout-skip-marker text still permitting the write
+with no survey on disk), run as part of `core/hooks/tests/run-all.sh`.
