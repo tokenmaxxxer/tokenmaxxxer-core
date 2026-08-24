@@ -25,6 +25,9 @@ echo; echo "=== gh guard ==="
 echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ==="
 /bin/bash "$here/run-role-gates-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== issue-280 top-denier friction (safe heredoc + actionable refusals) ==="
+/bin/bash "$here/run-issue-280-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== facet-keyword gate ==="
 /bin/bash "$here/run-facet-keyword-gate-tests.sh" | tail -2 || rc=1
 
