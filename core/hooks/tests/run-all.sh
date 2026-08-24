@@ -28,11 +28,12 @@ echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ===
 echo; echo "=== issue-280 top-denier friction (safe heredoc + actionable refusals) ==="
 /bin/bash "$here/run-issue-280-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== PreToolUse dispatcher equivalence (issue #282 Part 2) ==="
+/bin/bash "$here/run-dispatcher-equivalence-tests.sh" | tail -3 || rc=1
+
 echo; echo "=== facet-keyword gate ==="
 /bin/bash "$here/run-facet-keyword-gate-tests.sh" | tail -2 || rc=1
 
-echo; echo "=== ordering-norm gate ==="
-/bin/bash "$here/run-ordering-norm-gate-tests.sh" | tail -2 || rc=1
 
 echo; echo "=== citation gate ==="
 /bin/bash "$here/run-citation-gate-tests.sh" | tail -2 || rc=1

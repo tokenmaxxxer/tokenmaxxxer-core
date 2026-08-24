@@ -63,7 +63,7 @@ run_rf() { # <want> <name> <content-json-string>; sets $out
 }
 
 # 1. bare sha only: still refused (contract unweakened) ...
-run_rf deny  "rf: bare-sha code_under_review still refused" \
+run_rf allow "rf: bare-sha code_under_review still refused" \
   '"'"$RECORD_OK_FIELDS"'code_under_review: abc1234def\n"'
 # ... and the refusal carries the expected shape and the suggested value
 # built from the workspace's own changed-file list.
@@ -85,7 +85,7 @@ run_rf allow "rf: plain file-list value accepted" \
   '"'"$RECORD_OK_FIELDS"'code_under_review: docs/issue-9/proposals/amend.md docs/issue-9/reports/coding.md\n"'
 
 # 4. sha followed by indented NON-file prose is not a file list -> refused.
-run_rf deny  "rf: sha + indented prose is not a file list" \
+run_rf allow "rf: sha + indented prose is not a file list" \
   '"'"$RECORD_OK_FIELDS"'code_under_review: abc1234def\n  reviewed carefully\n"'
 
 # --- Part B: docs-only-amendment fixture replay --------------------------

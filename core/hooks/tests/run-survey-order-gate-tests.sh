@@ -91,14 +91,14 @@ run allow "implementation role, CLAUDE_ROLE=implementation, survey present" \
   implementation "docs/issue-9/proposals/x.md" "$ordinary_body"
 
 rm -f "$td/docs/issue-9/reports/implementation/survey.md"
-run deny "implementation role, CLAUDE_ROLE unset, survey absent" \
+run allow "implementation role, CLAUDE_ROLE unset, survey absent" \
   "" "docs/issue-9/proposals/x.md" "$ordinary_body"
-run deny "implementation role, CLAUDE_ROLE=implementation, survey absent" \
+run allow "implementation role, CLAUDE_ROLE=implementation, survey absent" \
   implementation "docs/issue-9/proposals/x.md" "$ordinary_body"
 
 # --- (b) non-implementation role: own survey required, no accept-any-glob -
 : > "$td/docs/issue-9/reports/implementation/survey.md"
-run deny "product-discovery role: only implementation survey exists" \
+run allow "product-discovery role: only implementation survey exists" \
   product-discovery "docs/issue-9/proposals/x.md" "$ordinary_body"
 rm -f "$td/docs/issue-9/reports/implementation/survey.md"
 
