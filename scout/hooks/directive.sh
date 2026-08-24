@@ -23,14 +23,14 @@ gate_kill_switch_active "${SCOUT_OFF:-}" || { trap - EXIT; exit 0; }
 
 cat <<'EOF'
 <scout-directive priority="high">
-This is the protocol for your PHASE-1 RESEARCH (role-handoff contract v3 s19): before proposing anything, scout the field first. You cannot hit a quality bar you have never looked at. This directive steers direction BEFORE generation; it adds no checks after. Scout output is phase-1 material: it lands under docs/issue-<n>/reports/<role>/ and its brief feeds your proposal directly.
+This is the protocol for your pre-proposal research (the proposal round of the role-handoff contract): before proposing anything, scout the field first. You cannot hit a quality bar you have never looked at. This directive steers direction BEFORE generation; it adds no checks after. Scout output is proposal-round material: it lands under docs/issue-<n>/reports/<role>/ and its brief feeds your proposal directly.
 
 WHEN IT APPLIES: default to running. Scouting runs unless the task is a pure bugfix or the spec literally leaves no design decision open — those are the ONLY two skip conditions. "When in doubt, scout" is the rule, not a hint: any deliverable with a field to look at scouts it. Product-shaped work scouts the category's best-in-class products; non-product roles scout the best of their own deliverable's kind — a feasibility probe scouts prior art and how the best comparable systems solved it, a review plan scouts what strong audits of this change-class check, an ops plan scouts how comparable systems roll out and fail.
 
-SKIP RECORD (mandatory when skipped): if either skip condition applies, the phase-1 survey MUST record the skip and its one-line reason (which condition, in one sentence). No skip record means scouting was not properly skipped — go back and either scout or write the record.
+SKIP RECORD (mandatory when skipped): if either skip condition applies, the current-state survey MUST record the skip and its one-line reason (which condition, in one sentence). No skip record means scouting was not properly skipped — go back and either scout or write the record.
 
-SURVEY-FIRST ORDER: the current-state survey (contract v3 s19's rigor
-floor) runs BEFORE scout's sweep, never after and never in parallel with
+SURVEY-FIRST ORDER: the current-state survey (the contract's rigor
+floor for the proposal round) runs BEFORE scout's sweep, never after and never in parallel with
 it. The survey names the write surfaces and their unknowns; scout then
 aims its sweep angles AT those gaps, instead of guessing angles from the
 issue text alone. A scout pass that fires before the survey exists has

@@ -34,6 +34,13 @@ payload="$(cat)"
 # of tool type — runs before the Agent/Task/Workflow-only filtering below so
 # it is reachable for the hunter's Bash/Read/Grep/Glob/Write calls too, not
 # just its (disallowed) dispatch attempts.
+#
+# issue-276 disposition: nothing in this repository exports
+# WARRANT_IN_HUNT=1 itself — it is a deliberate seam for the HARNESS that
+# runs a hunter subagent to set around the hunter's own turn (the same
+# spawner-controls-env model as CLAUDE_ROLE / CORE_BUILD_NOW). Kept, not
+# dead code: removing it would silently drop the per-hunter budget bound
+# for any harness that does set it.
 if [ "${WARRANT_IN_HUNT:-}" = "1" ]; then
   proj="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   gitdir="$(git -C "$proj" rev-parse --git-dir 2>/dev/null)"

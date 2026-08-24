@@ -29,7 +29,7 @@
         {"tag": "escalation-field:timeout", "regex": "timeout"}
       ],
       "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "escalation-field write is missing required element(s): {missing}. Per {doc_ref}, every phase-2 deliverable/record write must carry: an escalation path where every tier row/block states a trigger condition, a named owner (a role/title, not a generic 'the team'), and a timeout, within the escalation-path section itself."
+      "deny_message_template": "escalation-field write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an escalation path where every tier row/block states a trigger condition, a named owner (a role/title, not a generic 'the team'), and a timeout, within the escalation-path section itself."
     },
     {
       "hook": "five-whys",
@@ -41,7 +41,7 @@
       "count_regex": "\\?\\s*$",
       "min_count": 5,
       "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "recurring-pattern write is missing required element(s): 5-whys-check. Per {doc_ref}, every phase-2 deliverable/record write must carry: when content flags a repeat/recurring inbound pattern: a 5-whys check with at least 5 distinct question-shaped lines, present in the same section, before any hand-off decision. This mechanical check verifies presence-and-count of question-shaped lines only ('5-whys' label + >=5 lines ending '?') -- it does not verify that the five questions match checklists/5-whys-recurring.md's specific causal-chain questions, nor the checklist's §2.5 convergence rule; those remain the judgment layer's responsibility."
+      "deny_message_template": "recurring-pattern write is missing required element(s): 5-whys-check. Per {doc_ref}, every deliverable/record write must carry: when content flags a repeat/recurring inbound pattern: a 5-whys check with at least 5 distinct question-shaped lines, present in the same section, before any hand-off decision. This mechanical check verifies presence-and-count of question-shaped lines only ('5-whys' label + >=5 lines ending '?') -- it does not verify that the five questions match checklists/5-whys-recurring.md's specific causal-chain questions, nor the checklist's §2.5 convergence rule; those remain the judgment layer's responsibility."
     },
     {
       "hook": "kcs",
@@ -58,7 +58,7 @@
         {"tag": "kcs-element:metadata", "regex": "^\\s*#*\\s*(metadata|state|maturity)\\s*:"}
       ],
       "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "kcs write is missing required element(s): {missing}. Per {doc_ref}, every phase-2 deliverable/record write must carry: for each handbook article/scenario entry: KCS Content Standard fields Issue, Environment, Resolution, Cause, and Metadata (a reuse/lifecycle state field), each as its own labeled line -- not merely the word mentioned in passing prose."
+      "deny_message_template": "kcs write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each handbook article/scenario entry: KCS Content Standard fields Issue, Environment, Resolution, Cause, and Metadata (a reuse/lifecycle state field), each as its own labeled line -- not merely the word mentioned in passing prose."
     },
     {
       "hook": "playbook-scenario",
@@ -74,7 +74,7 @@
         {"tag": "playbook-element:escalation-condition", "regex": "^\\s*#*\\s*escalation condition\\s*:"}
       ],
       "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "playbook-scenario write is missing required element(s): {missing}. Per {doc_ref}, every phase-2 deliverable/record write must carry: for each playbook scenario: a trigger/scenario description, decision criteria, a script/response template, and an escalation condition, each as its own labeled line -- not merely the word mentioned in passing prose."
+      "deny_message_template": "playbook-scenario write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each playbook scenario: a trigger/scenario description, decision criteria, a script/response template, and an escalation condition, each as its own labeled line -- not merely the word mentioned in passing prose."
     },
     {
       "hook": "sla-tier",
@@ -90,7 +90,7 @@
         {"tag": "sla-table-column:escalation-trigger", "regex": "escalation trigger"}
       ],
       "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "sla-table write is missing required element(s): {missing}. Per {doc_ref}, every phase-2 deliverable/record write must carry: an SLA table with header-row columns Priority tier, Impact rating, Urgency rating, First response time target, Resolution time target, Escalation trigger time, each row derived from the ITIL Impact×Urgency priority matrix."
+      "deny_message_template": "sla-table write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an SLA table with header-row columns Priority tier, Impact rating, Urgency rating, First response time target, Resolution time target, Escalation trigger time, each row derived from the ITIL Impact×Urgency priority matrix."
     }
   ],
   "finance-unit-economics": [

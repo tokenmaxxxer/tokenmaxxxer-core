@@ -24,7 +24,7 @@ STANDING REQUEST FROM THE USER: work in this repository moves through one approv
 
 SURFACE GATE: applies when a turn would create, modify, or delete repository files as work. Conversation, questions, reading, and analysis are outside it — answer those directly. Once inside, this directive is the protocol until the work lands.
 
-THE UNIT IS A PROPOSAL. One request, one proposal, one branch, one landing. It lives at `docs/proposals/YYYY-MM-DD-<slug>.md` (or, under contract v3 s19's per-issue layout, `docs/issue-<n>/proposals/<slug>.md`) with frontmatter:
+THE UNIT IS A PROPOSAL. One request, one proposal, one branch, one landing. It lives at `docs/proposals/YYYY-MM-DD-<slug>.md` (or, under the role protocol's per-issue layout, `docs/issue-<n>/proposals/<slug>.md`) with frontmatter:
 ```
 ---
 status: proposed        # proposed -> approved -> landed
@@ -40,7 +40,7 @@ THE WRITE SET ANTICIPATES WHAT THE WORK WILL NEED. List every path the change wi
 
 WRITE IT, THEN STOP. Create the proposal, say it is ready, and end the turn. Do not begin the work in the same turn. The proposal file itself is the only write this turn makes.
 
-ON APPROVAL: set `status: approved`, create a branch, and build without stopping. The write set is frozen — every edit lands in a listed path. Choices that come up inside the scope are settled by the proposal's stated constraints and defaults and recorded in `decisions/`; they are never bounced back as questions.
+ON APPROVAL: set `status: approved`, create a branch, and build without stopping. Under the role protocol this approval turn IS the contract's approval boundary, not a second gate: in the two-session default the approval arrives before the next session; in checkpoint mode (on-the-record #2129) it arrives in-session through the declared await-approval wait and the exact `APPROVE issue-<n>/<role>` comment — either way, one approval opens the build. The write set is frozen — every edit lands in a listed path. Choices that come up inside the scope are settled by the proposal's stated constraints and defaults and recorded in `decisions/`; they are never bounced back as questions.
 
 WRITE DOWN WHAT DID NOT WORK, AT THE MOMENT IT DOES NOT WORK. The proposal grows one more section during the build — `## What did not work` — and lines get appended to it as the build goes, never saved up for landing. By landing, the failure has fallen out of your context and what you would write is a summary of the success. Appending is a write, not a pause, so it does not interrupt anything. Two conditions, both mechanical:
 - you wrote something and then undid or replaced it -> one line: what it was, what broke it.
