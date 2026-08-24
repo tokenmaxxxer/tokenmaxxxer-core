@@ -250,6 +250,15 @@ run allow record-after-approve   human   docs/issue-7/reports/coding.md
 run deny  foreign-area-preapprove nopr   docs/issue-7/specs/design.md
 run deny  spikes-before-approve  nopr    docs/issue-7/reports/spikes/probe.md role=feasibility branch=issue-7/feasibility
 
+# issue-290: a Bash-native heredoc write to the SAME phase-2 record path
+# (docs/issue-<n>/reports/<role>.md) must deny/allow identically to the
+# equivalent Write tool call above (record-before-approve/record-after-
+# approve) -- the candidate-token scan already covers Bash generally
+# (bash-redirect-src et al.), but nothing exercised it against a record
+# path specifically until this pair.
+run deny  bash-heredoc-record-before-approve nopr  x cmd='cat > docs/issue-7/reports/coding.md <<EOF\nfoo\nEOF'
+run allow bash-heredoc-record-after-approve  human x cmd='cat > docs/issue-7/reports/coding.md <<EOF\nfoo\nEOF'
+
 # --- not this gate's business (phase-1 homes and non-surface paths) -------
 run allow proposal-write         nopr    docs/issue-7/proposals/p.md
 run allow research-write         nopr    docs/issue-7/reports/coding/survey.md
