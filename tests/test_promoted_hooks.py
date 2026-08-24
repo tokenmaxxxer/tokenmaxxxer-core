@@ -154,6 +154,76 @@ def test_record_shape_gate_empty_state_passes_through(tmp_path):
     assert proc.returncode == 0, proc.stderr
 
 
+def _init_git_project(tmp_path):
+    # issue-285's trivial-diff exemption reads `git diff HEAD --numstat`, so
+    # these cases need a real repo with a committed HEAD, not just a bare
+    # ".git" directory like _init_project's other callers use.
+    root = tmp_path
+    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    (root / "docs" / "issue-1" / "reports").mkdir(parents=True)
+    (root / "src.py").write_text("line1\nline2\nline3\n")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True, env=env)
+    return root
+
+
+RECORD_TRIVIAL_NO_BREAKING_NO_HEADING = """---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+Nothing to report for this trivial change.
+"""
+
+RECORD_TRIVIAL_NO_ACKNOWLEDGMENT = """---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+Did the thing.
+"""
+
+
+def test_record_shape_gate_trivial_diff_exempts_breaking_and_heading(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("line1\nline2 changed\nline3\n")  # 1 line changed
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_TRIVIAL_NO_BREAKING_NO_HEADING
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_record_shape_gate_trivial_diff_still_requires_some_acknowledgment(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("line1\nline2 changed\nline3\n")
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_TRIVIAL_NO_ACKNOWLEDGMENT
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 2
+    assert "What did not work" in proc.stderr
+
+
+def test_record_shape_gate_non_trivial_diff_still_requires_full_record(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("\n".join("line%d" % i for i in range(50)) + "\n")
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_TRIVIAL_NO_BREAKING_NO_HEADING
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 2
+    assert "breaking" in proc.stderr
+
+
 def test_survey_order_gate_allows_proposal_when_survey_exists(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
