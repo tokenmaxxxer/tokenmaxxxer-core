@@ -10,8 +10,8 @@ Run it directly, no setup required:
 
     bash core/hooks/tests/run-approval-gate-tests.sh
 
-issue-189: `approval-gate.sh` now also reads `state_reason` from
-`gh issue view --json state,comments,state_reason` (read-only, unused for
+issue-189: `approval-gate.sh` now also reads `stateReason` from
+`gh issue view --json state,comments,stateReason` (read-only, unused for
 enforcement — reporting/routing only) and computes a `reject_challenge`
 ("REJECT issue-<n>/<role>") matched via the same
 `comment_matches(challenge_str)` machinery now shared with `APPROVE`'s
