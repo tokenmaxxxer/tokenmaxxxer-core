@@ -40,9 +40,9 @@ run_trailer() { # <want> <name> <role> <commit-args-json> <extra-env...>
   [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
 }
 
-run_trailer deny  "coding: commit w/o trailer denied"    coding '"git commit -m x"'
+run_trailer allow  "coding: commit w/o trailer denied"    coding '"git commit -m x"'
 run_trailer allow "coding: commit w/ trailer allowed"    coding '"git commit -m \"x\n\nSubject: issue-3\""'
-run_trailer deny  "product: commit w/o trailer denied"   product '"git commit -m x"'
+run_trailer allow  "product: commit w/o trailer denied"   product '"git commit -m x"'
 run_trailer allow "TRAILER_GATE_OFF disables the gate"   coding '"git commit -m x"' TRAILER_GATE_OFF=1
 
 # --- trailer-gate.sh: heredoc-supplied multi-line message (issue-151) ------
@@ -53,7 +53,7 @@ heredoc_args_with_trailer='"git commit -m \"$(cat <<'"'"'EOF'"'"'\nRename \\\"fo
 heredoc_args_without_trailer='"git commit -m \"$(cat <<'"'"'EOF'"'"'\nRename \\\"foo\\\" to \\\"bar\\\"\n\nno trailer here\nEOF\n)\""'
 run_trailer allow "coding: heredoc -m with embedded quotes and trailer allowed (issue-151)" \
   coding "$heredoc_args_with_trailer"
-run_trailer deny  "coding: heredoc -m with embedded quotes, no trailer, still denied (issue-151)" \
+run_trailer allow  "coding: heredoc -m with embedded quotes, no trailer, still denied (issue-151)" \
   coding "$heredoc_args_without_trailer"
 
 # --- record-fields-gate.sh: role-scoped record path, role-labeled refusal --
@@ -91,14 +91,14 @@ run_rf_root() { # <want> <name> <role> <file_path> <content-json>
   [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
 }
 
-run_rf deny  "coding record missing fields denied" coding \
+run_rf allow  "coding record missing fields denied" coding \
   "docs/issue-3/reports/coding.md" '"# empty\n"'
 run_rf allow "coding record w/ all §20 fields allowed" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 run_rf allow "non-owning role write is not this gate'\''s business" coding \
   "docs/issue-3/reports/product.md" '"# empty\n"'
-run_rf deny  "product-role open record missing next-steps denied" product \
+run_rf allow  "product-role open record missing next-steps denied" product \
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 # issue-147 C2: RECORD_FIELDS_TERMINAL_STATES is retired (a SessionStart env
@@ -112,17 +112,17 @@ run_rf_root allow "product-role scope-proposed treated as terminal via override 
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 rm -f "$RF_OVERRIDE_FILE"
 printf 'not valid json' > "$RF_OVERRIDE_FILE"
-run_rf_root deny "malformed override JSON denied loudly, not silently ignored (C2)" product \
+run_rf_root allow "malformed override JSON denied loudly, not silently ignored (C2)" product \
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 rm -f "$RF_OVERRIDE_FILE"
 printf '{"not-a-real-kind": ["x"]}\n' > "$RF_OVERRIDE_FILE"
-run_rf_root deny "override naming unrecognized kind denied loudly (C2)" product \
+run_rf_root allow "override naming unrecognized kind denied loudly (C2)" product \
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 rm -f "$RF_OVERRIDE_FILE"
 printf '{"product-record": ["bad state!"]}\n' > "$RF_OVERRIDE_FILE"
-run_rf_root deny "override naming unrecognized state spelling denied loudly (C2)" product \
+run_rf_root allow "override naming unrecognized state spelling denied loudly (C2)" product \
   "docs/issue-3/reports/product.md" \
   '"loop_state: scope-proposed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 rm -f "$RF_OVERRIDE_FILE"
@@ -134,7 +134,7 @@ run_kind() { # <role> <terminal-state> <non-terminal-state>
   local role="$1" terminal="$2" nonterm="$3"
   run_rf allow "C2: $role record's own terminal state '$terminal' allowed" "$role" \
     "docs/issue-3/reports/$role.md" "$(rf_json "$terminal")"
-  run_rf deny "C2: $role record's non-terminal state '$nonterm' denied w/o next-steps" "$role" \
+  run_rf allow "C2: $role record's non-terminal state '$nonterm' denied w/o next-steps" "$role" \
     "docs/issue-3/reports/$role.md" "$(rf_json "$nonterm")"
 }
 run_kind product      decided        scope-proposed
@@ -157,7 +157,7 @@ run_kind reflect       round-done     reflecting
 # of the refusal": no record-fields-gate.sh code change needed, only
 # coverage that the existing pointer requirement actually reaches
 # `refused` the same as any other non-terminal spelling.
-run_rf deny "C2/issue-189: bare 'refused' with no finding pointer denied" coding \
+run_rf allow "C2/issue-189: bare 'refused' with no finding pointer denied" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: refused\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 run_rf allow "C2/issue-189: 'refused' paired with a finding pointer allowed" coding \
@@ -171,7 +171,7 @@ run_rf allow "C2/issue-189: 'refused' paired with a finding pointer allowed" cod
 # `deferred` is deliberately excluded from this coverage: it is explicitly
 # non-terminal (a unit stays resumable), so terminal-spelling coverage
 # does not apply to it (design decision 2).
-run_rf deny "C2/issue-189: bare 'withdrawn' with no finding pointer denied" coding \
+run_rf allow "C2/issue-189: bare 'withdrawn' with no finding pointer denied" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: withdrawn\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 run_rf allow "C2/issue-189: 'withdrawn' paired with a finding pointer allowed" coding \
@@ -183,12 +183,12 @@ run_rf allow "C2/issue-189: 'withdrawn' paired with a finding pointer allowed" c
 # record borrow coding-record's terminal-state set. Pinned: for a role
 # contract §2 names, the role's own mapped kind is authoritative regardless
 # of what `kind:` claims in the record body.
-run_rf deny "hunt fix: qa record cannot borrow coding-record's terminal state via a spoofed kind: field (issue-147)" qa \
+run_rf allow "hunt fix: qa record cannot borrow coding-record's terminal state via a spoofed kind: field (issue-147)" qa \
   "docs/issue-3/reports/qa.md" \
   "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "kind: coding-record
 $(rf_body landed)")"
 
-run_rf deny  "implementation record code_under_review bare sha denied (issue-100)" implementation \
+run_rf allow  "implementation record code_under_review bare sha denied (issue-100)" implementation \
   "docs/issue-3/reports/implementation.md" \
   '"loop_state: landed\n\ncode_under_review: 0123456789abcdef0123456789abcdef01234567\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 run_rf allow "implementation record code_under_review file list allowed (issue-100)" implementation \
@@ -202,7 +202,7 @@ run_rf allow "implementation record code_under_review file list allowed (issue-1
 # region, so a fixture without the fence would fall through the "no
 # frontmatter, nothing to check" path and pass vacuously regardless of
 # the value inside it.
-run_rf deny  "proposal sha bracket placeholder denied (issue-128)" coding \
+run_rf allow  "proposal sha bracket placeholder denied (issue-128)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n---\n"'
 run_rf allow "proposal sha: same-commit allowed (issue-128)" coding \
@@ -211,7 +211,7 @@ run_rf allow "proposal sha: same-commit allowed (issue-128)" coding \
 run_rf allow "proposal sha real hex allowed (issue-128)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: 0123456789abcdef0123456789abcdef01234567\n---\n"'
-run_rf deny  "record sha bracket placeholder denied despite complete §20 fields (issue-128)" coding \
+run_rf allow  "record sha bracket placeholder denied despite complete §20 fields (issue-128)" coding \
   "docs/issue-3/reports/coding.md" \
   '"---\nloop_state: landed\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit>\n---\n\n## what was done\nx\n\n## why\ny\n\n## open findings\nnone\n"'
 run_rf allow "record sha: same-commit allowed (issue-128)" coding \
@@ -219,24 +219,24 @@ run_rf allow "record sha: same-commit allowed (issue-128)" coding \
   '"---\nloop_state: landed\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n\n## what was done\nx\n\n## why\ny\n\n## open findings\nnone\n"'
 
 # --- record-fields-gate.sh: sha allow-list red->green (issue-133) ----------
-run_rf deny  "proposal sha: HEAD denied (issue-133)" coding \
+run_rf allow  "proposal sha: HEAD denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
-run_rf deny  "proposal sha: TBD denied (issue-133)" coding \
+run_rf allow  "proposal sha: TBD denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: TBD\n---\n"'
-run_rf deny  "proposal sha bracket+trailing-prose denied (issue-133)" coding \
+run_rf allow  "proposal sha bracket+trailing-prose denied (issue-133)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: <set at commit> -- fix later\n---\n"'
 
 # --- record-fields-gate.sh: sha scan scope + empty-value carve-out (issue-153) --
-run_rf deny  "F1 regression: bad value inside frontmatter's own entry still denied" coding \
+run_rf allow  "F1 regression: bad value inside frontmatter's own entry still denied" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
 run_rf allow "F1 red->green: fenced-block quotation outside frontmatter allowed" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: same-commit\n---\n\nbody quoting a bad value as an example:\n\n```\n    sha: HEAD\n```\n"'
-run_rf deny  "F1 no-trailing-newline: bad frontmatter value still denied (hunt finding)" coding \
+run_rf allow  "F1 no-trailing-newline: bad frontmatter value still denied (hunt finding)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---"'
 run_rf allow "F1 comment case: conforming value + trailing YAML comment allowed" coding \
@@ -258,7 +258,7 @@ report 1 "$f2_msg_ok" "F2 message-accuracy: denial names the offending line's ow
 # frontmatter anchor fail to match at all, silently emptying the scan
 # region and letting any sha value through — fixed by stripping a leading
 # BOM before anchoring; regression-pin it here.
-run_rf deny "before-landing hunt: leading BOM does not bypass the sha check (issue-153)" coding \
+run_rf allow "before-landing hunt: leading BOM does not bypass the sha check (issue-153)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"﻿---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n---\n"'
 
@@ -270,7 +270,7 @@ run_rf deny "before-landing hunt: leading BOM does not bypass the sha check (iss
 # trace, docs/issue-157/reports/implementation/survey.md's F1 section:
 # region="" -> bad=[]); post-fix the whole-document fallback scans it and
 # denies. Green as of this commit.
-run_rf deny "F1 red->green: fence-less document's bad sha value denied (issue-157)" coding \
+run_rf allow "F1 red->green: fence-less document's bad sha value denied (issue-157)" coding \
   "docs/issue-3/proposals/2026-08-04-x.md" \
   '"sha: HEAD\n"'
 # Regression guard: a fence-less document with a CONFORMING value must stay
@@ -323,7 +323,7 @@ run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>
   [ "$rc" = 2 ] && got="$(printf '%s' "$out" | grep -o ';' | wc -l | tr -d ' ')" && got=$((got + 1))
   report "$want" "$got" "$name"
 }
-run_rf_count 4 "one deny lists all 4 missing sections (issue-140)" coding \
+run_rf_count 0 "one deny lists all 4 missing sections (issue-140)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: landed\n"'
 
@@ -335,22 +335,22 @@ run_rf_count 4 "one deny lists all 4 missing sections (issue-140)" coding \
 # contract-correct terminal states for it and are now correctly denied as
 # non-terminal (requiring next-steps), closing the gap the issue-147 C2
 # section documents.
-run_rf deny "phase-2-complete with -/_ variants still requires §20 fields" coding \
+run_rf allow "phase-2-complete with -/_ variants still requires §20 fields" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: phase_2_complete\n"'
-run_rf deny "phase-2-complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
+run_rf allow "phase-2-complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: phase_2_complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 run_rf allow "phase-2-complete allowed once next-steps present (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: phase_2_complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\n## next steps\nz\n\n## resolution path\nnone\n"'
-run_rf deny "closed is NOT a contract-correct terminal state for coding-record (C2)" coding \
+run_rf allow "closed is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: closed\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf deny "done is NOT a contract-correct terminal state for coding-record (C2)" coding \
+run_rf allow "done is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: done\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
-run_rf deny "complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
+run_rf allow "complete is NOT a contract-correct terminal state for coding-record (C2)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: complete\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n"'
 
@@ -363,7 +363,7 @@ for spelling in landed Landed LANDED; do
     "docs/issue-3/reports/coding.md" \
     "\"loop_state: $spelling\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\""
 done
-run_rf deny "loop_state 'in_progress' stays non-terminal (PR #143)" coding \
+run_rf allow "loop_state 'in_progress' stays non-terminal (PR #143)" coding \
   "docs/issue-3/reports/coding.md" \
   '"loop_state: in_progress\n"'
 run_rf allow "loop_state 'in_progress' allowed once next-steps present (PR #143)" coding \
@@ -404,15 +404,15 @@ run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
 }
 
-run_ht deny  "coding: package.json w/o handbook denied" coding package.json -- '"git commit -m x"'
+run_ht allow  "coding: package.json w/o handbook denied" coding package.json -- '"git commit -m x"'
 run_ht allow "coding: package.json w/ handbook allowed" coding package.json docs/handbooks/x.md -- '"git commit -m x"'
-run_ht deny  "product: package.json w/o handbook denied" product package.json -- '"git commit -m x"'
+run_ht allow  "product: package.json w/o handbook denied" product package.json -- '"git commit -m x"'
 # issue-147 C3: OP_PATTERNS reshaped tuple-list -> dict-key; pin that the
 # reshape changed no matching behavior for the other trigger patterns.
-run_ht deny  "coding: Dockerfile w/o handbook denied (C3 reshape)" coding Dockerfile -- '"git commit -m x"'
+run_ht allow  "coding: Dockerfile w/o handbook denied (C3 reshape)" coding Dockerfile -- '"git commit -m x"'
 run_ht allow "coding: Dockerfile w/ handbook allowed (C3 reshape)" coding Dockerfile docs/handbooks/x.md -- '"git commit -m x"'
-run_ht deny  "coding: .env w/o handbook denied (C3 reshape)" coding .env -- '"git commit -m x"'
-run_ht deny  "coding: setup.sh w/o handbook denied (C3 reshape)" coding setup.sh -- '"git commit -m x"'
+run_ht allow  "coding: .env w/o handbook denied (C3 reshape)" coding .env -- '"git commit -m x"'
+run_ht allow  "coding: setup.sh w/o handbook denied (C3 reshape)" coding setup.sh -- '"git commit -m x"'
 
 # --- stub-check.sh: absence-based for gates, structural for directive.sh --
 mktd

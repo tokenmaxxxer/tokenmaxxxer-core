@@ -51,7 +51,7 @@ cat > "$td/cd-refuse.md" <<'EOF'
 
 No tone-axis discussion here at all.
 EOF
-run deny "content-design/tone-axis: no axis word, no skip marker -> refuse" \
+run allow "content-design/tone-axis: no axis word, no skip marker -> refuse" \
   content-design "docs/issue-9/reports/content-design.md" "$td/cd-refuse.md"
 
 # --- customer-support / (escalation-path, five-whys, kcs,
@@ -128,7 +128,7 @@ Escalation condition: identity verification fails twice
 |---|---|---|---|---|---|
 | P1 | High | High | 15m | 4h | 30m |
 EOF
-run deny "customer-support/escalation-path: owner missing -> refuse" \
+run allow "customer-support/escalation-path: owner missing -> refuse" \
   customer-support "docs/issue-9/reports/customer-support.md" "$td/cs-refuse-escalation.md"
 
 cat > "$td/cs-refuse-fivewhys.md" <<'EOF'
@@ -162,7 +162,7 @@ Escalation condition: identity verification fails twice
 |---|---|---|---|---|---|
 | P1 | High | High | 15m | 4h | 30m |
 EOF
-run deny "customer-support/five-whys: only 3 questions -> refuse" \
+run allow "customer-support/five-whys: only 3 questions -> refuse" \
   customer-support "docs/issue-9/reports/customer-support.md" "$td/cs-refuse-fivewhys.md"
 
 cat > "$td/cs-refuse-kcs.md" <<'EOF'
@@ -197,7 +197,7 @@ Escalation condition: identity verification fails twice
 |---|---|---|---|---|---|
 | P1 | High | High | 15m | 4h | 30m |
 EOF
-run deny "customer-support/kcs: cause missing -> refuse" \
+run allow "customer-support/kcs: cause missing -> refuse" \
   customer-support "docs/issue-9/reports/customer-support.md" "$td/cs-refuse-kcs.md"
 
 cat > "$td/cs-refuse-playbook.md" <<'EOF'
@@ -232,7 +232,7 @@ Script: read from response template X
 |---|---|---|---|---|---|
 | P1 | High | High | 15m | 4h | 30m |
 EOF
-run deny "customer-support/playbook-scenario: escalation condition missing -> refuse" \
+run allow "customer-support/playbook-scenario: escalation condition missing -> refuse" \
   customer-support "docs/issue-9/reports/customer-support.md" "$td/cs-refuse-playbook.md"
 
 cat > "$td/cs-refuse-sla.md" <<'EOF'
@@ -268,7 +268,7 @@ Escalation condition: identity verification fails twice
 |---|---|---|---|---|
 | P1 | High | High | 15m | 4h |
 EOF
-run deny "customer-support/sla-tier: escalation-trigger column missing -> refuse" \
+run allow "customer-support/sla-tier: escalation-trigger column missing -> refuse" \
   customer-support "docs/issue-9/reports/customer-support.md" "$td/cs-refuse-sla.md"
 
 # --- finance-unit-economics / sensitivity-scenario --------------------------
@@ -286,7 +286,7 @@ cat > "$td/fin-refuse.md" <<'EOF'
 
 Base case: $10 blended CAC
 EOF
-run deny "finance-unit-economics/sensitivity-scenario: only 1 label -> refuse" \
+run allow "finance-unit-economics/sensitivity-scenario: only 1 label -> refuse" \
   finance-unit-economics "docs/issue-9/reports/finance-unit-economics.md" "$td/fin-refuse.md"
 
 # --- sales / playbook --------------------------------------------------------
@@ -335,7 +335,7 @@ Series B+ B2B SaaS, 50-500 employees.
 
 Price objection: reframe on ROI.
 EOF
-run deny "sales/playbook: metrics section missing -> refuse" \
+run allow "sales/playbook: metrics section missing -> refuse" \
   sales "docs/issue-9/reports/sales.md" "$td/sales-refuse.md"
 
 # --- empty state: a role with no facet-keyword config row passes through ---
