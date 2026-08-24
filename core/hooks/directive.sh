@@ -100,8 +100,36 @@ cat <<EOF
 - A session that stages a change to any docs/specs/* file also regenerates docs/specs/reconciled-index.md (python3 gates/spec_index.py --update) in the same commit, where the repo ships that generator.
 - PR trailer phase split: a phase-1 proposal PR references its issue as a plain #<issue>; Closes/Fixes/Resolves #<issue> is forbidden until the phase-2 delivery PR, which must carry it.
 - Verification is verify-at-landing: a deliverable is work plus EXECUTED acceptance evidence — command and output in your record. Do not author persistent test files by default. Never omit SKIPPED lines; a hand-typed pass count must equal the pasted summary count.
-Read ${DFILE} NOW, before any work: it is the full protocol (record required fields, loop_state vocabulary per kind, operational-surface commit rule, headless delegation rule).
 EOF
+
+# issue-299: this used to end with "Read ${DFILE} NOW, before any work" —
+# on-the-record #2204 measured that exact imperative-Read shape costing a
+# real tool round-trip (~46s) every session, on the on-the-record side; the
+# session that verified #2204's own fix hit the same shape live right here,
+# in this file, because #2204's remedy never reached core. Deliver the full
+# protocol's content directly instead, the same way #2204 rode it in via
+# --append-system-prompt: cat it into this hook's own stdout so it lands in
+# context with no Read call needed. The file carries no per-session
+# substitution — role appears only as the literal placeholder <role>, the
+# same convention issue-<n> above already uses — so this block renders
+# byte-identical every session regardless of role, keeping it a stable
+# prefix for prompt caching across spawns; only the INVARIANTS block above
+# (rendered with the real ${role}) varies per session.
+if [ -r "$DFILE" ]; then
+  echo
+  echo "[core] Full protocol (session-protocol.md), delivered inline, no Read needed:"
+  echo
+  cat "$DFILE"
+else
+  cat <<EOF
+
+[core] session-protocol.md is missing or unreadable at: $DFILE
+The full protocol (record required fields, loop_state vocabulary per kind,
+operational-surface commit rule, headless delegation rule) could not be
+delivered this session. The INVARIANTS above still apply; ask a human to
+restore the file at that path before relying on anything not listed above.
+EOF
+fi
 
 trap - EXIT
 exit 0

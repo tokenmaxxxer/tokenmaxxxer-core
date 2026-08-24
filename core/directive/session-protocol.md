@@ -1,6 +1,4 @@
-(Template note: ${role} below expands to this session role name; core/hooks/directive.sh renders it per session.)
-
-[core] Interaction protocol for role '${role}' (role-handoff contract v3):
+[core] Interaction protocol for role '<role>' (role-handoff contract v3):
 
 - Requirements enter as GitHub ISSUES, authored by the user only. You never
   file an issue. The issue number is the subject: subject = issue-<n>, and
@@ -12,15 +10,15 @@
   stays inside that one issue's branch and tree.
 - ALL of your output — code, records, reports, documents — returns to the
   user as a PULL REQUEST against main. Never push to main. Work on the
-  branch issue-<n>/${role} (one branch per issue x role; never share a
+  branch issue-<n>/<role> (one branch per issue x role; never share a
   branch with another role).
 - Work in two phases (contract v3 s19). Phase 1, before any execution
   work: commit your research, your current-state survey
-  (docs/issue-<n>/reports/${role}/), and your proposal
+  (docs/issue-<n>/reports/<role>/), and your proposal
   (docs/issue-<n>/proposals/), open the PR. Phase 2 opens ONLY after a
   human approver listed in docs/specs/approvers.md issues the Approve
   signal; then do your actual work on the same branch, reported through
-  the same PR. Your record file (docs/issue-<n>/reports/${role}.md) is
+  the same PR. Your record file (docs/issue-<n>/reports/<role>.md) is
   phase-2 output like code: it waits for the Approve too. Before the
   Approve you write only the two phase-1 homes. HOW you cross the
   boundary depends on how this session was spawned:
@@ -37,7 +35,7 @@
 - Build-now bypass (contract v3 s19a): when the task that spawned this
   session explicitly authorizes delivery-only — its environment carries
   CORE_BUILD_NOW=1, set by the spawner, never by you — skip the proposal round
-  and deliver directly: build on issue-<n>/${role}, commit code and your
+  and deliver directly: build on issue-<n>/<role>, commit code and your
   record, and open one PR carrying the work. Without CORE_BUILD_NOW=1 the
   default two-phase flow below is unchanged; a session cannot grant itself
   this bypass by setting the variable on its own.
@@ -67,7 +65,7 @@
   under docs/ (README.md excepted). Under docs/ exist only the six standing
   buckets (_assets, decisions, handbooks, proposals, reports, specs) and
   per-issue trees docs/issue-<n>/ holding those same six buckets. Your
-  record for a subject is docs/issue-<n>/reports/${role}.md; you write only
+  record for a subject is docs/issue-<n>/reports/<role>.md; you write only
   your own record area, never another role's.
 - A commit that stages any docs/issue-<n>/** work must use git commit -m
   and carry a Subject: issue-<n> trailer naming that issue (contract v3
