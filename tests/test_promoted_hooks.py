@@ -224,6 +224,95 @@ def test_record_shape_gate_non_trivial_diff_still_requires_full_record(tmp_path)
     assert "breaking" in proc.stderr
 
 
+# issue-297: live measurement against fixture issue #45 (a docs-only,
+# 2-file change) found the trivial-diff exemption (issue-285) still
+# refused an honest trivial-diff record -- on two elements #285 never
+# exempted: the `code_under_review:` frontmatter key, and a
+# `## Rationale for deviations` heading demanded by a deviation-signal
+# false positive (the record never diverged from its proposal; it just
+# mentioned the word "deviation").
+
+RECORD_TRIVIAL_NO_CODE_UNDER_REVIEW = """---
+loop_state: landed
+type: docs
+verdict: pass
+---
+
+Nothing to report for this trivial change.
+"""
+
+RECORD_TRIVIAL_DISCUSSES_DEVIATION_WITHOUT_ONE = """---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+No deviations from the proposal occurred; this record's own subject is
+the record-shape-gate's deviation-signal heuristic, which is why the word
+"deviation" appears here at all.
+
+Nothing to report for this trivial change.
+"""
+
+RECORD_ACTUAL_DEVIATION = """---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+We diverged from the proposal by dropping the CLI flag it specified.
+
+Nothing to report for this trivial change.
+"""
+
+
+def test_record_shape_gate_trivial_diff_exempts_code_under_review(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("line1\nline2 changed\nline3\n")  # 1 line changed
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_TRIVIAL_NO_CODE_UNDER_REVIEW
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_record_shape_gate_non_trivial_diff_still_requires_code_under_review(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("\n".join("line%d" % i for i in range(50)) + "\n")
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_TRIVIAL_NO_CODE_UNDER_REVIEW
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 2
+    assert "code_under_review" in proc.stderr
+
+
+def test_record_shape_gate_deviation_word_alone_is_not_a_signal(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("line1\nline2 changed\nline3\n")
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md",
+        RECORD_TRIVIAL_DISCUSSES_DEVIATION_WITHOUT_ONE,
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_record_shape_gate_actual_deviation_still_requires_rationale_heading(tmp_path):
+    root = _init_git_project(tmp_path)
+    (root / "src.py").write_text("line1\nline2 changed\nline3\n")
+    payload = write_payload(
+        "docs/issue-1/reports/implementation.md", RECORD_ACTUAL_DEVIATION
+    )
+    proc = run_gate("record-shape-gate.sh", payload, root)
+    assert proc.returncode == 2
+    assert "Rationale for deviations" in proc.stderr
+
+
 def test_survey_order_gate_allows_proposal_when_survey_exists(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)

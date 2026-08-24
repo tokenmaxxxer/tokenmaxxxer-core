@@ -203,6 +203,86 @@ if [ "$row_json" != "null" ]; then
   [ "$got" = deny ] || echo "       output: $out"
 fi
 
+# --- hardcoded implementation-role trivial-diff exemption (issue-285,
+# widened issue-297) -- a real git repo with a committed HEAD, since the
+# triviality check reads `git diff HEAD --numstat`. ------------------------
+gtd="$td/git-case"
+mkdir -p "$gtd/docs/issue-1/reports"
+git -C "$gtd" init -q
+git -C "$gtd" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+printf 'line1\nline2\nline3\n' > "$gtd/src.py"
+git -C "$gtd" add src.py
+git -C "$gtd" -c user.name=t -c user.email=t@example.com commit -q -m "add src.py"
+printf 'line1\nline2 changed\nline3\n' > "$gtd/src.py"  # 1-line trivial diff
+
+run_git() { # <want> <name> <content-file>
+  want="$1"; name="$2"; content_file="$3"
+  content_json="$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$content_file")"
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-1/reports/implementation.md","content":%s}}' "$content_json")"
+  out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$gtd" /bin/bash "$GATE" 2>&1)"
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  report "$want" "$got" "$name"
+  [ "$got" = "$want" ] || echo "       output: $out"
+}
+
+# issue-297: fixture issue #45's shape -- a minimal, honest trivial-diff
+# record missing `code_under_review:` (no longer required below the
+# trivial floor) must pass without refusal.
+cat > "$gtd/record-no-code-under-review.md" <<'EOF'
+---
+loop_state: landed
+type: docs
+verdict: pass
+---
+
+Nothing to report for this trivial change.
+EOF
+run_git allow "issue-297: trivial diff exempts code_under_review:" \
+  "$gtd/record-no-code-under-review.md"
+
+# issue-297: the same record shape, mentioning "deviation" only to deny
+# one, must not be misread as a deviation signal demanding a
+# `## Rationale for deviations` heading.
+cat > "$gtd/record-discusses-deviation.md" <<'EOF'
+---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+No deviations from the proposal occurred.
+
+Nothing to report for this trivial change.
+EOF
+run_git allow "issue-297: bare 'deviation' mention is not a deviation signal" \
+  "$gtd/record-discusses-deviation.md"
+
+# regression guard: an actual assertion of divergence still demands the
+# heading, and a non-trivial diff still demands code_under_review:.
+cat > "$gtd/record-actual-deviation.md" <<'EOF'
+---
+code_under_review:
+  - src.py
+loop_state: landed
+type: fix
+verdict: pass
+---
+
+We diverged from the proposal by dropping the CLI flag it specified.
+
+Nothing to report for this trivial change.
+EOF
+run_git deny "issue-297 regression: an actual divergence still requires the Rationale heading" \
+  "$gtd/record-actual-deviation.md"
+
+printf 'line1\n' > "$gtd/src.py"
+for i in $(seq 1 20); do printf 'line%s\n' "$i" >> "$gtd/src.py"; done  # >5-line, non-trivial diff
+run_git deny "issue-297 regression: non-trivial diff still requires code_under_review:" \
+  "$gtd/record-no-code-under-review.md"
+
 echo
 echo "record-shape-gate (issue-263 fold): $pass passed, $fail failed"
 [ "$fail" = 0 ]
