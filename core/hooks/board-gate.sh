@@ -231,6 +231,63 @@ def _git_subcommand(segment):
     return ""
 
 
+# --- issue-280: safe quoted-heredoc body shapes are analyzable ----------
+# The single most common denial this gate produced (top-denier tally,
+# on-the-record#2138) was `gh pr create --body "$(cat <<'EOF' ... EOF)"`:
+# the SUBSHELL/heredoc marks made the segment unprovable and, with no
+# visible docs/ hit of its own, _is_unanalyzable_write_shape refused it --
+# yet the shape IS statically analyzable. The command word and every flag
+# sit outside the heredoc and outside any substitution; the substitution
+# is exactly `"$(cat <<'TAG' ... TAG)"` -- a QUOTED heredoc tag, so the
+# body undergoes no expansion and is pure inert data -- and it feeds a
+# body/message argument of one of four known metadata commands (gh pr
+# create / gh pr comment / gh issue comment / git commit) that write no
+# repository file through that argument. Everything else stays refused:
+# an UNQUOTED tag (the body would expand), eval, a substitution in
+# command position, any second substitution/heredoc/redirect left after
+# the safe one is excised.
+#
+# The regex runs on the masked probe (heredoc bodies already blanked by
+# _mask_heredocs), so the body lines it crosses are whitespace.
+SAFE_BODY_FLAGS_RE = r"(?:--body-file|--body|--message|--file|-b|-F|-m)"
+SAFE_HEREDOC_SUBST_RE = re.compile(
+    SAFE_BODY_FLAGS_RE
+    + r"(?:[ \t]+|=)\"\$\(\s*cat[ \t]+<<-?[ \t]*(['\"])(\w+)\1[ \t]*\n"
+    + r"(?:[^\n]*\n)*?[ \t]*\2[ \t]*\n\s*\)\"")
+SAFE_BODY_HEADS = {
+    "gh": (("pr", "create"), ("pr", "comment"), ("issue", "comment")),
+    "git": (("commit",),),
+}
+
+
+def _safe_heredoc_body_segment(stripped):
+    """True when this segment is exactly the analyzed-safe shape above.
+
+    Excise the quoted-heredoc body substitution(s), then require that what
+    remains is a bare, substitution-free invocation of one of the four
+    known commands: no further `$(`/backtick, no heredoc operator, no
+    outside-quotes file redirect, no `$IFS` token fusion, and the literal
+    command word (with its subcommand words) in command position.
+    """
+    remainder, n = SAFE_HEREDOC_SUBST_RE.subn(" SAFE_QUOTED_BODY", stripped)
+    if not n:
+        return False
+    if SUBSHELL.search(remainder) or "<<" in remainder:
+        return False
+    if gate_lib.gate_outside_quotes(remainder, FILE_REDIR.pattern):
+        return False
+    if IFS_TOKEN_RE.search(remainder):
+        return False
+    words = remainder.split()
+    if not words:
+        return False
+    forms = SAFE_BODY_HEADS.get(words[0])
+    if not forms:
+        return False
+    tail = tuple(words[1:])
+    return any(tail[:len(f)] == f for f in forms)
+
+
 def _segment_is_failing(seg, stripped):
     """True when this segment could not be proven read-only.
 
@@ -242,6 +299,11 @@ def _segment_is_failing(seg, stripped):
     of growing a second, independent copy.
     """
     if SUBSHELL.search(seg) or gate_lib.gate_outside_quotes(seg, FILE_REDIR.pattern):
+        # issue-280: the one statically-analyzed safe shape -- a quoted
+        # heredoc feeding a body flag of a known metadata command -- is
+        # provably not a file write; everything else stays failing.
+        if _safe_heredoc_body_segment(stripped):
+            return False
         return True
     head = gate_lib.gate_head_of(stripped)
     if head == "git":
