@@ -71,7 +71,7 @@ SCRIPT
 run() {
   want="$1"; name="$2"; mode="$3"; fp="$4"; shift 4
   branch="issue-7/coding"; role="coding"; tool="Write"; cmd=""
-  approvers="yes"; buildnow=""
+  approvers="yes"; buildnow=""; checkpoint=""
   for o in "$@"; do
     case "$o" in
       noapprovers) approvers="no" ;;
@@ -80,6 +80,7 @@ run() {
       role=*) role="${o#role=}" ;;
       cmd=*) tool="Bash"; cmd="${o#cmd=}" ;;
       buildnow) buildnow="1" ;;
+      checkpoint) checkpoint="1" ;;
     esac
   done
   mktd
@@ -101,7 +102,8 @@ run() {
   fi
   printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_ROLE="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" \
+      CORE_CHECKPOINT="$checkpoint" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -140,6 +142,44 @@ run allow build-now-bypass-no-approvers nopr src/app.py buildnow noapprovers
 run allow build-now-bypass-bash-write  nopr  x buildnow cmd='echo hi > src/app.py'
 # empty state: the default (no CORE_BUILD_NOW) keeps section 19's gate.
 run deny  build-now-unset-still-gated  nopr  src/app.py
+
+# --- checkpoint mode (issue-275; on-the-record #2129) ----------------------
+# Detection contract: CORE_CHECKPOINT=1, spawner-set (see the gate header).
+# 1) checkpoint session + APPROVE comment on the issue: execution writes
+#    proceed (the in-session phase transition after await-approval).
+run allow checkpoint-approved-comment  comment-challenge src/app.py checkpoint
+run allow checkpoint-approved-record   comment-challenge docs/issue-7/reports/coding.md checkpoint
+# 2) checkpoint session with NO approval anywhere: still denied.
+run deny  checkpoint-unapproved        nopr    src/app.py checkpoint
+run deny  checkpoint-prose-comment     comment-prose src/app.py checkpoint
+run deny  checkpoint-agent-comment     comment-challenge-agent src/app.py checkpoint
+# 3) non-checkpoint sessions: byte-identical behavior — the existing matrix
+#    above runs with CORE_CHECKPOINT unset/empty; additionally the refusal
+#    TEXT must not change: no checkpoint wording without the stamp, and the
+#    checkpoint wording appears only with it.
+checkpoint_wording() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  git -C "$td" checkout -q -b issue-7/coding
+  mkdir -p "$td/docs/specs" "$td/stub"
+  cp "$CANON" "$td/docs/specs/role-handoff-contract.md"
+  printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
+  stub_gh "$td/stub" nopr
+  payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td")"
+  err_default="$(printf '%s' "$payload" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" 2>&1 >/dev/null)"
+  err_ckpt="$(printf '%s' "$payload" \
+    | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" CORE_CHECKPOINT=1 /bin/bash "$GATE" 2>&1 >/dev/null)"
+  rm -rf "$td"
+  got=absent; case "$err_default" in *checkpoint*|*CORE_CHECKPOINT*) got=present ;; esac
+  report absent "$got" "default-refusal-has-no-checkpoint-wording"
+  got=absent; case "$err_ckpt" in *await-approval*) got=present ;; esac
+  report present "$got" "checkpoint-refusal-names-await-approval"
+}
+checkpoint_wording
 
 # --- precondition: no remote, no approvals --------------------------------
 noremote() {
