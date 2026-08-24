@@ -156,6 +156,17 @@ resulting JSON is invalid and the gate denies via its unrelated
 unreadable-payload path — a deny that can coincidentally match a `want
 deny` case without ever exercising `_writeish` at all.
 
+Also covers issue-290: a Bash-native heredoc write to the exact
+phase-2 record path (`docs/issue-<n>/reports/<role>.md`, not just
+`src/`/`test/`) must deny/allow identically to the equivalent `Write`
+tool call. `bash-heredoc-record-before-approve`/`bash-heredoc-record-after-approve`
+pin this against `cat > docs/issue-7/reports/coding.md <<EOF\nfoo\nEOF`,
+mirroring the pre-existing Write-tool `record-before-approve`/
+`record-after-approve` pair — the candidate-token scan already covered
+Bash generally (`bash-redirect-src` et al., since the gate's first
+commit), it just had no case exercising it against a record path
+specifically.
+
 Also covers issue-212's build-now bypass (contract v3 s19a,
 on-the-record#785 cross-repo-blocked basis): when the spawn task sets
 `CORE_BUILD_NOW=1` in the session's environment, `approval-gate.sh` now
