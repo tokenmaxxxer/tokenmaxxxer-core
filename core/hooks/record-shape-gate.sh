@@ -19,20 +19,32 @@ trap __fc EXIT
 # citation-gate.sh).
 #
 # Target: docs/issue-<n>/reports/implementation.md only for the hardcoded
-# check. Requires `code_under_review:`, `loop_state:`, `type:`, `verdict:`
-# frontmatter keys always, plus `breaking:` and a `## What did not work`
-# heading UNLESS the current workspace diff (git diff HEAD --numstat) is
-# trivial -- docs-only or <=5 changed lines total (issue-285). On a
-# trivial diff, `breaking:` may be omitted (defaults false) and the `##
-# What did not work` heading may be omitted too, provided the record says
-# elsewhere that there was nothing to report; a diff whose size can't be
-# determined (no HEAD yet, git unavailable, non-repo root) is treated as
-# NOT trivial, so the full-record floor is never silently skipped.
+# check. Requires `loop_state:`, `type:`, `verdict:` frontmatter keys
+# always, plus `code_under_review:`, `breaking:` and a `## What did not
+# work` heading UNLESS the current workspace diff (git diff HEAD
+# --numstat) is trivial -- docs-only or <=5 changed lines total
+# (issue-285, widened issue-297). On a trivial diff, `code_under_review:`
+# and `breaking:` may both be omitted (the diff itself, already read to
+# decide triviality, names what changed; breaking defaults false) and the
+# `## What did not work` heading may be omitted too, provided the record
+# says elsewhere that there was nothing to report; a diff whose size
+# can't be determined (no HEAD yet, git unavailable, non-repo root) is
+# treated as NOT trivial, so the full-record floor is never silently
+# skipped. issue-297: `code_under_review:` joined the trivial exemption
+# because it was, in live measurement, one of the two fields that
+# actually fired friction on an honest trivial-diff record -- `breaking:`
+# alone (issue-285's original scope) did not match the observed surface.
 # Requires a `## Rationale for deviations` heading only when the record's
-# body otherwise signals a deviation occurred (scope-exceeded / diverged
-# language); its absence when no deviation language is present is not an
-# error, since the section is a conditional response to divergence, not a
-# mandatory section on every record.
+# body otherwise signals a deviation occurred (scope-exceeded / diverged-
+# or deviated-from-the-proposal language); its absence when no deviation
+# language is present is not an error, since the section is a conditional
+# response to divergence, not a mandatory section on every record.
+# issue-297: the heuristic no longer treats a bare mention of the word
+# "deviation" as a signal -- that over-fired on records that discuss
+# deviations in the abstract (e.g. this very gate's own documentation) or
+# that explicitly deny one ("no deviations occurred" contains the
+# substring "deviation"); only a concrete assertion that one happened
+# (scope-exceeded, or diverged/deviated from the proposal) counts.
 #
 # Kill switch (whole gate, both the hardcoded check and config dispatch):
 # export RECORD_SHAPE_GATE_OFF=1
@@ -228,7 +240,7 @@ try:
     has_type = re.search(r'(?m)^type:', frontmatter) is not None
     has_breaking = re.search(r'(?m)^breaking:', frontmatter) is not None
     has_verdict = re.search(r'(?m)^verdict:', frontmatter) is not None
-    if not has_code_under_review:
+    if not has_code_under_review and not trivial:
         missing.append("frontmatter key `code_under_review:`")
     if not has_loop_state:
         missing.append("frontmatter key `loop_state:`")
@@ -263,9 +275,19 @@ try:
     #    `## Rationale for deviations` heading.
     body_without_heading = re.sub(r'(?m)^##\s+Rationale for deviations\s*$', '', new_text)
     low = body_without_heading.lower()
+    # issue-297: a bare "deviation" substring over-fires -- it matches a
+    # record that explicitly denies one ("no deviations occurred") or that
+    # discusses the concept in the abstract (e.g. this gate's own
+    # documentation). Only a concrete assertion that a divergence actually
+    # happened counts as the signal.
     deviation_signaled = any(
         needle in low
-        for needle in ("scope-exceeded", "scope exceeded", "diverged from the proposal", "deviation")
+        for needle in (
+            "scope-exceeded",
+            "scope exceeded",
+            "diverged from the proposal",
+            "deviated from the proposal",
+        )
     )
     has_rationale_heading = re.search(r'(?m)^##\s+Rationale for deviations\s*$', new_text) is not None
     if deviation_signaled and not has_rationale_heading:
