@@ -113,7 +113,7 @@ RF_TERMINAL="${RECORD_FIELDS_TERMINAL_STATES:-landed complete closed done delive
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    import json, os, posixpath, re, sys
+    import json, os, posixpath, re, subprocess, sys
 
     role = os.environ["RF_ROLE"]
 
@@ -317,16 +317,67 @@ try:
             % bad[0]
         )
 
+    # issue-280: refusals here must carry the exact fix, not just the rule.
+    # When the workspace diff is cheaply readable, the actual changed-file
+    # list is included in the message as the suggested value, so recovery
+    # is one turn. Best-effort only: any git failure yields an empty list
+    # and the message falls back to the shape alone.
+    def workspace_changed_files():
+        try:
+            out = subprocess.run(
+                ["git", "-C", root, "diff", "--name-only", "HEAD"],
+                capture_output=True, text=True, timeout=5)
+            if out.returncode == 0:
+                return [l.strip() for l in out.stdout.splitlines() if l.strip()]
+        except Exception:
+            pass
+        return []
+
     if role in ("coding", "implementation"):
         m_cur = re.search(r'^\s*code_under_review:\s*(.+?)\s*$', new_text, re.M)
         if m_cur and re.match(r'^[0-9a-f]{7,40}$', m_cur.group(1).strip()):
-            missing.append(
-                "code_under_review: '%s' is a bare commit sha, not a file list. Per "
-                "docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md, "
-                "this role's own record cites code_under_review as the reviewed file list — the "
-                "record's own commit sha does not exist yet when the file is written."
-                % m_cur.group(1).strip()
-            )
+            # issue-280 combined form: a bare sha on the field line is
+            # accepted when the immediately following indented lines carry
+            # the file list (`- <path>` items or indented path tokens) --
+            # the record then cites BOTH the sha and the files. A sha with
+            # no file list anywhere stays refused, contract unweakened.
+            block = new_text[m_cur.end():]
+            has_file_list = False
+            for line in block.split("\n")[1:] if "\n" in block else []:
+                if not line.strip():
+                    break
+                if not re.match(r'^[ \t]+', line):
+                    break
+                item = re.sub(r'^[ \t]+(-[ \t]+)?', '', line).strip()
+                if re.search(r'[\w.-]+/[\w./-]+|[\w-]+\.\w+', item):
+                    has_file_list = True
+                else:
+                    has_file_list = False
+                    break
+            if not has_file_list:
+                changed = workspace_changed_files()
+                if changed:
+                    suggestion = (
+                        " Suggested value from this workspace diff (git diff "
+                        "--name-only HEAD): `code_under_review: %s`"
+                        % " ".join(changed)
+                    )
+                else:
+                    suggestion = (
+                        " (The workspace diff was not readable, so no concrete "
+                        "file list could be suggested; list the files this "
+                        "record reviews)"
+                    )
+                missing.append(
+                    "code_under_review: `%s` is a bare commit sha with no file list. "
+                    "Expected shape: `code_under_review: <file> <file> ...` (the reviewed "
+                    "file list, space separated on the same line), or the combined form -- "
+                    "the sha on the field line followed by indented `- <file>` lines. Per "
+                    "docs/issue-100/decisions/2026-08-03-record-citation-format-and-kind-convention.md, "
+                    "the record cites the reviewed files; the record commit sha alone does not "
+                    "identify them.%s"
+                    % (m_cur.group(1).strip(), suggestion)
+                )
 
     def norm_state(v):
         v = re.sub(r'[-_]', '-', v.strip().lower())

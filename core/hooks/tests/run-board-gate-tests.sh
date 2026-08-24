@@ -708,5 +708,30 @@ runs deny  sidecar-branch-mismatch      issue-3/qa     qa "$BOARD/reports/qa.md"
 #    denies exactly as board-wrong-issue does above).
 runs deny  corrupt-sidecar-falls-back   issue-4/qa     qa "$BOARD/reports/qa.md" corrupt
 
+# --- issue-280: safe quoted-heredoc body shapes are analyzed, not refused --
+# The top-denier shape: a QUOTED heredoc tag feeding a body/message flag of
+# gh pr create / gh pr comment / gh issue comment / git commit. The command
+# word and flags sit outside the heredoc and outside any substitution, and
+# the quoted tag means the body is inert data -- statically analyzable.
+run allow safe-heredoc-gh-pr-create       Bash '{"command":"gh pr create --title T --body \"$(cat <<'"'"'EOF'"'"'\nsee '$BOARD'/reports/qa.md for context\nEOF\n)\""}'
+run allow safe-heredoc-gh-pr-comment      Bash '{"command":"gh pr comment 5 --body \"$(cat <<'"'"'EOF'"'"'\nupdated '$BOARD'/reports/qa.md\nEOF\n)\""}'
+run allow safe-heredoc-gh-issue-comment   Bash '{"command":"gh issue comment 3 -b \"$(cat <<'"'"'EOF'"'"'\nsee '$BOARD'\nEOF\n)\""}'
+run allow safe-heredoc-git-commit         Bash '{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\ndocs: amend '$BOARD'/reports/qa.md\nEOF\n)\""}'
+# the analysis stays narrow -- every opaque neighbor keeps refusing:
+# an UNQUOTED tag lets the body expand ($(...) inside it would run).
+run deny  unquoted-heredoc-tag-refused    Bash '{"command":"gh pr create --title T --body \"$(cat <<EOF\nsee '$BOARD'/x\nEOF\n)\""}'
+# eval-constructed command: the command word itself is opaque.
+run deny  eval-constructed-refused        Bash '{"command":"eval \"gh pr create --body \\\"$(cat <<'"'"'EOF'"'"'\n'$BOARD'\nEOF\n)\\\"\""}'
+# a substitution in command position is not a body argument at all.
+run deny  subst-in-command-position       Bash '{"command":"\"$(cat <<'"'"'EOF'"'"'\n'$BOARD'\nEOF\n)\""}'
+# a residual write mechanism next to the safe substitution is still seen:
+# the redirect target is scanned the ordinary way, and a foreign record
+# refuses under R5 exactly as a bare redirect would.
+run deny  safe-heredoc-plus-redirect      Bash '{"command":"gh pr create --title T --body \"$(cat <<'"'"'EOF'"'"'\nx\nEOF\n)\" > '$BOARD'/reports/review.md"}'
+# a second, un-excised substitution on the same segment still refuses.
+run deny  safe-heredoc-plus-extra-subst   Bash '{"command":"gh pr create --title \"$(hostname)\" --body \"$(cat <<'"'"'EOF'"'"'\n'$BOARD'\nEOF\n)\""}'
+# an unknown head with the same flag shape is not in the analyzed set.
+run deny  unknown-head-not-analyzed       Bash '{"command":"mytool --body \"$(cat <<'"'"'EOF'"'"'\n'$BOARD'\nEOF\n)\""}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
