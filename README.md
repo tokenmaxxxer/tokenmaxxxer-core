@@ -100,7 +100,16 @@ which is also what makes "no role approves its own PR" mechanical.
                            approve, merge, close, author issues, or push
                            main (two-account model)
     contract/              the canonical role-handoff contract (v3)
+    directive/             on-demand prose bodies for the injected indexes
     hooks/tests/           run-all.sh runs everything
+
+Injection diet (issue-278): every UserPromptSubmit hook in this
+marketplace (core, terse, freelunch, scout, warrant) and core's
+SessionStart directive render a byte-stable index — invariants plus one
+"Read <plugin>/directive/<file>.md" trigger — instead of the full prose.
+Each plugin ships its own `directive/` directory holding the prose bodies
+verbatim; the session Reads them on demand. Combined per-turn UPS budget:
+3,072 bytes, asserted by `hooks/tests/run-ups-diet-tests.sh`.
 
 `directive.sh` is the informing half; `board-gate.sh` is the enforcing
 half. They describe the same five rules:

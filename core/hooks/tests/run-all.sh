@@ -58,6 +58,9 @@ echo; echo "=== freelunch (sibling plugin) ==="
 echo; echo "=== freelunch observe.sh enforcement (sibling plugin) ==="
 /bin/bash "$here/../../../freelunch/hooks/tests/run-observe-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== UPS injection diet (issue-278) ==="
+/bin/bash "$here/run-ups-diet-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== scout (sibling plugin) ==="
 /bin/bash "$here/../../../scout/hooks/tests/parse-check.sh" || rc=1
 

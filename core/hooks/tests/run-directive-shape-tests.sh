@@ -19,7 +19,12 @@ report() { # <want> <got> <name>
   fi
 }
 
-out="$(CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" 2>/dev/null)"
+# issue-278: the SessionStart injection is now a byte-stable index; the prose
+# bodies live verbatim in core/directive/session-protocol.md. Shape assertions
+# run against the corpus = rendered index + the on-demand section file,
+# mirroring on-the-record #2106.
+SECTION="$(cd "$HOOKS/.." && pwd -P)/directive/session-protocol.md"
+out="$(CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" 2>/dev/null; cat "$SECTION")"
 
 # Row 3: spec-index regeneration.
 spec_index=""
