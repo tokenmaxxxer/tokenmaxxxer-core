@@ -4,14 +4,15 @@ status: final
 
 # Role handoff contract (v3: issue/PR interaction model)
 
-Authority document for how the nine role rulebooks — coding, qa,
-feasibility, product, ux-design, ops, review, verify, reflect — coordinate inside the
-target repository each is working on. v1 modeled coordination as one-shot
-parcel handoffs between adjacent roles; v2 replaces that with a shared
-blackboard each role reads, writes its own record onto, and enters from. This
-document defines the shared record format; it does not itself change any of
-the nine rulebooks. Landing this contract in each rulebook is separate,
-one proposal per repo.
+Authority document for how spawned role sessions — the current role
+taxonomy, of which the nine record-producing kinds below (coding, qa,
+feasibility, product, ux-design, ops, review, verify, reflect) are the
+record schema — coordinate inside the target repository each is working
+on. v1 modeled coordination as one-shot parcel handoffs between adjacent
+roles; v2 replaces that with a shared blackboard each role reads, writes
+its own record onto, and enters from. This document defines the shared
+record format; role definitions themselves live outside it and map onto
+these record kinds.
 
 ## 1. Common header
 
@@ -58,7 +59,7 @@ loop_state: <this role's own state-machine position; see section 2's
 
 Every role writes exactly one status record onto the blackboard,
 `docs/issue-<n>/reports/<role>.md`, plus zero or more per-item
-sub-artifacts. All nine roles are sanctioned here, including product's and
+sub-artifacts. All nine record kinds are sanctioned here, including product's and
 coding's records, closing the trial's two unsanctioned-kind gaps.
 
 **Shared `refused` value.** A role's `loop_state` may additionally be set
@@ -217,7 +218,7 @@ different concerns (see qa row below).
 ## 5. The finding back-edge
 
 Any role may post a `finding` addressed to any owning role via the board —
-generalized from v1, where only review produced findings, to all nine roles.
+generalized from v1, where only review produced findings, to every role.
 
 - `addressed_to: <role>` names the role that owns the fix.
 - `severity: blocking | advisory`. `blocking` means loops that DEPEND ON the
@@ -339,7 +340,16 @@ artifact of its own, so the issue text is the only output that carries
 forward. Role sessions that later work the resulting issue remain
 skill-isolated: no skill is injected into a role session; only the
 issue's own requirements/acceptance-criteria text (already carrying any
-folded-in skill demands) reaches the role. This subsection aligns with
+folded-in skill demands) reaches the role.
+
+**Acceptance criteria may not require role-side issue filing.** Because
+issues are the user's requirement backlog and only the user (or the
+orchestrator on the user's behalf) authors them, an issue's requirements
+or acceptance-criteria text must never demand that the role itself file,
+close, or edit a GitHub issue — gh-guard refuses those acts from role
+sessions by design, so such an acceptance is unsatisfiable as written.
+Findings a role produces are recorded in its record on the board; the
+orchestrator or the user files any follow-up issue from there. This subsection aligns with
 on-the-record #258 / PR #259, which established the same procedure for
 `on-the-record/commands/run.md` step 1.
 
@@ -764,7 +774,7 @@ v2's coding-only scope gate to the whole system.
     prose interpretation; an agent account's comment never counts,
     listed or not, since agent accounts are never in `approvers.md`
     (section 8). This closes the comment-vs-review discrepancy
-    recorded in the muster issue-31 and issue-38 rounds, and the
+    recorded in the orchestrator's issue-31 and issue-38 rounds, and the
     PR-vs-issue location discrepancy recorded in issue-53: verify's
     strict review-only reading, coding/qa/review's comment-accepting
     reading, and on-the-record's issue-canonical reading now converge

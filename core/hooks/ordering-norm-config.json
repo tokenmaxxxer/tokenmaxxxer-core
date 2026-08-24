@@ -35,7 +35,7 @@
             {"tag": "uncited-claim:evidence-metric", "keyword_regex": "evidence metric"},
             {"tag": "uncited-claim:five-whys", "keyword_regex": "5-whys|five whys"}
           ],
-          "message_template": "proposal write is missing required element(s): {missing}. Per docs/issue-1/proposals/customer-support.md §1, phase-1 proposals must follow the survey→scout-brief→proposal order and cite every structural claim to a scout-brief.md or http(s) source within the same paragraph as the claim."
+          "message_template": "proposal write is missing required element(s): {missing}. Per docs/issue-1/proposals/customer-support.md §1, proposals must follow the survey→scout-brief→proposal order and cite every structural claim to a scout-brief.md or http(s) source within the same paragraph as the claim."
         }
       ]
     }
@@ -105,7 +105,7 @@
               "needles": ["request-driven", "request driven", "resource-bound", "resource bound", "service-rollup", "service rollup", "요청 기반", "자원 기반", "서비스 롤업"]
             }
           ],
-          "message_template": "proposal is missing required phase-1 methodology-selection component(s): {missing}. Every phase-1 proposal must classify each touched surface and name exactly one signal methodology for it."
+          "message_template": "proposal is missing required methodology-selection component(s): {missing}. Every proposal must classify each touched surface and name exactly one signal methodology for it."
         }
       ]
     },
