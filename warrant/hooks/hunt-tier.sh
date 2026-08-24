@@ -8,10 +8,19 @@
 #
 # Usage: hunt-tier.sh <base-ref> [<head-ref>]   (head defaults to HEAD)
 # Output (stdout, one line):
-#   tier=<none|docs-only|small|full> cap_seconds=<N> max_stances=<0|1|2> reason=<...>
+#   tier=<none|skip|docs-only|small|full> cap_seconds=<N> max_stances=<0|1|2> reason=<...>
 # `max_stances` is a ceiling the tier permits, not a dispatch count this
 # script drives — escalating a session's second stance stays gated on the
 # first hunt's FIND, a judgment call the session makes, not this script.
+#
+# issue-284: a diff <=5 lines with every touched path under docs/ (the
+# issue's own record files included) maps to tier=skip, cap_seconds=0 — the
+# dispatch itself is skipped, not merely shrunk to the cheapest paid tier.
+# A proposals/ path is excluded from that skip (falls through to the
+# unchanged docs-only tier instead): scope-gate.sh reads a proposal's
+# `status:` frontmatter to arm/disarm write-set enforcement, so even a
+# 1-line status flip there is a gating-relevant edit, not the kind of
+# trivial prose/record change the skip floor is meant for.
 # Exit: 0 always — this reports a classification, it does not gate a tool call.
 #
 # Kill switch: export WARRANT_OFF=1 (reports tier=none, same as no diff)
@@ -37,6 +46,7 @@ file_count=0
 line_count=0
 gates_hooks_hit=0
 docs_only=1
+proposals_hit=0
 
 while IFS="$(printf '\t')" read -r added deleted path; do
   [ -z "${path:-}" ] && continue
@@ -60,12 +70,23 @@ while IFS="$(printf '\t')" read -r added deleted path; do
          */hooks/*|*/gates/*) gates_hooks_hit=1 ;;
        esac ;;
   esac
+  # A proposals/ path is gating-relevant (scope-gate.sh reads its `status:`
+  # frontmatter) even when it is small and wholly under docs/ — it must
+  # never earn the skip tier just by matching docs_only + line-count.
+  case "/$path" in
+    */proposals/*) proposals_hit=1 ;;
+  esac
 done <<EOF2
 $diff_stat
 EOF2
 
 if [ "$gates_hooks_hit" -eq 1 ]; then
   echo "tier=full cap_seconds=180 max_stances=2 reason=gates-or-hooks-path-touched"
+  exit 0
+fi
+
+if [ "$docs_only" -eq 1 ] && [ "$line_count" -le 5 ] && [ "$proposals_hit" -eq 0 ]; then
+  echo "tier=skip cap_seconds=0 max_stances=0 reason=docs-only-trivial-diff"
   exit 0
 fi
 
