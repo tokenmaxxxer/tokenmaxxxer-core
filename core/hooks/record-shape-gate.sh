@@ -19,13 +19,20 @@ trap __fc EXIT
 # citation-gate.sh).
 #
 # Target: docs/issue-<n>/reports/implementation.md only for the hardcoded
-# check. Requires `code_under_review:` and `loop_state:` frontmatter keys
-# and a `## What did not work` heading always. Requires a `## Rationale
-# for deviations` heading only when the record's body otherwise signals a
-# deviation occurred (scope-exceeded / diverged language); its absence
-# when no deviation language is present is not an error, since the
-# section is a conditional response to divergence, not a mandatory
-# section on every record.
+# check. Requires `code_under_review:`, `loop_state:`, `type:`, `verdict:`
+# frontmatter keys always, plus `breaking:` and a `## What did not work`
+# heading UNLESS the current workspace diff (git diff HEAD --numstat) is
+# trivial -- docs-only or <=5 changed lines total (issue-285). On a
+# trivial diff, `breaking:` may be omitted (defaults false) and the `##
+# What did not work` heading may be omitted too, provided the record says
+# elsewhere that there was nothing to report; a diff whose size can't be
+# determined (no HEAD yet, git unavailable, non-repo root) is treated as
+# NOT trivial, so the full-record floor is never silently skipped.
+# Requires a `## Rationale for deviations` heading only when the record's
+# body otherwise signals a deviation occurred (scope-exceeded / diverged
+# language); its absence when no deviation language is present is not an
+# error, since the section is a conditional response to divergence, not a
+# mandatory section on every record.
 #
 # Kill switch (whole gate, both the hardcoded check and config dispatch):
 # export RECORD_SHAPE_GATE_OFF=1
@@ -90,13 +97,47 @@ PG_PAYLOAD="$payload" PG_ROOT="$root" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    import importlib.util, json, os, posixpath, re, sys
+    import importlib.util, json, os, posixpath, re, subprocess, sys
 
     _spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
     gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
 
     def deny(m):
         sys.stderr.write("record-shape: refused — %s\n" % m); sys.exit(2)
+
+    # issue-285: a trivial diff (docs-only, or <=5 changed lines total in the
+    # current workspace diff against HEAD) is exempt from the `breaking:`
+    # frontmatter key and the `## What did not work` heading below. Best-
+    # effort only: any git failure (no HEAD yet, git missing, non-repo root)
+    # makes the diff size unknowable, and an unknowable diff is treated as
+    # NOT trivial -- the full-record floor never gets silently skipped just
+    # because the check couldn't run.
+    def _workspace_diff_is_trivial(root):
+        try:
+            out = subprocess.run(
+                ["git", "-C", root, "diff", "HEAD", "--numstat"],
+                capture_output=True, text=True, timeout=5)
+        except Exception:
+            return False
+        if out.returncode != 0:
+            return False
+        total = 0
+        docs_only = True
+        saw_line = False
+        for line in out.stdout.splitlines():
+            parts = line.strip("\n").split("\t")
+            if len(parts) != 3:
+                continue
+            saw_line = True
+            added, deleted, path = parts
+            if not path.startswith("docs/"):
+                docs_only = False
+            for n in (added, deleted):
+                if n.isdigit():
+                    total += int(n)
+        if not saw_line:
+            return True  # nothing else changed -- trivially small
+        return docs_only or total <= 5
 
     raw = os.environ.get("PG_PAYLOAD", "")
     try:
@@ -180,6 +221,8 @@ try:
     else:
         frontmatter = ""
 
+    trivial = _workspace_diff_is_trivial(root)
+
     has_code_under_review = re.search(r'(?m)^code_under_review:', frontmatter) is not None
     has_loop_state = re.search(r'(?m)^loop_state:', frontmatter) is not None
     has_type = re.search(r'(?m)^type:', frontmatter) is not None
@@ -191,15 +234,29 @@ try:
         missing.append("frontmatter key `loop_state:`")
     if not has_type:
         missing.append("frontmatter key `type:`")
-    if not has_breaking:
+    if not has_breaking and not trivial:
         missing.append("frontmatter key `breaking:`")
     if not has_verdict:
         missing.append("frontmatter key `verdict:`")
 
     # 2. `## What did not work` heading present somewhere in the body.
+    # issue-285: for a trivial diff (docs-only or <=5 changed lines), the
+    # literal heading is optional as long as the record says elsewhere that
+    # there was nothing to report -- the audit spine (some acknowledgment)
+    # stays required, only the fixed heading name is relaxed.
     has_wdnw = re.search(r'(?m)^##\s+What did not work\s*$', new_text) is not None
     if not has_wdnw:
-        missing.append("`## What did not work` heading (present even when empty, e.g. \"None.\")")
+        nothing_to_report = trivial and re.search(
+            r'nothing to report|nothing went wrong|no issues|^none\.?$',
+            new_text, re.I | re.M) is not None
+        if not nothing_to_report:
+            if trivial:
+                missing.append(
+                    "`## What did not work` heading, or (trivial-diff exemption, "
+                    "issue-285) some statement that there was nothing to report"
+                )
+            else:
+                missing.append("`## What did not work` heading (present even when empty, e.g. \"None.\")")
 
     # 3. Conditional: deviation language in the body (excluding the
     #    `## Rationale for deviations` heading's own line) requires a
