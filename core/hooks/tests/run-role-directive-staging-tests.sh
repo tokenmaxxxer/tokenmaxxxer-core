@@ -20,7 +20,10 @@ report() { # <want> <got> <name>
   fi
 }
 
-out="$(CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" 2>/dev/null)"
+# issue-278: staging guidance lives in the corpus = rendered index +
+# core/directive/session-protocol.md (the on-demand section file).
+SECTION="$(cd "$HOOKS/.." && pwd -P)/directive/session-protocol.md"
+out="$(CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" 2>/dev/null; cat "$SECTION")"
 
 commit_line=""
 case "$out" in *"git commit -m"*) commit_line=present ;; esac

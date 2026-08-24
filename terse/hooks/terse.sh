@@ -25,48 +25,17 @@ if [ -f "$STATE_FILE" ]; then
   LEVEL="$(tr -d '[:space:]' < "$STATE_FILE")"
 fi
 
+NOTE=""
 case "$LEVEL" in
-  off)
-    exit 0
-    ;;
-  lite)
-    STYLE="LEVEL lite: drop pleasantries, preamble, and restatements of the question. Keep full grammar and complete sentences. Cut sentences that add no information; do not shorten the ones that remain."
-    ;;
-  ultra)
-    STYLE="LEVEL ultra: telegraphic. Sentence fragments, no articles or filler in English; in Korean drop everything except the minimum particles needed to keep subject/object unambiguous. One line per point. Prefer a bare table or list over prose whenever the content allows."
-    ;;
-  full|"")
-    STYLE="LEVEL full: no pleasantries, no preamble, no restating the question, no offering follow-up work. Sentence fragments are fine where unambiguous. In Korean, keep particles that carry case or negation — dropping them can flip meaning; compress by deleting words, not by mangling grammar."
-    ;;
-  *)
-    STYLE="LEVEL full: no pleasantries, no preamble, no restating the question, no offering follow-up work. Sentence fragments are fine where unambiguous. In Korean, keep particles that carry case or negation — dropping them can flip meaning; compress by deleting words, not by mangling grammar.
-
-NOTE: \`${STATE_FILE}\` contains \`${LEVEL}\`, which is not one of off/lite/full/ultra. Full is in effect. Tell the user their level setting is being ignored."
-    ;;
+  off) exit 0 ;;
+  lite)  STYLE="lite: full grammar; cut pleasantries and zero-information sentences" ;;
+  ultra) STYLE="ultra: telegraphic fragments, one line per point, prefer tables" ;;
+  full|"") STYLE="full: no pleasantries, preamble, restating, or follow-up offers; fragments fine; keep Korean case/negation particles" ;;
+  *) STYLE="full: no pleasantries, preamble, restating, or follow-up offers; fragments fine; keep Korean case/negation particles"
+     NOTE=" NOTE: terse.level is unrecognized; full is in effect — tell the user." ;;
 esac
-
+ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 cat <<EOF
-<terse-directive priority="high">
-This directive governs the STYLE of your conversational output only. It never overrides task or orchestration directives (including any freelunch directive); where they conflict, orchestration wins.
-
-${STYLE}
-
-APPLIES TO: your prose replies to the user — status notes between tool calls, findings, summaries, explanations. Answer in the user's language, compressed by these rules.
-
-NEVER COMPRESS (verbatim zones):
-- Utterances another directive mandates you to emit: the freelunch STEP 1 width-tally paragraph, and any declaration that a protocol step (e.g. scouting) was skipped and why. These are load-bearing protocol output, not conversational filler — compressing them away is a directive violation, not economy.
-- Code, shell commands, file paths, config, and error messages — byte-for-byte.
-- Tool inputs: subagent/worker prompts, Workflow scripts, and any frozen shared contract. These are load-bearing specifications, not conversation.
-- Content written into repository files (docs, comments, commit messages) — repository conventions govern those.
-- Safety-critical text: confirmations before destructive or hard-to-reverse actions, security warnings, and multi-step instructions the user must execute in order. Write these in full prose, then resume compression.
-
-OUTPUT ECONOMY (applies at every level, on top of the level style):
-- Never echo back code, diffs, or file content that already appeared in the conversation; reference the location (file:line) instead. Quote at most the single line under discussion.
-- Formatting diet: headers, bold, and bullet scaffolding only when structure itself carries information; short answers are plain prose. No emoji, no decorative dividers.
-- Do not narrate upcoming tool calls or re-describe completed steps the user already watched; one short status line only when direction changes.
-- Do not re-summarize unchanged state; when updating, state only the delta since your last message.
-
-SUBSTANCE RULE: compression removes filler, never information. If a detail changes what the reader does next, it stays. When compressed output would force the user to ask a follow-up question, you compressed the wrong thing.
-</terse-directive>
+[terse-directive] style for conversational prose only; orchestration wins. LEVEL ${STYLE}. Cut filler, never information; never compress code, tool inputs, mandated protocol output, repo file content, or safety text.${NOTE} Read ${ROOT}/directive/terse-style.md for the full rules.
 EOF
 exit 0
