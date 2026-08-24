@@ -26,14 +26,23 @@ report() {
   fi
 }
 
-# stub_gh <dir> <mode>: modes set the issue's state/comments and the PR's
-# reviews independently. The generated gh stub is argument-aware — it
+# stub_gh <dir> <mode> [role]: modes set the issue's state/comments and the
+# PR's reviews independently. The generated gh stub is argument-aware — it
 # branches on $1 ("issue" vs "pr") so the two gh calls approval-gate.sh
 # makes (issue view --json state,comments; pr view --json reviews) get
-# independent, mode-controlled responses.
+# independent, mode-controlled responses. A THIRD gh shape (issue-295) is
+# `pr view <number> --json headRefName,state`, used to confirm a candidate
+# closedByPullRequestsReferences entry is a MERGED PR on the issue's own
+# implementation branch; the stub tells this apart from the branch-review
+# lookup by whether "headRefName" appears anywhere in the invocation's
+# arguments, since both are `gh pr view ... --json ...` shape. [role]
+# (default "coding") fills the APPROVE-comment challenge string for modes
+# that need to match a non-default role's own issue-<n>/<role> subject.
 stub_gh() {
-  issue_state='OPEN'; issue_comments='[]'
+  issue_state='OPEN'; issue_comments='[]'; issue_state_reason=''
+  issue_closers='[]'; closer_json='{}'
   pr_ok=1; reviews='[]'
+  stub_role="${3:-coding}"
   case "$2" in
     human)    reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
     comment-challenge) issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
@@ -48,18 +57,51 @@ stub_gh() {
     closed-with-comment) issue_state='CLOSED'; pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
     closed-with-pr-review) issue_state='CLOSED'; reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
     comment-minimized) pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding","isMinimized":true,"minimizedReason":"OUTDATED"}]' ;;
+    # issue-295: closed via the implementation role's own merged PR
+    # (closedByPullRequestsReferences names PR #301, confirmed MERGED on
+    # issue-7/implementation) -- the legitimate observer-exemption shape.
+    closed-completed-with-comment)
+      issue_state='CLOSED'; issue_state_reason='COMPLETED'; pr_ok=0
+      issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_role"'"}]'
+      issue_closers='[{"number":301}]'
+      closer_json='{"headRefName":"issue-7/implementation","state":"MERGED"}'
+      ;;
+    closed-not-planned-with-comment) issue_state='CLOSED'; issue_state_reason='NOT_PLANNED'; pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_role"'"}]' ;;
+    # same legitimate closer shape as closed-completed-with-comment, but
+    # no APPROVE signal anywhere -- the exemption must not grant approval
+    # by itself, only lift the closed-issue precondition.
+    closed-completed-no-approval)
+      issue_state='CLOSED'; issue_state_reason='COMPLETED'; pr_ok=0
+      issue_closers='[{"number":301}]'
+      closer_json='{"headRefName":"issue-7/implementation","state":"MERGED"}'
+      ;;
+    # warrant-hunt regression (issue-295): stateReason COMPLETED with a
+    # standing PR-review APPROVED but NO merged-implementation-branch PR
+    # in closedByPullRequestsReferences -- e.g. a human closed the issue
+    # as completed directly, with nothing new merged. stateReason alone
+    # cannot tell this apart from the legitimate merge-close shape above;
+    # only the closer-PR check can, so this must still deny.
+    closed-completed-no-merge-closer-with-pr-review)
+      issue_state='CLOSED'; issue_state_reason='COMPLETED'
+      reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]'
+      ;;
   esac
   cat > "$1/gh" <<SCRIPT
 #!/bin/sh
 case "\$1" in
-  issue) printf '%s' '{"state":"$issue_state","comments":$issue_comments}' ;;
+  issue) printf '%s' '{"state":"$issue_state","comments":$issue_comments,"stateReason":"$issue_state_reason","closedByPullRequestsReferences":$issue_closers}' ;;
   pr)
-    if [ "$pr_ok" = 1 ]; then
-      printf '%s' '{"reviews":$reviews}'
-    else
-      echo "no pull requests found" >&2
-      exit 1
-    fi
+    case "\$*" in
+      *headRefName*) printf '%s' '$closer_json' ;;
+      *)
+        if [ "$pr_ok" = 1 ]; then
+          printf '%s' '{"reviews":$reviews}'
+        else
+          echo "no pull requests found" >&2
+          exit 1
+        fi
+        ;;
+    esac
     ;;
 esac
 SCRIPT
@@ -94,7 +136,7 @@ run() {
     empty) printf 'no list lines here\n' > "$td/docs/specs/approvers.md" ;;
     no)    : ;;
   esac
-  stub_gh "$td/stub" "$mode"
+  stub_gh "$td/stub" "$mode" "$role"
   if [ "$tool" = "Bash" ]; then
     tinput="$(printf '{"command":"%s"}' "$cmd")"
   else
@@ -133,6 +175,28 @@ run deny  neither-surface                     nopr                    src/app.py
 run deny  closed-issue-with-comment           closed-with-comment     src/app.py
 run deny  closed-issue-with-pr-review         closed-with-pr-review   src/app.py
 run deny  issue-comment-minimized             comment-minimized       src/app.py
+
+# --- issue-295: observer-role exemption for a merge-closed issue -----------
+# execution-observation/conformance-review continuing after the
+# implementation role's own Closes-trailer merge (stateReason COMPLETED)
+# still needs a real Approve signal — the exemption only lifts the closed-
+# issue precondition, never the approval requirement itself.
+run allow observer-completed-close-with-comment closed-completed-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
+run allow observer-completed-close-conformance-review closed-completed-with-comment src/app.py role=conformance-review branch=issue-7/conformance-review
+run deny  observer-completed-close-no-approval  closed-completed-no-approval  src/app.py role=execution-observation branch=issue-7/execution-observation
+# regression guard: a genuinely rejected/not-planned close still denies
+# observer roles exactly like any other role.
+run deny  observer-not-planned-close-with-comment closed-not-planned-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
+# regression guard: a non-observer role on the SAME merge-closed shape is
+# unaffected by the exemption — still denied, exactly as before issue-295.
+run deny  non-observer-completed-close-with-comment closed-completed-with-comment src/app.py role=coding
+# warrant-hunt regression (issue-295): stateReason COMPLETED plus a
+# standing PR-review APPROVED is NOT enough on its own -- without a
+# merged issue-<n>/implementation PR in closedByPullRequestsReferences
+# (e.g. a human closed the issue as completed directly, nothing new
+# merged), the exemption must not fire even for an observer role, or a
+# human's own revocation-by-closing act would be silently bypassed.
+run deny  observer-completed-close-no-merge-closer closed-completed-no-merge-closer-with-pr-review src/app.py role=execution-observation branch=issue-7/execution-observation
 
 # --- build-now bypass (contract v3 s19a, issue-212) ------------------------
 # CORE_BUILD_NOW=1, set only by the spawner, skips the whole Approve chain
