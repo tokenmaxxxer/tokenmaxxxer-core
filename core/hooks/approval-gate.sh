@@ -27,7 +27,12 @@
 # First, the issue's own state and comments together (gh issue view
 # --json state,comments) — the issue is the one anchor stable across the
 # subject's two PRs (phase 1's, then phase 2's), so a closed issue denies
-# unconditionally before either approval path is even considered. Then,
+# unconditionally before either approval path is even considered, EXCEPT
+# for an execution-observation/conformance-review session whose issue was
+# closed specifically by a MERGED pull request on that issue's own
+# issue-<n>/implementation branch (issue-295) — the expected shape of the
+# implementation role's own Closes trailer landing, not a human
+# revocation; see the issue-state precondition below. Then,
 # if a PR is currently open on this branch, its reviews (gh pr view
 # --json reviews) decide the two-account path; the single-account path
 # scans the issue comments already fetched for an exact `APPROVE
@@ -255,7 +260,7 @@ if not approvers:
 gh = os.environ.get("CORE_GH") or "gh"
 try:
     issue_out = subprocess.run([gh, "issue", "view", issue_num, "--json",
-                                "state,comments,stateReason"],
+                                "state,comments,stateReason,closedByPullRequestsReferences"],
                                capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check issue #%s's state — refusing execution "
@@ -274,10 +279,58 @@ try:
     # enforcement input — closing an issue stays exclusively human
     # (gh-guard.sh, unchanged).
     issue_state_reason = issue_parsed.get("stateReason") or ""
+    issue_closers = issue_parsed.get("closedByPullRequestsReferences") or []
 except (ValueError, AttributeError):
     deny("unreadable issue JSON from gh; refusing rather than assuming "
          "approval")
-if issue_state != "OPEN":
+# issue-295: execution-observation and conformance-review are designed to
+# keep verifying an implementation role's own landed work AFTER that
+# role's issue auto-closes via its own PR's Closes trailer — an expected
+# side effect of merge, not a human revocation signal. stateReason alone
+# ("COMPLETED") cannot tell that apart from a human deliberately closing
+# the issue as completed with no new merge (a warrant-hunt finding,
+# issue-295): both produce stateReason COMPLETED, so a stateReason-only
+# check would silently let a human's own revocation-by-closing act (see
+# above) through for exactly these two roles whenever a standing PR
+# review or APPROVE comment already existed. Instead this asks the
+# causal question directly: is there a MERGED pull request, on this
+# exact issue's own implementation branch (issue-<n>/implementation),
+# among the PRs GitHub itself recorded as having closed this issue
+# (closedByPullRequestsReferences)? That is true only for the auto-close-
+# via-merge shape and false for a manual close with no new merge — a
+# human re-closing an issue after reopening it, with nothing merged in
+# between, denies every role, observer roles included, exactly as before
+# issue-295; that is the regression guard this exemption must not weaken.
+# Non-observer roles are unaffected: the precondition below still denies
+# them unconditionally on any closed state, exactly as before issue-295.
+OBSERVER_ROLES = ("execution-observation", "conformance-review")
+observer_role_on_implementation_merge_close = False
+if issue_state != "OPEN" and role in OBSERVER_ROLES:
+    impl_branch = "issue-%s/implementation" % issue_num
+    for closer in issue_closers:
+        if not isinstance(closer, dict):
+            continue
+        pr_num = closer.get("number")
+        if not isinstance(pr_num, int):
+            continue
+        try:
+            closer_out = subprocess.run(
+                [gh, "pr", "view", str(pr_num), "--json",
+                 "headRefName,state"],
+                capture_output=True, text=True, cwd=root)
+        except OSError:
+            continue
+        if closer_out.returncode != 0:
+            continue
+        try:
+            closer_parsed = json.loads(closer_out.stdout)
+        except ValueError:
+            continue
+        if (closer_parsed.get("state") == "MERGED"
+                and closer_parsed.get("headRefName") == impl_branch):
+            observer_role_on_implementation_merge_close = True
+            break
+if issue_state != "OPEN" and not observer_role_on_implementation_merge_close:
     # issue-189 decision 1: interpolate state_reason (already fetched
     # above, previously unused) when GitHub supplied one, so a session or
     # human reading the refusal knows shipped-vs-abandoned without a
