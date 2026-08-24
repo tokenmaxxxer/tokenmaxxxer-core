@@ -319,5 +319,52 @@ internal_error() {
 }
 internal_error
 
+# --- issue-288: gh --json field names must exist in gh's real schema -----
+# stub_gh above ignores the requested --json field names entirely and
+# always answers with state/comments/reviews, so a snake_case/camelCase
+# typo like state_reason/stateReason denies every real check (fail
+# closed) while every verdict-matrix test above still passes against the
+# stub. This reads the field lists approval-gate.sh actually requests
+# and asserts each one exists in the real `gh ... --help` JSON FIELDS
+# list — no live issue/PR needed, so it runs offline.
+gh_json_schema_check() {
+  if ! command -v gh >/dev/null 2>&1; then
+    report skip skip "gh-json-field-schema(gh-not-found)"
+    return
+  fi
+  result="$(python3 - "$GATE" <<'PY'
+import re, subprocess, sys
+
+src = open(sys.argv[1]).read()
+
+def requested(anchor):
+    m = re.search(anchor + r'.*?"--json",\s*\n?\s*"([a-zA-Z,]+)"', src, re.S)
+    return m.group(1).split(",") if m else []
+
+def schema(subcmd):
+    out = subprocess.run(["gh"] + subcmd.split() + ["--help"],
+                          capture_output=True, text=True).stdout
+    m = re.search(r"JSON FIELDS\n(.*?)\n\n", out, re.S)
+    return re.findall(r"[A-Za-z]+", m.group(1)) if m else []
+
+issue_fields = requested(r'"issue",\s*"view"')
+pr_fields = requested(r'"pr",\s*"view"')
+issue_schema = schema("issue view")
+pr_schema = schema("pr view")
+
+bad = [f for f in issue_fields if f not in issue_schema]
+bad += [f for f in pr_fields if f not in pr_schema]
+if not issue_fields or not pr_fields:
+    print("FAIL:no-fields-found")
+elif bad:
+    print("FAIL:" + ",".join(bad))
+else:
+    print("ok")
+PY
+)"
+  report ok "$result" "gh-json-field-schema"
+}
+gh_json_schema_check
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

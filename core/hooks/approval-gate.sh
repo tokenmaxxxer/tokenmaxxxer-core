@@ -255,7 +255,7 @@ if not approvers:
 gh = os.environ.get("CORE_GH") or "gh"
 try:
     issue_out = subprocess.run([gh, "issue", "view", issue_num, "--json",
-                                "state,comments,state_reason"],
+                                "state,comments,stateReason"],
                                capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check issue #%s's state — refusing execution "
@@ -273,7 +273,7 @@ try:
     # Read-only, reporting/routing only (design decision 4): never an
     # enforcement input — closing an issue stays exclusively human
     # (gh-guard.sh, unchanged).
-    issue_state_reason = issue_parsed.get("state_reason") or ""
+    issue_state_reason = issue_parsed.get("stateReason") or ""
 except (ValueError, AttributeError):
     deny("unreadable issue JSON from gh; refusing rather than assuming "
          "approval")
