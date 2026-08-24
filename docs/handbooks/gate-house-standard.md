@@ -374,6 +374,41 @@ migration checklist above, still open per issue-142's own scope line);
 wiring `compliance-check.sh` into each rulebook's own CI is future work,
 not done by this sweep.
 
+## `gate_bash_write_targets` is literal-text token-scanning, not shell evaluation (issue-292, accepted gap)
+
+`gate_bash_write_targets` (both languages) and its inline-regex siblings
+in `approval-gate.sh`/`board-gate.sh`/`ordering-gate.sh`'s
+`mech_interaction_design` scan a `Bash` `tool_input.command` STRING for
+path-shaped substrings — they never evaluate the shell. A target path
+built via variable assignment/expansion before the write —
+`d="docs"; i="issue-7"; printf x > "$d/$i/reports/coding.md"` — is
+invisible to every one of these regexes: the command text the regex
+sees contains only the literal characters `$d/$i/...`, never the
+resolved `docs/issue-7/...`, so a gate keyed off this function's output
+(or an equivalent inline `re.findall`) never fires for that write.
+
+Investigated in issue-292 across every `PreToolUse`-wired gate in this
+repo; **accepted as a documented, non-fixed gap** for the four blocking
+gates that rely on this extraction (`approval-gate.sh`, `board-gate.sh`,
+`record-shape-gate.sh`, `ordering-gate.sh`) — see
+`docs/decisions/2026-08-24-bash-variable-split-path-extraction-gap.md`
+for the full enumeration, the threat-model reasoning (a session already
+holding `Bash` execution has strictly simpler bypasses available; this
+is a self-evasion threat model, not an external one), and why neither a
+PostToolUse redesign nor a wider regex was chosen. Gates already
+demoted to advisory in issue-282 (`citation-gate.sh`,
+`facet-keyword-gate.sh`, `handbook-trigger-gate.sh`,
+`survey-order-gate.sh`, `proposal-shape-gate.sh`) are unaffected by this
+gap in any enforcement sense — they never blocked on this extraction to
+begin with. `warrant/hooks/scope-gate.sh` is structurally immune: it
+never uses positive path extraction to arm `Bash` write-set enforcement
+in the first place (see its own "A6" comment), so this class does not
+apply to it.
+
+A future gate adding its own copy of this token-scan technique should
+carry the same caveat rather than imply a positive-match miss means "no
+write happened here."
+
 ## `scope-gate.sh` `KNOWN_STATES` gains `withdrawn` (issue-189, emergency fix)
 
 `warrant/hooks/scope-gate.sh`'s `KNOWN_STATES` tuple was
