@@ -31,3 +31,12 @@ echo "EXIT_CODE=$?"
 
 ### Expected
 Either scope-gate.sh should scan `docs/issue-*/proposals/` (matching the convention this repo's other gates and this very hunt-record path use), enforcing this proposal's declared `files:` write set once approved and denying/warning on writes like the one above; or, at minimum, `nested_units()`'s pattern should also match `.../issue-*/proposals` so `stand_down()` takes the "holds proposals, but this gate reads the repository root only" warning branch (print to stderr + exit 1) instead of silently calling `allow()` — so the blind spot is visible on stderr rather than indistinguishable from an intentionally-permissive pass.
+
+## before-landing — skip, docs-only, no before-landing dispatch
+
+Phase-2's only write this transition was
+`docs/issue-292/reports/execution-observation.md` (the record itself) —
+every touched path is under `docs/`, so per warrant-protocol's DOCS-ONLY
+FAST PATH the before-landing hunter dispatch is skipped. `git diff
+--stat` against this transition's base (`8be902d`, the after-proposal
+commit) confirms: 1 file changed, all under `docs/issue-292/reports/`.
