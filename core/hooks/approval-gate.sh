@@ -43,6 +43,28 @@
 # CLAUDE_ROLE), the proposal round is explicitly waived and execution-
 # surface writes are allowed without an Approve signal. Unset by default,
 # so ordinary tasks keep the two-phase gate unchanged.
+#
+# Checkpoint mode (issue-275; on-the-record #2129/#2132): a checkpoint
+# spawn runs BOTH phases in one session — it proposes, pauses at the
+# approval boundary (`spawn.py await-approval`, which polls the issue for
+# the APPROVE comment), then continues to execution in the same context.
+# The Approve signal it resumes on is the issue-level comment this gate
+# already reads, so an approved checkpoint session passes the same
+# verdict machinery as anyone else: nothing here is bypassed.
+#
+# DETECTION CONTRACT (issue-275): checkpoint mode is detected via the env
+# stamp CORE_CHECKPOINT=1, set by the SPAWNER alongside CLAUDE_ROLE —
+# never by the session itself. This was chosen over reading the
+# workspace's .waiting-on.json because that file is (a) deleted by
+# await-approval on both of its exits, so it is absent exactly when the
+# post-approval execution writes this gate adjudicates begin, and (b) a
+# workspace file writable by the model's own tools — the same forgeable
+# class as the cache this gate already refuses to keep. The stamp changes
+# NOTHING about the verdict: with no Approve anywhere a checkpoint
+# session is denied exactly like any other; it only reshapes the refusal
+# text to point at the in-session await-approval boundary instead of the
+# two-session handoff. Without the stamp, behavior is byte-identical to
+# the default (tested).
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "approval-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
@@ -432,6 +454,21 @@ if not approved:
              % (issue_num, role, defer_finding["requirement"],
                 defer_finding["evidence"], defer_finding["rationale"],
                 defer_finding["addressed_to"], defer_finding["severity"]))
+    # Checkpoint-aware refusal (issue-275; detection contract in the
+    # header): same verdict — no approval anywhere is a denial in every
+    # mode — but a checkpoint session is told to finish its in-session
+    # await-approval pause rather than to wait for a second session.
+    if os.environ.get("CORE_CHECKPOINT", "").strip() == "1":
+        deny("neither the PR for %s nor issue #%s carries an approval "
+             "from a listed human approver (%s). This session runs in "
+             "checkpoint mode (CORE_CHECKPOINT=1, spawner-set): execution "
+             "writes open only AFTER the in-session approval boundary — "
+             "run the declared await-approval wait until the issue "
+             "comment that is exactly %r exists, then continue in this "
+             "same session. With no approval anywhere, execution writes "
+             "stay refused in every mode. (contract v3 s19; on-the-record "
+             "#2129)" % (branch, issue_num, ", ".join(approvers),
+                         challenge))
     deny("neither the PR for %s nor issue #%s carries an approval from a "
          "listed human approver (%s): no Approve review on an open PR, "
          "and no issue comment that is exactly '%s'. Free-text comments "

@@ -104,16 +104,26 @@ cat <<EOF
   user as a PULL REQUEST against main. Never push to main. Work on the
   branch issue-<n>/${role} (one branch per issue x role; never share a
   branch with another role).
-- Work the PR in TWO PHASES (contract v3 s19). Phase 1, before any
-  execution work: commit your research, your current-state survey
+- Work in two phases (contract v3 s19). Phase 1, before any execution
+  work: commit your research, your current-state survey
   (docs/issue-<n>/reports/${role}/), and your proposal
-  (docs/issue-<n>/proposals/), open the PR, and stop. Phase 2 opens ONLY
-  when a human approver listed in docs/specs/approvers.md submits a PR
-  review Approve; then do your actual work on the same branch, reported
-  through the same PR. Your record file
-  (docs/issue-<n>/reports/${role}.md) is phase-2 output like code: it
-  waits for the Approve too. Before the Approve you write only the two
-  phase-1 homes.
+  (docs/issue-<n>/proposals/), open the PR. Phase 2 opens ONLY after a
+  human approver listed in docs/specs/approvers.md issues the Approve
+  signal; then do your actual work on the same branch, reported through
+  the same PR. Your record file (docs/issue-<n>/reports/${role}.md) is
+  phase-2 output like code: it waits for the Approve too. Before the
+  Approve you write only the two phase-1 homes. HOW you cross the
+  boundary depends on how this session was spawned:
+  - Default (two-session): after opening the phase-1 PR, STOP and end
+    the session. Phase 2 runs in a later session, spawned after the
+    Approve exists.
+  - Checkpoint (single-session, on-the-record #2129): only when the
+    prompt that spawned this session explicitly declared checkpoint
+    mode — after opening the phase-1 PR, run the declared
+    await-approval wait; when it observes the APPROVE issue-<n>/<role>
+    comment, continue to phase 2 in THIS same session. Without that
+    declaration the two-session default applies unchanged; you never
+    grant yourself checkpoint mode.
 - Build-now bypass (contract v3 s19a): when the task that spawned this
   session explicitly authorizes delivery-only — its environment carries
   CORE_BUILD_NOW=1, set by the spawner, never by you — skip the proposal round
@@ -197,18 +207,20 @@ cat <<EOF
   (contract §21) unless the same commit also touches a docs/handbooks/ file.
 - A session that stages a change to any docs/specs/* file must also
   regenerate and stage docs/specs/reconciled-index.md (python3
-  gates/spec_index.py --update) in the same commit — spec-index-preflight.sh
-  refuses a docs/specs/* commit that leaves the index stale.
+  gates/spec_index.py --update) in the same commit, where the target repo
+  ships that generator — a docs/specs/* commit must never leave the index
+  stale.
 - PR trailer phase split: a phase-1 proposal PR references its issue as a
   plain #<issue> in the body; Closes/Fixes/Resolves #<issue> is forbidden
-  until the phase-2 delivery PR, which must carry it — pr-preflight.sh's
-  check_body refuses a phase-1 body carrying Closes/Fixes/Resolves and a
-  phase-2 body missing it.
-- A reply claiming a clean pytest pass must not omit pasted SKIPPED lines
-  without acknowledging them, and a hand-typed pass count must equal the
-  pasted summary's count — role-test-claim-guard.sh refuses a test claim
-  that drops SKIPPED lines or states a count that does not match the
-  pasted output.
+  until the phase-2 delivery PR, which must carry it.
+- Verification is verify-at-landing (on-the-record #2137): a deliverable
+  is code plus EXECUTED acceptance evidence — run every check the issue
+  states at landing time and record the actual command and output in your
+  record. Do not author new persistent test files by default; a durable
+  harness is a deliverable only when the issue explicitly requires one.
+  Any test output you do paste must be reported faithfully: never omit
+  SKIPPED lines without acknowledging them, and a hand-typed pass count
+  must equal the pasted summary count.
 EOF
 
 trap - EXIT

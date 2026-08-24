@@ -33,11 +33,26 @@ phase_split_bullet="$(printf '%s\n' "$out" | awk '/^- PR trailer phase split:/{p
 case "$phase_split_bullet" in *"plain #<issue>"*"Closes/Fixes/Resolves"*"is forbidden"*"phase-2 delivery PR"*) phase_split=present ;; esac
 report present "${phase_split:-absent}" "names the Closes/Fixes phase split for non-coding roles"
 
-# Row 20: pytest SKIPPED / pass-count fidelity.
+# Row 20 (rescoped by issue-275 / on-the-record #2137): verify-at-landing
+# replaces the default-test-authoring claim rule; skip/count fidelity
+# survives for any pasted output.
 test_claim=""
-test_claim_bullet="$(printf '%s\n' "$out" | awk '/^- A reply claiming a clean pytest pass/{p=1} p{print; if (/^- [A-Z]/ && !/^- A reply claiming a clean pytest pass/) exit}')"
-case "$test_claim_bullet" in *"SKIPPED lines"*"pass count must equal the"*"pasted summary"*"count"*) test_claim=present ;; esac
-report present "${test_claim:-absent}" "names the pytest skip/count fidelity rule"
+test_claim_bullet="$(printf '%s\n' "$out" | awk '/^- Verification is verify-at-landing/{p=1} p{print; if (/^- [A-Z]/ && !/^- Verification is verify-at-landing/) exit}')"
+case "$test_claim_bullet" in *"EXECUTED acceptance evidence"*"command and output"*"SKIPPED lines"*"pasted summary count"*) test_claim=present ;; esac
+report present "${test_claim:-absent}" "names verify-at-landing and pasted-output fidelity"
+
+# issue-275: the directive must not cite enforcement scripts core does not
+# ship (phantom enforcers: spec-index-preflight.sh, pr-preflight.sh,
+# role-test-claim-guard.sh).
+phantom=""
+case "$out" in *"spec-index-preflight.sh"*|*"pr-preflight.sh"*|*"role-test-claim-guard.sh"*) phantom=present ;; esac
+report absent "${phantom:-absent}" "cites no phantom enforcement scripts"
+
+# issue-275: the phase contract is stated conditionally — both the
+# two-session default and the checkpoint single-session path.
+phase_contract=""
+case "$out" in *"Default (two-session)"*"Checkpoint (single-session"*"await-approval"*) phase_contract=present ;; esac
+report present "${phase_contract:-absent}" "states the phase contract conditionally (default + checkpoint)"
 
 # empty-state fixtures: a directive text missing each shape must be caught,
 # not silently pass.

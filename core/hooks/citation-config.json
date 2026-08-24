@@ -61,14 +61,14 @@
       "phase1_numbered_regex": "^\\s*\\d+[.)]\\s+\\S",
       "phase1_min_list_items": 2,
       "phase1_sampling_regex": "sampling derivation",
-      "phase1_deny_message": "phase-1 mode (proposals/review.md) requires a requirement list (numbered or bulleted enumeration) or a stated sampling derivation; neither was found in the proposed content.",
+      "phase1_deny_message": "proposal mode (proposals/review.md) requires a requirement list (numbered or bulleted enumeration) or a stated sampling derivation; neither was found in the proposed content.",
       "verdict_line_regex": "(?im)^[ \\t]*verdict:[ \\t]*(Present|Surface|Absent|Incorrect|Unverifiable)\\b",
       "spec_ref_regex": "spec_ref\\s*:",
       "evidence_regex": "evidence\\s*:",
       "unverifiable_value": "unverifiable",
       "block_split_regex": "(?:\\n\\s*\\n)|(?=^#{1,6}\\s)",
-      "missing_spec_ref_message": "phase-2 verdict '{verdict}' (on a verdict: field) found without a spec_ref: field in its surrounding block; every requirement's verdict must name the spec locator it was checked against (issues #30/#37/#38).",
-      "missing_evidence_message": "phase-2 verdict '{verdict}' (on a verdict: field) found without an evidence: field in its surrounding block; every non-Unverifiable verdict must name the artifact pointer it was checked against (issues #30/#37/#38).",
+      "missing_spec_ref_message": "record verdict '{verdict}' (on a verdict: field) found without a spec_ref: field in its surrounding block; every requirement's verdict must name the spec locator it was checked against (issues #30/#37/#38).",
+      "missing_evidence_message": "record verdict '{verdict}' (on a verdict: field) found without an evidence: field in its surrounding block; every non-Unverifiable verdict must name the artifact pointer it was checked against (issues #30/#37/#38).",
       "bash_write_refuses": true,
       "bash_refuse_message": "a Bash command appears to target this role's own proposal/record directly; this gate can only judge Write/Edit/MultiEdit content, so a Bash-authored write to this role's own proposal/record is refused rather than silently passed through uninspected."
     }
@@ -83,7 +83,7 @@
       "source_needles": ["http://", "https://", "working from named-framework assumption"],
       "mandate_words": ["mandate", "단위경제상 성립"],
       "causal_words": ["necessary", "필요", "→", "therefore", "따라서"],
-      "deny_message_template": "phase-1 proposal is missing: {missing}. Per docs/handbooks/finance-unit-economics/methodology.md, every adopted metric must be sourced or assumption-labeled, and chained to this role's own mandate (단위경제상 성립하는가) within the SAME paragraph as the mandate reference — a mandate word in one paragraph and a causal word in an unrelated paragraph does not satisfy this."
+      "deny_message_template": "proposal is missing: {missing}. Per docs/handbooks/finance-unit-economics/methodology.md, every adopted metric must be sourced or assumption-labeled, and chained to this role's own mandate (단위경제상 성립하는가) within the SAME paragraph as the mandate reference — a mandate word in one paragraph and a causal word in an unrelated paragraph does not satisfy this."
     }
   ],
   "interaction-design": [
@@ -108,7 +108,7 @@
       "target_path_regex": "^docs/issue-[0-9]+/reports/interaction-design\\.md$",
       "check_type": "section_required_fields",
       "heading_regex": "^#+\\s*.*\\b(traceability|scope\\s+growth)\\b",
-      "no_heading_message": "no traceability/scope-growth heading found (expected a heading matching /^#+\\s*.*\\b(traceability|scope growth)\\b/i). Per the interaction-design gate machine (row 10), the phase-2 record must name this section explicitly.",
+      "no_heading_message": "no traceability/scope-growth heading found (expected a heading matching /^#+\\s*.*\\b(traceability|scope growth)\\b/i). Per the interaction-design gate machine (row 10), the implementation record must name this section explicitly.",
       "blank_body_message": "the traceability/scope-growth heading is present but its body is blank (stub). It must state the spec-only output boundary and at least one scope-growth flag field.",
       "required_fields": [
         {"tag": "spec-only boundary statement", "regex": "\\bspec[\\s-]only\\b", "detail": "no explicit spec-only boundary statement (expected wording matching /\\bspec[\\s-]only\\b/i)"},
@@ -167,7 +167,7 @@
       "citation_regex": "(?:—|--| - )\\s*.*(?:source:|https?://|[\\w./-]+:\\d+)",
       "adjacency_lines": 1,
       "phase1_deny_message_template": "the '## Evidence format' section has claim-shaped line(s) with no citation on the same or an adjacent line: {missing}. Required format: '<claim> — <source: URL | path:line | check-name score>' (ASCII '--' or ' - ' also accepted).",
-      "phase2_deny_message_template": "this record has claim-shaped line(s) with no citation on the same or an adjacent line, and not verbatim-carried-forward from the phase-1 proposal: {missing}. Citations from phase 1 must be carried forward, and any new claim needs its own citation ('<claim> — <source: URL | path:line | check-name score>').",
+      "phase2_deny_message_template": "this record has claim-shaped line(s) with no citation on the same or an adjacent line, and not verbatim-carried-forward from the proposal: {missing}. Citations from the proposal must be carried forward, and any new claim needs its own citation ('<claim> — <source: URL | path:line | check-name score>').",
       "phase2_proposal_glob": "docs/issue-{n}/proposals/*technical-feasibility*.md",
       "bash_write_refuses": true,
       "bash_refuse_message": "a Bash command appears to write to a citation-gate-owned path; this gate cannot verify content written outside Write/Edit/MultiEdit, so it refuses rather than silently allowing an unchecked write."
@@ -181,9 +181,9 @@
       "check_type": "whole_doc_keyword_and_ref_plus_branch",
       "keyword_needles": ["traces", "traceability", "covers issue", "requirement:"],
       "issue_ref_regex": "issue-(\\d+)|#(\\d+)",
-      "missing_message": "test-authoring phase-2 record is missing a traceability line. Per docs/issue-1/proposals/test-authoring-methodology-norms.md (b) item 5 (IEEE 829's transferable traceability principle), each suite section needs a one-line statement — containing one of \"traces\"/\"traceability\"/\"covers issue\"/\"requirement:\" combined with an issue-<n> or #<n> reference — tying it back to the requirement it covers.",
+      "missing_message": "test-authoring record is missing a traceability line. Per docs/issue-1/proposals/test-authoring-methodology-norms.md (b) item 5 (IEEE 829's transferable traceability principle), each suite section needs a one-line statement — containing one of \"traces\"/\"traceability\"/\"covers issue\"/\"requirement:\" combined with an issue-<n> or #<n> reference — tying it back to the requirement it covers.",
       "branch_regex": "^issue-(\\d+)/",
-      "branch_mismatch_message_template": "test-authoring phase-2 record carries a traceability reference to issue(s) {refs}, but the current branch ({branch!r}) is scoped to issue-{branch_issue}. A traceability line must cite the issue it actually traces — a cross-reference to a different issue number is a mismatch, not a valid traceability line."
+      "branch_mismatch_message_template": "test-authoring record carries a traceability reference to issue(s) {refs}, but the current branch ({branch!r}) is scoped to issue-{branch_issue}. A traceability line must cite the issue it actually traces — a cross-reference to a different issue number is a mismatch, not a valid traceability line."
     }
   ]
 }
