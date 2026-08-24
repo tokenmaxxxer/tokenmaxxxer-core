@@ -22,7 +22,7 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "survey-order-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-deny() { echo "survey-order: refused — $*" >&2; exit 2; }
+deny() { echo "survey-order: refused — $*" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${SURVEY_ORDER_GATE_OFF:-}" || exit 0
 
@@ -78,7 +78,17 @@ try:
     gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
 
     def deny(m):
-        sys.stderr.write("survey-order: refused — %s\n" % m); sys.exit(2)
+        # issue-282 DEMOTE: advisory only -- detection logic unchanged.
+        reason = "survey-order: %s" % m
+        sys.stderr.write(reason + "\n")
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": reason,
+            },
+            "systemMessage": reason,
+        }))
+        sys.exit(0)
 
     raw = os.environ.get("PG_PAYLOAD", "")
     try:

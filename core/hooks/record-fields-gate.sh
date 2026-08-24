@@ -61,7 +61,7 @@ trap __fc EXIT
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-}"
-deny() { echo "${role:-record-fields-gate}: refused — $1" >&2; exit 2; }
+deny() { echo "${role:-record-fields-gate}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${RECORD_FIELDS_GATE_OFF:-}" || exit 0
 
@@ -118,7 +118,17 @@ try:
     role = os.environ["RF_ROLE"]
 
     def deny(m):
-        sys.stderr.write("%s: refused — %s\n" % (role, m)); sys.exit(2)
+        # issue-282 DEMOTE: advisory only -- detection logic unchanged.
+        reason = "%s: %s" % (role, m)
+        sys.stderr.write(reason + "\n")
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": reason,
+            },
+            "systemMessage": reason,
+        }))
+        sys.exit(0)
 
     raw = os.environ.get("RF_PAYLOAD", "")
     try:

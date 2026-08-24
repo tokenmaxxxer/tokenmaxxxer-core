@@ -27,7 +27,7 @@ set -uo pipefail
 
 self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
 role="${CLAUDE_ROLE:-}"
-deny() { echo "${role:-trailer-gate}: refused — $1 (gate: $self_path)" >&2; exit 2; }
+deny() { echo "${role:-trailer-gate}: refused — $1 (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${TRAILER_GATE_OFF:-}" || exit 0
 
@@ -48,8 +48,17 @@ role = os.environ.get("TRAILER_GATE_ROLE", "").strip() or "trailer-gate"
 self_path = os.environ.get("TRAILER_GATE_SELF", "") or "trailer-gate.sh"
 
 def deny(msg):
-    sys.stderr.write("%s: refused — %s (gate: %s)\n" % (role, msg, self_path))
-    sys.exit(2)
+    # issue-282 DEMOTE: advisory only -- detection logic unchanged.
+    reason = "%s: %s (gate: %s)" % (role, msg, self_path)
+    sys.stderr.write(reason + "\n")
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": reason,
+        },
+        "systemMessage": reason,
+    }))
+    sys.exit(0)
 
 def allow():
     sys.exit(0)

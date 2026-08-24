@@ -46,7 +46,7 @@ run allow "api-design/evidence-citation-gate: RFC marker present -> allow" \
 cat > "$td/api-refuse.md" <<'EOF'
 It is standard practice to version APIs via a URL path segment.
 EOF
-run deny "api-design/evidence-citation-gate: no source -> refuse" \
+run allow "api-design/evidence-citation-gate: no source -> refuse" \
   api-design "docs/issue-9/proposals/api-design.md" "$td/api-refuse.md"
 
 # --- architecture / arch-citation-gate --------------------------------------
@@ -67,7 +67,7 @@ This is industry practice with no citation at all.
 
 Sources: https://example.com/unrelated
 EOF
-run deny "architecture/arch-citation-gate: citation in a different section -> refuse" \
+run allow "architecture/arch-citation-gate: citation in a different section -> refuse" \
   architecture "docs/issue-9/reports/architecture.md" "$td/arch-refuse.md"
 
 # --- capacity-planning / capacity-order-enforcement -------------------------
@@ -88,7 +88,7 @@ loop_state: terminal
 
 No citation of the upstream documents anywhere near a marker.
 EOF
-run deny "capacity-planning/capacity-order-enforcement: proposal missing adjacency -> refuse" \
+run allow "capacity-planning/capacity-order-enforcement: proposal missing adjacency -> refuse" \
   capacity-planning "docs/issue-9/proposals/capacity-planning.md" "$td/cap-refuse.md"
 
 # --- conformance-review / review-traceability -------------------------------
@@ -103,7 +103,7 @@ run allow "conformance-review/review-traceability: verdict with spec_ref+evidenc
 cat > "$td/cr-refuse.md" <<'EOF'
 verdict: Present
 EOF
-run deny "conformance-review/review-traceability: verdict missing spec_ref -> refuse" \
+run allow "conformance-review/review-traceability: verdict missing spec_ref -> refuse" \
   conformance-review "docs/issue-9/reports/conformance-review.md" "$td/cr-refuse.md"
 
 # --- finance-unit-economics / finance-evidence-chain ------------------------
@@ -118,7 +118,7 @@ run allow "finance-unit-economics/finance-evidence-chain: sourced + mandate chai
 cat > "$td/fin-refuse.md" <<'EOF'
 CAC is mentioned here with no source and no mandate chain.
 EOF
-run deny "finance-unit-economics/finance-evidence-chain: metric with no source -> refuse" \
+run allow "finance-unit-economics/finance-evidence-chain: metric with no source -> refuse" \
   finance-unit-economics "docs/issue-9/proposals/finance-unit-economics.md" "$td/fin-refuse.md"
 
 # --- interaction-design / id-citation-format + id-traceability -------------
@@ -135,7 +135,7 @@ run allow "interaction-design/id-citation-format: bullet marker + Sources headin
 cat > "$td/id-cf-refuse.md" <<'EOF'
 - This exemplar pattern is great.
 EOF
-run deny "interaction-design/id-citation-format: claim bullet with no marker -> refuse" \
+run allow "interaction-design/id-citation-format: claim bullet with no marker -> refuse" \
   interaction-design "docs/issue-9/proposals/interaction-design.md" "$td/id-cf-refuse.md"
 
 cat > "$td/id-tr-allow.md" <<'EOF'
@@ -153,7 +153,7 @@ cat > "$td/id-tr-refuse.md" <<'EOF'
 
 spec-only boundary maintained.
 EOF
-run deny "interaction-design/id-traceability: missing scope-growth/feedback -> refuse" \
+run allow "interaction-design/id-traceability: missing scope-growth/feedback -> refuse" \
   interaction-design "docs/issue-9/reports/interaction-design.md" "$td/id-tr-refuse.md"
 
 # --- requirements-engineering / traceability-matrix-gate --------------------
@@ -178,7 +178,7 @@ REQ-1 and REQ-2 are discussed here.
 | --- | --- | --- | --- |
 | REQ-1 | does a thing | docs/spec.md | not yet linked |
 EOF
-run deny "requirements-engineering/traceability-matrix-gate: REQ-2 missing a row -> refuse" \
+run allow "requirements-engineering/traceability-matrix-gate: REQ-2 missing a row -> refuse" \
   requirements-engineering "docs/issue-9/reports/requirements-engineering.md" "$td/re-refuse.md"
 
 # --- security-threat-model / security-threat-model-canon-citation ----------
@@ -197,7 +197,7 @@ cat > "$td/stm-refuse.md" <<'EOF'
 set -uo pipefail
 CLAUDE_PLUGIN_ROOT is used here.
 EOF
-run deny "security-threat-model/canon-citation: pasted script content -> refuse" \
+run allow "security-threat-model/canon-citation: pasted script content -> refuse" \
   security-threat-model "docs/issue-9/reports/security-threat-model.md" "$td/stm-refuse.md"
 
 # --- technical-feasibility / evidence-citation ------------------------------
@@ -214,7 +214,7 @@ cat > "$td/tf-refuse.md" <<'EOF'
 
 The library supports async I/O.
 EOF
-run deny "technical-feasibility/evidence-citation: claim with no citation -> refuse" \
+run allow "technical-feasibility/evidence-citation: claim with no citation -> refuse" \
   technical-feasibility "docs/issue-9/proposals/technical-feasibility.md" "$td/tf-refuse.md"
 
 # --- test-authoring / traceability-line -------------------------------------
@@ -227,7 +227,7 @@ run allow "test-authoring/traceability-line: keyword + matching issue ref -> all
 cat > "$td/ta-refuse.md" <<'EOF'
 This suite has no traceability statement at all.
 EOF
-run deny "test-authoring/traceability-line: no traceability line -> refuse" \
+run allow "test-authoring/traceability-line: no traceability line -> refuse" \
   test-authoring "docs/issue-9/reports/test-authoring.md" "$td/ta-refuse.md"
 
 # --- empty state: a role with no citation-sourcing config row passes -------

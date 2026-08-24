@@ -63,8 +63,19 @@ GATE_NAME = "citation-gate"
 
 
 def deny(msg):
-    print(f"{GATE_NAME}: refused — {msg}", file=sys.stderr)
-    sys.exit(2)
+    # issue-282 DEMOTE: advisory only -- detection logic is unchanged but
+    # this gate no longer blocks the tool call. The finding surfaces via
+    # additionalContext/systemMessage instead of a permission denial.
+    reason = f"{GATE_NAME}: {msg}"
+    print(reason, file=sys.stderr)
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": reason,
+        },
+        "systemMessage": reason,
+    }))
+    sys.exit(0)
 
 
 # --- load config (missing/unreadable/malformed file -> no-op, empty state) -
