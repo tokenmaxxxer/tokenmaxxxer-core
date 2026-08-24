@@ -28,7 +28,13 @@ report() {
   fi
 }
 
-rendered="$(CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" /bin/bash "$DIRECTIVE" 2>&1)"
+# issue-278: the per-turn injection is now a byte-stable index; the protocol
+# prose lives verbatim in warrant/directive/warrant-protocol.md. The hunt-path
+# instruction assertions run against the corpus = rendered index + section
+# file, mirroring on-the-record #2106. grep -c counts matching LINES, so the
+# single-occurrence assertions hold unchanged over the corpus.
+SECTION="$(cd "$HERE/../.." && pwd -P)/directive/warrant-protocol.md"
+rendered="$(CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" /bin/bash "$DIRECTIVE" 2>&1; cat "$SECTION")"
 
 # --- role-session context: names the board-gate-in-scope role-subtree path ---
 role_scope_hits="$(printf '%s' "$rendered" | grep -c 'docs/issue-<n>/reports/<role>/<date>-hunt-<proposal-slug>\.md' || true)"
