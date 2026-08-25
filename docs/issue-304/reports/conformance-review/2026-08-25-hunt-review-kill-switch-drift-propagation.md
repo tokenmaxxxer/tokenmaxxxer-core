@@ -69,3 +69,21 @@ proposal should flag this coverage gap explicitly instead of silently
 depending on a gate that currently no-ops for this exact write. As
 written, phase 2 could write an empty or garbage `conformance-review.md`
 and no PreToolUse gate in this repo would refuse it on shape grounds.
+
+(Not independently re-verified against `record-shape-gate.sh`'s current
+source by phase 2 — out of this review role's own write set to fix, and
+this session's real write to `docs/issue-304/reports/conformance-review.md`
+was independently checked to pass both `record-fields-gate.sh`'s §20
+field check and `citation-config.json`'s `review-traceability` row, which
+do cover this exact path, so the record itself did not ship
+under-enforced even though this specific gate has the gap described
+above.)
+
+## before-landing
+
+skip, docs-only — every path this phase-2 build touches
+(`docs/issue-304/reports/conformance-review.md`,
+`docs/issue-304/reports/conformance-review/2026-08-25-hunt-review-kill-switch-drift-propagation.md`,
+this file's own append) is under `docs/`; per the warrant directive's
+docs-only fast path, the before-landing hunter dispatch is skipped
+rather than run.
