@@ -54,7 +54,18 @@ payload="$(cat 2>/dev/null || true)"
 # would then catch. A payload that mentions the word and turns out to be
 # unrelated simply falls through and the python allows it — this is an
 # optimization, never a verdict.
+#
+# This matches the RAW, unparsed JSON text -- a payload that JSON-escapes
+# one letter of "docs" as \uXXXX (e.g. "docs") decodes to a
+# byte-identical path but never contains the literal substring this fast
+# path scans for, so it must never be trusted to skip adjudication on its
+# own (issue-303, same defect family as F15/F17 -- verified live here
+# despite the #301 record's "docs has no escapable /" reasoning, which
+# only ruled out escaping the slash, not the letters). Any payload
+# carrying a JSON \u escape therefore falls through to the python judge
+# unconditionally.
 case "$payload" in
+  *'\u'*) ;;
   *docs*) ;;
   *) trap - EXIT; exit 0 ;;
 esac

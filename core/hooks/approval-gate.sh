@@ -84,7 +84,15 @@ payload="$(cat 2>/dev/null || true)"
 [ -n "$payload" ] || { echo "approval-gate.sh: refused — empty tool-use payload on stdin; cannot evaluate the approval gate." >&2; exit 2; }
 
 # Fast path before python3: only execution-surface writes are adjudicated.
+# This matches the RAW, unparsed JSON text -- a payload that JSON-escapes
+# one character of the matched substring as \uXXXX (e.g. "src/" for
+# "src/") decodes to a byte-identical path but never contains the literal
+# substring this fast path scans for, so it must never be trusted to skip
+# adjudication on its own (issue-303, F17). Any payload carrying a JSON \u
+# escape therefore falls through to the python judge unconditionally,
+# whether or not it also happens to match the plain-text patterns below.
 case "$payload" in
+  *'\u'*) ;;
   *src/*|*test/*|*issue-*) ;;
   *) trap - EXIT; exit 0 ;;
 esac
