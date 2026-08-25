@@ -68,6 +68,25 @@ def _kill_switch_active(value):
     return (value or "").strip().lower() not in _ON_SPELLINGS
 
 
+def _payload_escaped(payload):
+    """True when the raw payload text carries a JSON \\uXXXX escape.
+
+    issue-303 (F15/F17): approval-gate/board-gate/gh-guard's own bash
+    preambles fast-path on a literal substring match against the RAW,
+    unparsed payload text before their python bodies ever run json.loads.
+    This dispatcher's setup functions below replicate those same raw-text
+    substring checks (that replication is the whole point of "mirrors the
+    bash preamble" -- see module docstring) and so replicate the same
+    bug: a payload that JSON-escapes one character of the matched
+    substring as \\uXXXX decodes to a byte-identical parsed string but
+    never contains the literal substring being scanned for, silently
+    skipping the gate. Every setup function's skip condition below must
+    stay conditional on this being False -- a payload carrying any \\u
+    escape always falls through to the real gate body instead.
+    """
+    return "\\u" in payload
+
+
 def _git_toplevel(cwd):
     try:
         out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
@@ -227,7 +246,8 @@ def _setup_approval_gate(payload, obj, cwd):
     if not payload:
         return "deny", ("approval-gate.sh: refused -- empty tool-use payload "
                          "on stdin; cannot evaluate the approval gate.")
-    if not any(s in payload for s in ("src/", "test/", "issue-")):
+    if not _payload_escaped(payload) and not any(
+            s in payload for s in ("src/", "test/", "issue-")):
         return "skip", None
     return "ok", {"CORE_PAYLOAD": payload}
 
@@ -238,7 +258,7 @@ def _setup_board_gate(payload, obj, cwd):
     if not payload:
         return "deny", ("board-gate.sh: refused -- empty tool-use payload on "
                          "stdin; cannot evaluate the board gate.")
-    if "docs" not in payload:
+    if not _payload_escaped(payload) and "docs" not in payload:
         return "skip", None
     return "ok", {"CORE_PAYLOAD": payload}
 
@@ -251,10 +271,12 @@ def _setup_gh_guard(payload, obj, cwd):
     if not payload:
         return "deny", ("gh-guard.sh: refused -- empty tool-use payload on "
                          "stdin; cannot evaluate the gh guard.")
-    if '"Bash"' not in payload:
+    escaped = _payload_escaped(payload)
+    if not escaped and '"Bash"' not in payload:
         return "skip", None
-    if not any(s in payload for s in
-               ("gh", "git", "curl", "wget", "http://", "https://")):
+    if not escaped and not any(
+            s in payload for s in
+            ("gh", "git", "curl", "wget", "http://", "https://")):
         return "skip", None
     return "ok", {"CORE_PAYLOAD": payload}
 
