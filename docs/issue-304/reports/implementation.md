@@ -102,6 +102,31 @@ examples (`core/hooks/directive.sh`, `scout/hooks/directive.sh`,
 `warrant/hooks/directive.sh`) were used as the template for the source-line
 idiom.
 
+## Post-approval rebase (PR #307 merge conflict)
+
+By the time PR #307 was reviewed, `main` had advanced with 4 issue-304
+review/observation commits (`conformance-review` phase 1/2,
+`execution-observation`) that documented and graded this PR's diff but
+never actually merged it — the fix itself was still only on this branch.
+Because both `main` and this branch independently touched the same 5 files
+(`core/hooks/lib/role-directive.sh`, the 3 sibling `*-directive.sh` hooks,
+`core/hooks/tests/run-directive-shape-tests.sh`) with no common ancestor
+commit containing them (this repo squash-merges, so the branch's commit
+graph and `main`'s diverge even where content matches), `git merge
+origin/main` reported all 5 as add/add conflicts. Diffing each side showed
+`main`'s copies were still the pre-fix inline `case` statements — the
+review commits describe the fix but `main` had never received it — so every
+conflict was resolved by keeping this branch's (`--ours`) fixed content.
+Merge commit `5c93962`; pushed; re-ran the named gate to confirm:
+
+```
+$ bash core/hooks/tests/run-directive-shape-tests.sh 2>&1 | tail -3
+directive-shape: 31 passed, 0 failed
+```
+
+`gh pr view 307 --json mergeable,mergeStateStatus` went from
+`CONFLICTING`/`DIRTY` to `MERGEABLE`/`CLEAN` after the push.
+
 ## Open findings
 
 None.
