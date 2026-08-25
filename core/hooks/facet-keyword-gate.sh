@@ -23,7 +23,17 @@ gate_trap_fail_closed
 set -uo pipefail
 gate_kill_switch_active "${FACET_KEYWORD_GATE_OFF:-}" || { trap - EXIT; exit 0; }
 
-command -v python3 >/dev/null 2>&1 || gate_deny "facet-keyword-gate" "python3 not found; cannot evaluate gate"
+if ! command -v python3 >/dev/null 2>&1; then
+  # issue-282 DEMOTE parity (F9, issue-305): the python-level deny() below
+  # is advisory-only (exit 0 + hookSpecificOutput); this bash-level
+  # precondition denied hard (exit 2, gate_deny) instead of matching it —
+  # the one path through this file that could still block a tool call.
+  reason="facet-keyword-gate: python3 not found; cannot evaluate gate"
+  echo "$reason" >&2
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"},"systemMessage":"%s"}\n' "$reason" "$reason"
+  trap - EXIT
+  exit 0
+fi
 
 FK_CONFIG="${FACET_KEYWORD_CONFIG:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/facet-keyword-config.json}"
 export FK_CONFIG

@@ -53,7 +53,7 @@ case "$payload" in
   *) trap - EXIT; exit 0 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || exit 2
+command -v python3 >/dev/null 2>&1 || gate_deny "gh-guard" "python3 not found; cannot evaluate gate"
 
 IFS='' read -r -d '' CORE_GH_GUARD <<'PY' || true
 import json, os, re, sys

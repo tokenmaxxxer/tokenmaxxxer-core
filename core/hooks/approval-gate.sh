@@ -97,7 +97,7 @@ case "$payload" in
   *) trap - EXIT; exit 0 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || exit 2
+command -v python3 >/dev/null 2>&1 || gate_deny "approval-gate" "python3 not found; cannot evaluate gate"
 
 # bash 3.2: a quoted heredoc nested inside $( … ) is NOT literal — read the
 # program at top level.
