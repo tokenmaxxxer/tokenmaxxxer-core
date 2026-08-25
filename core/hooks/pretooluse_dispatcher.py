@@ -524,7 +524,18 @@ def main():
                 if out:
                     sys.stdout.write(out)
                 return rc
-        return 0
+        # F23 (issue-305): a typo'd OTR_DISPATCH_ONLY value previously
+        # fell through to this same `return 0` a genuine "gate ran and
+        # found nothing wrong" result uses -- "gate not found" and "gate
+        # ran clean" were byte-identical, silently turning a test that
+        # relies on this seam vacuous instead of failing loudly.
+        print(
+            "pretooluse_dispatcher.py: OTR_DISPATCH_ONLY=%r does not match any registered gate "
+            "(%s); refusing rather than silently returning as if it had run and found nothing." %
+            (only, ", ".join(DISPATCHED_SCRIPTS)),
+            file=sys.stderr,
+        )
+        return 2
 
     denied = False
     stdout_chunks = []
@@ -541,13 +552,43 @@ def main():
         if out:
             stdout_chunks.append(out)
     if stdout_chunks:
-        # Multiple advisory gates can each carry a hookSpecificOutput JSON
-        # payload; forward the first one verbatim (platform contract: one
-        # JSON stdout payload per hook call) and fold any further advisory
-        # text into stderr so it is not silently dropped.
-        sys.stdout.write(stdout_chunks[0])
-        for extra in stdout_chunks[1:]:
-            sys.stderr.write(extra)
+        # F21 (issue-305): forwarding only the first chunk verbatim and
+        # shoving every other DEMOTE gate's finding -- including its raw
+        # JSON blob -- to stderr meant a consumer reading only the
+        # documented stdout channel saw just the first gate's finding and
+        # discovered the rest only on a later turn. Merge every chunk's
+        # additionalContext/systemMessage into ONE combined
+        # hookSpecificOutput JSON payload instead: platform contract
+        # (one JSON stdout payload per hook call) still holds, but it now
+        # carries every gate's finding, not just the first. DEMOTE gates
+        # are the only ones that ever populate stdout_chunks (KEEP-gate
+        # denials are stderr + exit 2 only, no stdout JSON), so this is
+        # always merging same-shaped additionalContext/systemMessage
+        # payloads, never a permissionDecision one.
+        contexts = []
+        messages = []
+        for chunk in stdout_chunks:
+            try:
+                parsed = json.loads(chunk)
+            except ValueError:
+                # Not the well-formed JSON every DEMOTE gate emits --
+                # forward as-is rather than corrupt the merged payload.
+                sys.stderr.write(chunk)
+                continue
+            hso = parsed.get("hookSpecificOutput") if isinstance(parsed, dict) else None
+            ctx = hso.get("additionalContext") if isinstance(hso, dict) else None
+            if ctx:
+                contexts.append(ctx)
+            sm = parsed.get("systemMessage") if isinstance(parsed, dict) else None
+            if sm:
+                messages.append(sm)
+        if contexts or messages:
+            merged = {"hookSpecificOutput": {"hookEventName": "PreToolUse"}}
+            if contexts:
+                merged["hookSpecificOutput"]["additionalContext"] = "\n".join(contexts)
+            if messages:
+                merged["systemMessage"] = "\n".join(messages)
+            sys.stdout.write(json.dumps(merged))
     return 2 if denied else 0
 
 
