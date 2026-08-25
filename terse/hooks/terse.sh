@@ -21,11 +21,19 @@ gate_kill_switch_active "${TERSE_OFF:-}" || { trap - EXIT; exit 0; }
 
 STATE_FILE="${HOME}/.claude/terse.level"
 LEVEL="full"
+NOTE=""
 if [ -f "$STATE_FILE" ]; then
-  LEVEL="$(tr -d '[:space:]' < "$STATE_FILE")"
+  if ! LEVEL="$(tr -d '[:space:]' < "$STATE_FILE" 2>/dev/null)"; then
+    # F7 (issue-305): an I/O failure reading the state file (e.g.
+    # permission denied) previously produced only a bare shell error on
+    # stderr, outside the directive text, with the emitted directive
+    # itself indistinguishable from a successfully-read "full" setting.
+    echo "terse.sh: cannot read $STATE_FILE; falling back to full" >&2
+    LEVEL="full"
+    NOTE=" NOTE: terse.level exists but could not be read (I/O error); full is in effect — tell the user."
+  fi
 fi
 
-NOTE=""
 case "$LEVEL" in
   off) exit 0 ;;
   lite)  STYLE="lite: full grammar; cut pleasantries and zero-information sentences" ;;
