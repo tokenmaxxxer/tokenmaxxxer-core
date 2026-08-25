@@ -80,13 +80,22 @@ def deny(msg):
     sys.exit(0)
 
 
-# --- load config (missing/unreadable/malformed file -> no-op, empty state) -
+# --- load config (missing/unreadable file -> no-op, documented empty state)
 config_path = os.environ["FK_CONFIG"]
 try:
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
-except (OSError, ValueError):
+except OSError:
     sys.exit(0)
+except ValueError as exc:
+    # F8 (issue-305): malformed JSON (the file exists but was broken by a
+    # bad merge/edit) previously took the same silent no-op path as a
+    # genuinely missing file -- zero diagnostic on either stream, gate
+    # disabled for every role, even for a payload that would otherwise
+    # deny. Distinct from the missing/unreadable case above, which stays
+    # silent by design (file header). Still advisory (exit 0, matches
+    # this file's own deny() design below) but now visible.
+    deny("config file %s is malformed JSON (%s); gate disabled for this call." % (config_path, exc))
 
 role = os.environ.get("FK_ROLE", "")
 facets = config.get(role) if isinstance(config, dict) else None
