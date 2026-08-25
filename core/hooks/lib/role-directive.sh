@@ -23,7 +23,10 @@
 # core's own directive.sh). Kill switch, per role, via
 # <ROLE>_CYCLE_OFF=1 (role name uppercased with `tr`, not bash 4's
 # `${var^^}`, to stay inside parse-check.sh's bash-3.2 compatibility
-# floor).
+# floor), tested via gate-lib.sh's shared gate_kill_switch_active so this
+# file carries no hand-rolled off-spelling case of its own (issue-304).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/gate-lib.sh" || { echo "role-directive.sh: cannot source gate-lib.sh" >&2; return 1; }
+
 core_role_directive() {
   local you_decide="$1" use_when="$2" produces="$3" hand_off="$4"
   local role="${CLAUDE_ROLE:-}"
@@ -33,7 +36,7 @@ core_role_directive() {
   role_upper="$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_')"
   local off_var="${role_upper}_CYCLE_OFF"
   eval "local off_val=\"\${${off_var}:-}\""
-  case "$off_val" in ""|0|false|no|off) ;; *) return 0 ;; esac
+  gate_kill_switch_active "$off_val" || return 0
 
   cat <<EOF
 [${role}] Role directive (on top of core's protocol):

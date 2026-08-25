@@ -99,6 +99,86 @@ build_now_in_fake=""
 case "$fake_no_build_now" in *"CORE_BUILD_NOW"*) build_now_in_fake=1 ;; esac
 report absent "${build_now_in_fake:-absent}" "empty-state fixture (no build-now rule) has no CORE_BUILD_NOW mention"
 
+# issue-304 (F19/F20 from the #301 sweep): gate-lib.sh's gate_kill_switch_active
+# was fixed to fail-active on an unrecognized value (issue-72), but
+# role-directive.sh and its three sibling *-directive.sh hooks kept their own
+# pre-fix inline case statement — any typo in the off-var silently disabled
+# the hook. Executed-live, per file: a typo value must keep the hook ACTIVE
+# (this is what the pre-fix code got wrong — it disabled on typo), the exact
+# on-spelling "1" must still disable it, and leaving the var unset must leave
+# the hook active and byte-unchanged (empty state).
+LIB="$HOOKS/lib/role-directive.sh"
+
+# The three top-level UserPromptSubmit hooks: run the real script as a
+# subprocess with the kill-switch env var set, and look for the hook's own
+# marker tag in stdout.
+run_hook_kill_switch() { # <script> <off-var> <marker>
+  local script="$1" off_var="$2" marker="$3"
+  local unset_out typo_out on_out
+  unset_out="$(bash "$HOOKS/$script" 2>/dev/null)"
+  typo_out="$(env "${off_var}=typo-not-a-real-spelling" bash "$HOOKS/$script" 2>/dev/null)"
+  on_out="$(env "${off_var}=1" bash "$HOOKS/$script" 2>/dev/null)"
+
+  case "$unset_out" in *"$marker"*) got=present ;; *) got=absent ;; esac
+  report present "$got" "$script: kill-switch unset (empty state) — hook active"
+
+  case "$typo_out" in *"$marker"*) got=present ;; *) got=absent ;; esac
+  report present "$got" "$script: typo value in \$$off_var keeps hook ACTIVE (was: disabled)"
+
+  case "$on_out" in *"$marker"*) got=present ;; *) got=absent ;; esac
+  report absent "$got" "$script: exact '1' in \$$off_var disables hook"
+}
+
+echo
+echo "--- issue-304: kill-switch drift, executed live ---"
+run_hook_kill_switch proposal-shape-directive.sh PROPOSAL_SHAPE_OFF "[proposal-shape-directive]"
+run_hook_kill_switch record-shape-directive.sh RECORD_SHAPE_OFF "[record-shape-directive]"
+run_hook_kill_switch survey-order-directive.sh SURVEY_ORDER_OFF "[survey-order-directive]"
+
+# role-directive.sh: a sourced library, not a standalone script — exercise
+# core_role_directive directly in a subshell per case, keyed off the
+# <ROLE>_CYCLE_OFF convention (core_role_directive uppercases CLAUDE_ROLE).
+role_directive_case() { # <off-value-or-empty>
+  (
+    CLAUDE_ROLE=implementation
+    export CLAUDE_ROLE
+    [ -z "$1" ] || { export IMPLEMENTATION_CYCLE_OFF="$1"; }
+    . "$LIB"
+    core_role_directive "YD" "UW" "PR" "HO"
+  ) 2>/dev/null
+}
+unset_out="$(role_directive_case "")"
+typo_out="$(role_directive_case "typo-not-a-real-spelling")"
+on_out="$(role_directive_case "1")"
+
+case "$unset_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+report present "$got" "role-directive.sh: kill-switch unset (empty state) — hook active"
+
+case "$typo_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+report present "$got" "role-directive.sh: typo value in \$IMPLEMENTATION_CYCLE_OFF keeps hook ACTIVE (was: disabled)"
+
+case "$on_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+report absent "$got" "role-directive.sh: exact '1' in \$IMPLEMENTATION_CYCLE_OFF disables hook"
+
+# Static drift guard: none of the 4 files may carry the pre-fix hand-rolled
+# off-spelling case branch again (matched joined-line, like
+# compliance-check.sh's own check, since the branch marker/exit/`;;` can be
+# split across physical lines) — covers both the `exit 0` shape (the three
+# top-level scripts) and the `return 0` shape (role-directive.sh, which
+# disables via `return` because it is sourced into a function, not exec'd).
+# Each file must also actually call the shared helper.
+for f in "$HOOKS/proposal-shape-directive.sh" "$HOOKS/record-shape-directive.sh" "$HOOKS/survey-order-directive.sh" "$LIB"; do
+  name="$(basename "$f")"
+
+  reimpl=absent
+  tr '\n' ' ' < "$f" | grep -qE '\*\)[[:space:]]*(exit|return)[[:space:]]+0[[:space:]]*;;' && reimpl=present
+  report absent "$reimpl" "$name: no hand-rolled '*) exit|return 0 ;;' off-spelling branch (drift guard)"
+
+  helper=absent
+  grep -q 'gate_kill_switch_active' "$f" && helper=present
+  report present "$helper" "$name: calls gate_kill_switch_active"
+done
+
 echo
 echo "directive-shape: $pass passed, $fail failed"
 [ "$fail" = 0 ]
