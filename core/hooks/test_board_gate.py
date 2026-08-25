@@ -14,8 +14,10 @@ path literal ever appears in a Bash command this test issues -- the repo's
 own board-gate would otherwise flag this test file's fixture setup as a
 mention of a board path.
 """
+import ast
 import json
 import os
+import re
 import subprocess
 
 import pytest
@@ -126,3 +128,72 @@ def test_own_record_write_via_heredoc_allowed(board):
     command = "cat <<'EOF' > docs/issue-198/reports/implementation.md\nloop_state: landed\nEOF"
     rc, err = run_gate(board, command)
     assert rc == 0, err
+
+
+# --- R5 (issue-2241 stage 3): author:-keyed ownership --------------------
+#
+# Ownership now keys off the record's own `author:` frontmatter field
+# (stage 1) instead of matching the writing session's role against the
+# record's filename -- a foreign-NAMED record still belongs to whoever
+# its `author:` line names, and a foreign-AUTHORED record still accepts
+# a provable append (never an edit of the existing lines).
+
+
+def _write_record(board, tail, author=None, body="body\n"):
+    path = board / "docs" / "issue-198" / "reports" / tail
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if author is None:
+        path.write_text(body)
+    else:
+        path.write_text("---\nauthor: %s\n---\n%s" % (author, body))
+    return path
+
+
+def test_author_bearing_record_accepts_append_from_its_own_author(board):
+    """A foreign-NAMED record (verify.md, not implementation.md) whose
+    `author:` matches the writing session's own identity is still that
+    session's own record now -- the filename no longer decides it."""
+    _write_record(board, "verify.md", author="implementation")
+    command = "cat <<'EOF' >> docs/issue-198/reports/verify.md\nmore\nEOF"
+    rc, err = run_gate(board, command)
+    assert rc == 0, err
+
+
+def test_author_bearing_record_refuses_edit_from_a_different_author(board):
+    """A truncating overwrite of a foreign-authored record is not a
+    provable append and is refused."""
+    _write_record(board, "verify.md", author="architecture")
+    rc, err = run_gate(board, "echo hi > docs/issue-198/reports/verify.md")
+    assert rc == 2
+    assert "authored by 'architecture'" in err
+
+
+def test_author_bearing_record_allows_append_from_a_different_author(board):
+    """Not read-only-foreign: a session may still add new content to a
+    record it doesn't own the header of, provided it does not alter the
+    existing author's lines -- a provable `>>` append."""
+    _write_record(board, "verify.md", author="architecture")
+    command = "cat <<'EOF' >> docs/issue-198/reports/verify.md\nmore\nEOF"
+    rc, err = run_gate(board, command)
+    assert rc == 0, err
+
+
+def test_author_less_legacy_record_still_enforces_role_filename_rule(board):
+    """A record predating stage 1 (on disk, but with no `author:` field
+    at all) falls back to the original role-filename rule, unchanged."""
+    _write_record(board, "verify.md", author=None, body="no frontmatter here\n")
+    rc, err = run_gate(board, "echo hi >> docs/issue-198/reports/verify.md")
+    assert rc == 2
+    assert "belongs to another role" in err
+
+
+def test_extra_subtree_keys_match_current_role_names():
+    """issue-2241 stage 3 (survey finding 2): EXTRA_SUBTREE's keys must
+    be real spawn.py role names, not the stale "feasibility"/"ops"
+    orphans -- grep the gate's own source for the dict literal."""
+    src = open(GATE, encoding="utf-8").read()
+    m = re.search(r"EXTRA_SUBTREE = (\{[^}]*\})", src)
+    assert m, "EXTRA_SUBTREE literal not found in board-gate.sh"
+    table = ast.literal_eval(m.group(1))
+    assert table == {"technical-feasibility": "spikes",
+                      "release-engineering": "postmortems"}

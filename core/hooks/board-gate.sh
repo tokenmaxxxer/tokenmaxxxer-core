@@ -85,7 +85,12 @@ DENY = 2
 BUCKETS = ("_assets", "decisions", "handbooks", "proposals", "reports",
            "specs")
 ISSUE_RE = re.compile(r"^issue-[0-9]+$")
-EXTRA_SUBTREE = {"feasibility": "spikes", "ops": "postmortems"}
+# issue-2241 stage 3 (survey finding 2): "feasibility"/"ops" are not, and
+# have never been, entries in spawn.py's ROLES tuple -- an orphaned
+# mapping. board.py's own equivalent check (board.py's foreign-write
+# trace) already uses the correct current role names; this brings
+# board-gate.sh's copy in line with it.
+EXTRA_SUBTREE = {"technical-feasibility": "spikes", "release-engineering": "postmortems"}
 
 def deny(msg):
     sys.stderr.write("board-gate: %s\n" % msg)
@@ -892,12 +897,119 @@ for parts in issue_hits:
          % (issue_dir, expected, branch, _own_issue or "?", issue_dir))
 
 # --- R5: reports/ ownership ---------------------------------------------
+# issue-2241 stage 3: ownership keys off the record's own `author:`
+# frontmatter field (stage 1) instead of matching the writing session's
+# role against the record's filename -- a lease (who currently holds the
+# right to work an issue right now) and authorship (who actually wrote
+# the content already sitting in a file) are different questions that
+# can legitimately disagree mid-flight: one session's lease expires,
+# another acquires it, and the record a foreign-write check must respect
+# is still keyed to whoever wrote what is already there. A record with
+# no `author:` field (written before stage 1 landed, or not yet created)
+# falls back to the original role-filename rule below unchanged -- no
+# legacy record becomes suddenly unwritable, and a brand-new record's
+# ownership is still decided by whose name it is filed under.
+AUTHOR_FIELD_RE = re.compile(r"(?m)^author:[ \t]*(\S+)[ \t]*$")
+
+
+def _record_text(path):
+    """The on-disk text of a record file, or None if it does not exist
+    (a brand-new record) or cannot be read as UTF-8 text."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return None
+    except UnicodeDecodeError:
+        return None
+
+
+def _record_author(text):
+    """The `author:` frontmatter value of a record's on-disk text, or
+    None when there is no on-disk text yet or no such field -- both
+    read identically by the fallback below (issue-2241 stage 3)."""
+    if text is None or not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    frontmatter = text[4:end if end >= 0 else len(text)]
+    m = AUTHOR_FIELD_RE.search(frontmatter)
+    return m.group(1) if m else None
+
+
+APPEND_ONLY_UNPROVABLE_HEADS = READ_UNLESS_INPLACE + WRITE_UNSAFE_HEADS
+
+
+def _bash_append_only(cmdline, tail):
+    """True only when every failing segment of `cmdline` that names this
+    docs/`tail` write target reaches it through a provable append: a
+    `>>` redirect (never a truncating bare `>`), or `tee -a`/`--append`.
+    A heredoc `<<TAG` feeding that same segment's own `>>` redirect (the
+    shape `cat <<'EOF' >> target`, already trusted elsewhere in this file
+    for target extraction) is not itself disqualifying -- the body is
+    masked before this scan runs, so only the visible redirect operator
+    on the `<<` line decides. Anything else this gate cannot prove
+    append-only from the command text alone -- an in-place edit (sed/awk
+    -i), awk's own `system()`/`w` write paths, `dd`, or a `tee` with no
+    `-a` -- denies, matching this gate's existing fail-closed posture for
+    unanalyzable write shapes (issue-225).
+    """
+    needle = DOCS + tail
+    probe = DEVNULL_REDIR.sub(" ", _mask_heredocs(cmdline))
+    found = False
+    for seg in _split_segments(probe):
+        stripped = seg.strip()
+        if not stripped:
+            continue
+        deq = gate_lib.gate_dequote(seg)
+        if needle not in deq:
+            continue
+        found = True
+        head = gate_lib.gate_head_of(stripped)
+        if head in APPEND_ONLY_UNPROVABLE_HEADS:
+            return False
+        if head == "tee":
+            words = gate_lib.gate_trailing_words(stripped)
+            if not any(w in ("-a", "--append") for w in words):
+                return False
+            continue
+        redirs = list(FILE_REDIR.finditer(deq))
+        if not redirs or any(m.group() != ">>" for m in redirs):
+            return False
+    return found
+
+
+def _write_is_append_only(existing_text, tail):
+    """True when this tool call cannot alter any line `existing_text`
+    already carries -- the allowance a foreign-authored record keeps
+    (contract v3 s11, issue-2241 stage 3): a session may add new content
+    to a record it does not own the header of, provided it does not
+    touch another author's existing lines. False whenever that can't be
+    proven from the tool call alone (fail closed)."""
+    if tool == "Bash":
+        return _bash_append_only(cmdline, tail)
+    new_text, ok = gate_lib.gate_reconstruct_write(tool, ti, existing_text)
+    return ok and new_text.startswith(existing_text)
+
+
 for parts in issue_hits:
     if len(parts) < 3 or parts[1] != "reports":
         continue
     tail = parts[2:]
     owner_file = role + ".md"
     extra = EXTRA_SUBTREE.get(role)
+    record_path = os.path.join(root, "docs", parts[0], "reports", *tail)
+    existing_text = _record_text(record_path)
+    author = _record_author(existing_text)
+    if author is not None:
+        if author == role:
+            continue
+        if _write_is_append_only(existing_text, "/".join(parts)):
+            continue
+        deny("docs/%s/reports/%s is authored by %r, not %r. A session may "
+             "append new content to a foreign-authored record but never "
+             "alter another author's existing lines. (contract v3 s11, "
+             "issue-2241 stage 3)"
+             % (parts[0], "/".join(tail), author, role))
     if tail[0] == owner_file and len(tail) == 1:
         continue
     if tail[0] == role:
