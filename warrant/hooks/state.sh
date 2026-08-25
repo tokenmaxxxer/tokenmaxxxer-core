@@ -43,6 +43,15 @@ STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
 STALE_SECONDS = 60 * 60 * 24 * 14  # 14 days
 
 
+# F5 (issue-305): a proposal with an opening `---` fence but no matching
+# closing fence was silently skipped, byte-identical to "not a proposal
+# file at all" — exactly the mid-edit/broken-frontmatter case a human is
+# most likely to need surfaced. _UNCLOSED distinguishes that from the
+# genuine not-a-proposal case (no opening fence) so it can be reported
+# instead of dropped.
+_UNCLOSED = object()
+
+
 def frontmatter(path):
     try:
         with open(path, encoding="utf-8-sig") as handle:
@@ -52,16 +61,22 @@ def frontmatter(path):
     if not text.startswith("---"):
         return None
     end = text.find("\n---", 3)
-    return text[3:end] if end != -1 else None
+    if end == -1:
+        return _UNCLOSED
+    return text[3:end]
 
 
 open_units = []
 closed_units = []
+malformed_units = []
 for name in sorted(os.listdir(proposals)):
     if not name.endswith(".md") or name == "README.md":
         continue
     block = frontmatter(os.path.join(proposals, name))
     if block is None:
+        continue
+    if block is _UNCLOSED:
+        malformed_units.append("docs/proposals/" + name)
         continue
     found = STATUS.search(block)
     status = found.group(1).lower() if found else "proposed"
@@ -70,7 +85,7 @@ for name in sorted(os.listdir(proposals)):
     elif status in ("withdrawn", "rejected"):
         closed_units.append((status, "docs/proposals/" + name))
 
-if not open_units and not closed_units:
+if not open_units and not closed_units and not malformed_units:
     sys.exit(0)
 
 def stale_suffix(path):
@@ -120,6 +135,13 @@ if closed_units:
     lines.append("warrant: closed (withdrawn/rejected) — history —")
     for status, path in closed_units:
         lines.append("  %s: %s" % (status.upper(), path))
+
+if malformed_units:
+    if lines:
+        lines.append("")
+    lines.append("warrant: malformed — never picked up, needs a human look —")
+    for path in malformed_units:
+        lines.append("  %s: opening --- frontmatter fence with no matching closing --- fence" % path)
 
 print("\n".join(lines))
 PY
