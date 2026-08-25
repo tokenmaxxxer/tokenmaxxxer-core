@@ -136,18 +136,32 @@ try:
             # even if it starts with `-` (e.g. a file literally named
             # `-setup.sh`). Dropping such tokens unconditionally would
             # silently exclude them from the projected staged set.
+            #
+            # F10 (issue-305): -A/--all/-u/--update carry no pathspec of
+            # their own but still stage a real (unbounded) set of files --
+            # they were previously dropped by the same "starts with -"
+            # skip as an ordinary ignored option, silently contributing
+            # nothing to the projection. `git add --dry-run` resolves them
+            # exactly like any other pathspec (it enumerates the real
+            # working-tree diff), so pass them through to the dry-run call
+            # instead of discarding them.
+            BULK_FLAGS = ("-A", "--all", "-u", "--update")
             pathspecs = []
+            bulk_flags = []
             seen_dashdash = False
             for t in add_toks:
                 if not seen_dashdash and t == "--":
                     seen_dashdash = True
                     continue
+                if not seen_dashdash and t in BULK_FLAGS:
+                    bulk_flags.append(t)
+                    continue
                 if not seen_dashdash and t.startswith("-"):
                     continue
                 pathspecs.append(t)
-            if not pathspecs:
+            if not pathspecs and not bulk_flags:
                 continue
-            dr = git("add", "--dry-run", "--", *pathspecs)
+            dr = git("add", "--dry-run", *bulk_flags, "--", *pathspecs)
             if dr is None:
                 deny(
                     "could not run `git add --dry-run` to project the staged set that "
