@@ -12,14 +12,8 @@
 # required only when execution diverged from the approved phase-1 proposal.
 # Kill switch: export RECORD_SHAPE_OFF=1
 
-# Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and
-# to most tooling, but any non-empty value used to disable the hook — the
-# kill switch silently killed it on exactly the spelling meant to keep it
-# alive.
-case "${RECORD_SHAPE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-shape-directive.sh: cannot source gate-lib.sh" >&2; exit 2; }
+gate_kill_switch_active "${RECORD_SHAPE_OFF:-}" || exit 0
 
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 cat <<EOF
