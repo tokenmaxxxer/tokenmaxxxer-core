@@ -236,6 +236,30 @@ verify.
   repo model; the multi-repo "any target repo" condition cannot be
   reproduced in this session (rule 2).
 
+## Skill verdicts
+
+skill-verdict: conformance-review-requirement-extraction — applied: invoked;
+used to split issue #305's bundled findings/acceptance text into the
+31 dimension-tagged, one-obligation-per-line items above (rule 1 splits,
+rule 4 reuses the issue's own stated acceptance derivation for
+requirements 1-7, rule 6 tags each item's dimension).
+skill-verdict: conformance-review-sampling-derivation — applied: invoked;
+used to conclude full enumeration over sampling for the 19-finding
+population (rule 5: the whole population is treated as one
+highest-impact tier — every finding lives in this repo's own
+highest-scrutiny hooks/gates class — and is exempted from sampling
+rather than drawing a subset).
+skill-verdict: conformance-review-verification-method-selection —
+applied: invoked; used to assign Demonstration/Test/Inspection/Analysis
+per requirement in the section above (rule 3 for the live-fire repros,
+rule 4 to reuse existing test suites rather than re-deriving parallel
+checks, rule 2 to flag the two unmeasurable operator-frozen constraints
+Unverifiable instead of inventing a threshold).
+other mounted skills: not triggered (conformance-review-traceability-and-evidence,
+conformance-review-verdict-assignment, conformance-review-finding-record,
+conformance-review-severity-classification are phase-2 concerns — no
+verdict has been rendered yet in this phase-1 survey/proposal pass).
+
 ## What phase 2 will actually do
 
 Independently re-execute `run-gate-shape-tests.sh` and `run-all.sh`
