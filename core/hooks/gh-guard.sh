@@ -35,11 +35,20 @@ payload="$(cat 2>/dev/null || true)"
 
 # Fast path: only Bash calls mentioning gh/git (or another HTTP client
 # capable of reaching the same REST/GraphQL endpoints) are adjudicated.
+# This matches the RAW, unparsed JSON text -- a payload that JSON-escapes
+# one character of the matched substring as \uXXXX (e.g. "gh" for
+# "gh") decodes to a byte-identical command string but never contains the
+# literal substring this fast path scans for, so it must never be trusted
+# to skip adjudication on its own (issue-303, F15). Any payload carrying a
+# JSON \u escape therefore falls through to the python judge unconditionally,
+# whether or not it also happens to match the plain-text patterns below.
 case "$payload" in
+  *'\u'*) ;;
   *'"Bash"'*) ;;
   *) trap - EXIT; exit 0 ;;
 esac
 case "$payload" in
+  *'\u'*) ;;
   *gh*|*git*|*curl*|*wget*|*http://*|*https://*) ;;
   *) trap - EXIT; exit 0 ;;
 esac

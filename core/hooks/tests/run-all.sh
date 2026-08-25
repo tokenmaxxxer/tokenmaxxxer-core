@@ -22,6 +22,9 @@ echo; echo "=== approval gate ==="
 echo; echo "=== gh guard ==="
 /bin/bash "$here/run-gh-guard-tests.sh" | tail -2 || rc=1
 
+echo; echo "=== gate shape (issue-303: \uXXXX-escape fast-path bypass) ==="
+/bin/bash "$here/run-gate-shape-tests.sh" | tail -2 || rc=1
+
 echo; echo "=== role-agnostic gates (trailer/record-fields/handbook-trigger) ==="
 /bin/bash "$here/run-role-gates-tests.sh" | tail -2 || rc=1
 
