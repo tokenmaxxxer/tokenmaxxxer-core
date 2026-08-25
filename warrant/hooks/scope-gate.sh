@@ -22,7 +22,16 @@ gate_trap_fail_closed
 set -uo pipefail
 gate_kill_switch_active "${WARRANT_OFF:-}" || { trap - EXIT; exit 0; }
 
-command -v python3 >/dev/null 2>&1 || { trap - EXIT; exit 0; }
+command -v python3 >/dev/null 2>&1 || {
+  # F4 (issue-305): fail-open here is deliberate (see file header) but was
+  # completely silent — the whole scope-enforcement mechanism went dark
+  # with no signal on either stream. Keep the fail-open exit 0; add the
+  # message so the gap is visible instead of indistinguishable from "no
+  # write-set violation."
+  echo "scope-gate.sh: python3 not found; write-set enforcement is not evaluated for this call (fails open by design)." >&2
+  trap - EXIT
+  exit 0
+}
 
 payload="$(cat)"
 
