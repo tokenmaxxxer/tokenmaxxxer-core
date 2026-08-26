@@ -3,8 +3,9 @@
 # output goes. This is the informing half of core — board-gate.sh is the
 # enforcing half; the two must describe the same rules (contract v3 s10).
 #
-# Injected only when CLAUDE_ROLE is set: a session on-the-record did not spawn is
-# not a role session, and the orchestrator's or user's own session needs no
+# Injected only for a spawned session (TOKENMAXXXER_SPAWNED or CLAUDE_ROLE
+# set, issue #327): a session on-the-record did not spawn is not a role
+# session, and the orchestrator's or user's own session needs no
 # behavioral directive. Kill switch: CORE_OFF=1.
 #
 # Anti-bloat criterion for this heredoc's own growth: mirror a contract rule
@@ -18,7 +19,13 @@ set -uo pipefail
 gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 role="${CLAUDE_ROLE:-}"
-[ -n "$role" ] || { trap - EXIT; exit 0; }
+# Presence test (issue #327, per on-the-record #2538): OR of
+# TOKENMAXXXER_SPAWNED and role, not the new var alone — no SessionStart
+# snapshot exists in core to fall back to, so unsetting only one of the
+# two spawner-set vars must not silently skip the directive. The role
+# NAME (used below to render the invariants block) still comes only from
+# CLAUDE_ROLE — that part is value-dependent, not presence.
+[ -n "${TOKENMAXXXER_SPAWNED:-}${role}" ] || { trap - EXIT; exit 0; }
 
 # Precondition probe (contract v3 s10): the target must be a git repo with
 # a GitHub-reachable remote, and gh must be authenticated — issues, PRs,

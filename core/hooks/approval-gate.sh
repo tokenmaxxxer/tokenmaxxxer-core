@@ -78,7 +78,12 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 # Not a role session: none of this gate's business. The user's and the
 # orchestrator's own sessions write src/ freely.
-[ -n "${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
+#
+# Presence test (issue #327, per on-the-record #2538): OR of
+# TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, not the new var alone — core has
+# no SessionStart snapshot to fall back to, so unsetting only one of the
+# two spawner-set vars must not flip this guard open. See gh-guard.sh.
+[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
 
 payload="$(cat 2>/dev/null || true)"
 [ -n "$payload" ] || { echo "approval-gate.sh: refused — empty tool-use payload on stdin; cannot evaluate the approval gate." >&2; exit 2; }

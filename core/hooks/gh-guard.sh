@@ -17,8 +17,16 @@
 #   git push targeting main/master               (output returns via PR only)
 #   gh api calls to reviews/merge endpoints      (the raw-API spelling)
 #
-# Sessions without CLAUDE_ROLE (the user's own, the orchestrator's) pass
-# through untouched. Fail closed on non-0/2. Kill switch: CORE_OFF=1.
+# Sessions without a role identity (the user's own, the orchestrator's)
+# pass through untouched. Fail closed on non-0/2. Kill switch: CORE_OFF=1.
+#
+# Presence test (issue #327, per on-the-record #2538): a role session is
+# one where TOKENMAXXXER_SPAWNED or CLAUDE_ROLE is set — OR, not just the
+# new var alone, so a session that unsets only one of the two spawner-set
+# vars cannot flip this guard into the pass-through branch and dodge the
+# deny below. core has no SessionStart snapshot (unlike on-the-record's
+# session-role-bind), so this OR is the presence test itself, not a
+# fallback to one.
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "gh-guard.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
@@ -29,7 +37,7 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 # writer see SIGPIPE.
 payload="$(cat 2>/dev/null || true)"
 
-[ -n "${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
+[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
 
 [ -n "$payload" ] || { echo "gh-guard.sh: refused — empty tool-use payload on stdin; cannot evaluate the gh guard." >&2; exit 2; }
 
