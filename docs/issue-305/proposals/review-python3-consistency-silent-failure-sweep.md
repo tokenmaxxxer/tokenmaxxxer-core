@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 files:
   - docs/issue-305/reports/conformance-review/survey.md
   - docs/issue-305/proposals/review-python3-consistency-silent-failure-sweep.md

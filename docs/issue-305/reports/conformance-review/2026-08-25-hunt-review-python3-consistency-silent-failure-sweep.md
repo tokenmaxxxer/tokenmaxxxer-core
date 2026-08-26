@@ -80,3 +80,13 @@ should not stay silent, printing nothing) when it fails to recognize a
 proposals directory that plainly exists on disk under `docs/`. As written,
 every issue-scoped proposal's write-set is unenforced by this mechanism, and
 nothing in the hook's output tells anyone that.
+
+## before-landing — skip
+
+date: 2026-08-26
+transition: before-landing
+Verdict: skip, docs-only, no before-landing dispatch. The phase-2 diff for
+this landing is exactly one file, `docs/issue-305/reports/conformance-review.md`
+(new), plus this hunt-record append — every touched path is under `docs/`,
+so per the warrant-protocol's docs-only fast path the before-landing hunter
+dispatch is skipped outright.
