@@ -4,19 +4,23 @@
 # parameterized dispatcher (issue-240). Each role's surface regex(es),
 # required file(s), and verification mechanism are carried over verbatim
 # from the original per-role script (the #237 equivalence table is the
-# frozen spec) into the ROLES table inside this script's Python payload.
-# Dispatch is first-match-wins over ROLES in the order below.
+# frozen spec) into the MECHANISMS table inside this script's Python
+# payload (issue-331: renamed from ROLES — the table is a static dispatch
+# list matched by each mechanism's own file_path/command, never a
+# validated identity axis; no CLAUDE_ROLE or other external value is read
+# anywhere in this file). Dispatch is first-match-wins over MECHANISMS in
+# the order below.
 #
 # survey-order-gate.sh (the 8th gate) is deliberately NOT folded in here
-# — see the note beside ROLES below and
+# — see the note beside MECHANISMS below and
 # docs/issue-240/reports/implementation.md's Rationale for deviations.
 #
-# Kill switch per role: each role's env var name is preserved verbatim
-# (e.g. ARCH_SEQUENCE_GATE_OFF) so existing operator overrides keep
-# working unchanged. Checked once the role's surface has matched; a role
-# whose kill switch is on is treated as "not this role's business" and
-# dispatch continues to the next role in table order (never a global
-# short-circuit).
+# Kill switch per mechanism: each mechanism's env var name is preserved
+# verbatim (e.g. ARCH_SEQUENCE_GATE_OFF) so existing operator overrides
+# keep working unchanged. Checked once the mechanism's surface has
+# matched; a mechanism whose kill switch is on is treated as "not this
+# mechanism's business" and dispatch continues to the next one in table
+# order (never a global short-circuit).
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "ordering-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 gate_trap_fail_closed
 set -uo pipefail
@@ -87,8 +91,8 @@ try:
 
     root = posixpath.normpath(os.environ["OG_ROOT"].replace("\\", "/"))
 
-    def deny(role, msg):
-        sys.stderr.write("%s: refused — %s\n" % (role, msg))
+    def deny(label, msg):
+        sys.stderr.write("%s: refused — %s\n" % (label, msg))
         sys.exit(2)
 
     def norm(path):
@@ -118,7 +122,7 @@ try:
     # ---- mechanism: content-design-phase1-basis (content-citation) --------
     def mech_content_design():
         SCOPE_RE = re.compile(r'^docs/issue-[0-9]+/proposals/.*content-design.*\.md$')
-        role = "content-design-phase1-basis"
+        label = "content-design-phase1-basis"
 
         def in_scope(tail):
             return tail is not None and SCOPE_RE.fullmatch(tail) is not None
@@ -126,7 +130,7 @@ try:
         if tool == "Bash":
             for tok in bash_targets:
                 if in_scope(norm(tok)):
-                    deny(role, "Bash-tool command appears to write to gated file '%s'; this gate cannot verify semantic content from a Bash write -- use Write/Edit/MultiEdit instead" % tok)
+                    deny(label, "Bash-tool command appears to write to gated file '%s'; this gate cannot verify semantic content from a Bash write -- use Write/Edit/MultiEdit instead" % tok)
             return None
         if tool not in ("Write", "Edit", "MultiEdit"):
             return None
@@ -136,10 +140,10 @@ try:
         abs_path = posixpath.join(root, rel)
         current = None if tool == "Write" else (open(abs_path, encoding="utf-8-sig").read() if os.path.isfile(abs_path) else None)
         if tool != "Write" and current is None:
-            deny(role, "cannot determine resulting content (base file unreadable)")
+            deny(label, "cannot determine resulting content (base file unreadable)")
         text, ok = gate_lib.gate_reconstruct_write(tool, ti, current)
         if not ok:
-            deny(role, "cannot determine resulting content (edit target not found or unsupported shape)")
+            deny(label, "cannot determine resulting content (edit target not found or unsupported shape)")
         survey_re = r'docs/issue-[0-9]+/reports/[\w-]+/survey\.md'
         if re.search(survey_re, text):
             return True
@@ -147,11 +151,11 @@ try:
             return True
         if re.search(r'skip(ped)?.{0,40}scout', text, re.IGNORECASE) or re.search(r'scout.{0,40}skip', text, re.IGNORECASE):
             return True
-        deny(role, "missing stated survey+scout basis (or documented skip)")
+        deny(label, "missing stated survey+scout basis (or documented skip)")
 
     # ---- mechanism: devrel-phase-order (file-existence) --------------------
     def mech_devrel():
-        role = "phase-order-gate"
+        label = "phase-order-gate"
         TARGET_RE = re.compile(r'^(docs/issue-[^/]+)/proposals/.*devrel.*\.md$', re.I)
         candidates = [file_path] if file_path else []
         if tool == "Bash":
@@ -170,11 +174,11 @@ try:
         survey_path = posixpath.join(root, issue_root, "reports", "devrel", "survey.md")
         if os.path.isfile(survey_path):
             return True
-        deny(role, "docs/issue-<n>/proposals/*.md written before %s/reports/devrel/survey.md exists — write survey.md first (phase-1 order: survey -> scout -> proposal)." % issue_root)
+        deny(label, "docs/issue-<n>/proposals/*.md written before %s/reports/devrel/survey.md exists — write survey.md first (phase-1 order: survey -> scout -> proposal)." % issue_root)
 
     # ---- mechanism: security-threat-model-sequence (file-existence) -------
     def mech_security_threat_model():
-        role = "security-threat-model"
+        label = "security-threat-model"
         PROPOSAL_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/.*security-threat-model.*\.md$', re.I)
         if tool not in ("Write", "Edit", "MultiEdit") or not file_path:
             return None
@@ -189,11 +193,11 @@ try:
         survey_abs = posixpath.join(root, survey_rel)
         if os.path.isfile(survey_abs):
             return True
-        deny(role, "%s is a phase-1 proposal write for issue-%s, but %s does not exist. Per contract v3 s19 rigor floor / scout-directive survey-first-order, phase-1 proposals require the survey to exist first." % (rel, issue_no, survey_rel))
+        deny(label, "%s is a phase-1 proposal write for issue-%s, but %s does not exist. Per contract v3 s19 rigor floor / scout-directive survey-first-order, phase-1 proposals require the survey to exist first." % (rel, issue_no, survey_rel))
 
     # ---- mechanism: incident-response-order (two-file, window-skip) -------
     def mech_incident_response():
-        role = "incident-response"
+        label = "incident-response"
         SURFACE_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/incident-response.*\.md$')
 
         def judge(path):
@@ -267,7 +271,7 @@ try:
                 missing.append(survey_rel)
             if not scout_exists:
                 missing.append(scout_rel)
-            deny(role, "write to %s requires phase-1 order (survey then scout-brief) to be on disk first, per docs/issue-7/proposals/incident-response.md §2 (issue-1 (a)(1)). Missing: %s. Create the missing file(s), or record an explicit, non-negated scout-skip (\"skip\"/\"scout\" near each other, or under a scout-heading section) in %s, before writing the proposal." % (rel, ", ".join(missing), survey_rel))
+            deny(label, "write to %s requires phase-1 order (survey then scout-brief) to be on disk first, per docs/issue-7/proposals/incident-response.md §2 (issue-1 (a)(1)). Missing: %s. Create the missing file(s), or record an explicit, non-negated scout-skip (\"skip\"/\"scout\" near each other, or under a scout-heading section) in %s, before writing the proposal." % (rel, ", ".join(missing), survey_rel))
 
         if tool == "Bash":
             matched = False
@@ -284,7 +288,7 @@ try:
 
     # ---- mechanism: interaction-design-stage-order (two-file + record) ----
     def mech_interaction_design():
-        role = "id-stage-order"
+        label = "id-stage-order"
         PROPOSAL_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/.*interaction-design.*\.md$', re.I)
         RECORD_RE = re.compile(r'^docs/issue-([0-9]+)/reports/interaction-design\.md$')
 
@@ -418,7 +422,7 @@ try:
             if not scout_ok:
                 missing.append("scout-brief.md")
             if missing:
-                deny(role, "new proposal at %s requires the prerequisite stage artifact(s) under docs/issue-%s/reports/interaction-design/ to already exist first: missing %s (scout-brief.md is excused only if survey.md itself records an explicit scout-skip). Per docs/issue-21/proposals/issue-21-interaction-design-gate-machine.md §4/§6, stage ordering is survey -> scout -> proposal." % (rel, issue_n, ", ".join(missing)))
+                deny(label, "new proposal at %s requires the prerequisite stage artifact(s) under docs/issue-%s/reports/interaction-design/ to already exist first: missing %s (scout-brief.md is excused only if survey.md itself records an explicit scout-skip). Per docs/issue-21/proposals/issue-21-interaction-design-gate-machine.md §4/§6, stage ordering is survey -> scout -> proposal." % (rel, issue_n, ", ".join(missing)))
             update_status(issue_n, "proposal")
             return True
 
@@ -428,7 +432,7 @@ try:
             proposals_dir = posixpath.join(root, "docs", "issue-%s" % issue_n, "proposals")
             has_proposal = os.path.isdir(proposals_dir) and any(f.endswith(".md") for f in os.listdir(proposals_dir))
             if not has_proposal:
-                deny(role, "phase-2 record write at %s requires at least one docs/issue-%s/proposals/*.md file to already exist on disk — none found. This plugin checks only that a proposal document exists (a purely local/offline precondition); it does NOT check GitHub or human approval itself — core's hooks/approval-gate.sh already fail-closed-blocks this same write until an allowlisted human's Approve exists on GitHub (contract v3 s19). Write the proposal and get it approved first." % (rel, issue_n))
+                deny(label, "phase-2 record write at %s requires at least one docs/issue-%s/proposals/*.md file to already exist on disk — none found. This plugin checks only that a proposal document exists (a purely local/offline precondition); it does NOT check GitHub or human approval itself — core's hooks/approval-gate.sh already fail-closed-blocks this same write until an allowlisted human's Approve exists on GitHub (contract v3 s19). Write the proposal and get it approved first." % (rel, issue_n))
             update_status(issue_n, "record")
             return True
 
@@ -436,7 +440,7 @@ try:
 
     # ---- mechanism: arch-sequence (two globs, two directions, Bash heur) --
     def mech_arch_sequence():
-        role = "arch-sequence-gate"
+        label = "arch-sequence-gate"
         PROPOSAL_RE = re.compile(r'^docs/(issue-[0-9]+)/proposals/.*architecture.*\.md$', re.I)
         RECORD_RE = re.compile(r'^docs/(issue-[0-9]+)/reports/architecture\.md$')
         BASH_WRITE_RE = re.compile(r'(?:^|[\s;&|])(?:>>?|tee\s+(?:-a\s+)?)\s*(["\']?)([^\s"\';|&<>]+)\1')
@@ -453,7 +457,7 @@ try:
                 m_bash = PROPOSAL_RE.match(rel_candidate) or RECORD_RE.match(rel_candidate)
                 if m_bash:
                     matched = True
-                    deny(role, "a Bash command appears to target %s (matched %s), which is a phase-ordering-gated path (docs/%s/proposals/*.md or the phase-2 record). arch-sequence-gate cannot reconstruct arbitrary shell output, so resulting-content computation is out of scope and this write is refused. Use Write/Edit/MultiEdit on this path instead." % (rel_candidate, token, m_bash.group(1)))
+                    deny(label, "a Bash command appears to target %s (matched %s), which is a phase-ordering-gated path (docs/%s/proposals/*.md or the phase-2 record). arch-sequence-gate cannot reconstruct arbitrary shell output, so resulting-content computation is out of scope and this write is refused. Use Write/Edit/MultiEdit on this path instead." % (rel_candidate, token, m_bash.group(1)))
             return True if matched else None
 
         if tool not in ("Write", "Edit", "MultiEdit") or not file_path:
@@ -474,18 +478,18 @@ try:
                 with open(abs_path, encoding="utf-8-sig") as fh:
                     current = fh.read(1 << 20)
             except OSError:
-                deny(role, "%s exists but cannot be read" % rel)
+                deny(label, "%s exists but cannot be read" % rel)
         new_text, ok = gate_lib.gate_reconstruct_write(tool, ti, current)
         content = new_text if ok else None
         if content is None:
-            deny(role, "this write targets %s but the resulting content cannot be determined from tool=%r input. Use Write, or an Edit/MultiEdit whose old_string matches, so phase ordering can be checked." % (rel, tool))
+            deny(label, "this write targets %s but the resulting content cannot be determined from tool=%r input. Use Write, or an Edit/MultiEdit whose old_string matches, so phase ordering can be checked." % (rel, tool))
 
         survey = posixpath.join(root, "docs", issue, "reports", "architecture", "survey.md")
         scout_brief = posixpath.join(root, "docs", issue, "reports", "architecture", "scout-brief.md")
 
         if not is_record:
             if not os.path.isfile(survey):
-                deny(role, "docs/%s/proposals/*.md is being written but docs/%s/reports/architecture/survey.md does not exist yet. Per contract v3 s19's rigor floor, the survey runs before the proposal." % (issue, issue))
+                deny(label, "docs/%s/proposals/*.md is being written but docs/%s/reports/architecture/survey.md does not exist yet. Per contract v3 s19's rigor floor, the survey runs before the proposal." % (issue, issue))
             return True
 
         m_ls = re.search(r'^\s*loop_state:\s*([A-Za-z0-9_-]+)\s*$', content, re.M)
@@ -516,12 +520,12 @@ try:
             if not skip_justified:
                 missing.append("scout-brief.md")
         if missing:
-            deny(role, "docs/%s/reports/architecture.md sets loop_state '%s' (decision-bearing) but required phase-1 artifact(s) are missing: %s. Per this role's phase-1/phase-2 ordering norm, all phase-1 artifacts for %s must exist first (or scout-brief.md may be justified-skipped in the proposal text)." % (issue, loop_state, ", ".join(missing), issue))
+            deny(label, "docs/%s/reports/architecture.md sets loop_state '%s' (decision-bearing) but required phase-1 artifact(s) are missing: %s. Per this role's phase-1/phase-2 ordering norm, all phase-1 artifacts for %s must exist first (or scout-brief.md may be justified-skipped in the proposal text)." % (issue, loop_state, ", ".join(missing), issue))
         return True
 
     # ---- mechanism: issue-retrospective-proposal-order (cross-file) -------
     def mech_issue_retrospective():
-        role = "issue-retrospective"
+        label = "issue-retrospective"
         RECORD_RE = re.compile(r'^docs/issue-([0-9]+)/reports/issue-retrospective\.md$')
         if tool not in ("Write", "Edit", "MultiEdit") or not file_path:
             return None
@@ -540,20 +544,20 @@ try:
                     prop_path = posixpath.join(prop_dir, name)
                     break
         if prop_path is None or not os.path.isfile(prop_path):
-            deny(role, "issue-retrospective record write for subject issue-%s targets %s but no phase-1 proposal (docs/issue-%s/proposals/*issue-retrospective*.md) exists on disk. Per contract v3 s19, phase 1 (proposal) must precede phase 2 (record)." % (subject_n, rel, subject_n))
+            deny(label, "issue-retrospective record write for subject issue-%s targets %s but no phase-1 proposal (docs/issue-%s/proposals/*issue-retrospective*.md) exists on disk. Per contract v3 s19, phase 1 (proposal) must precede phase 2 (record)." % (subject_n, rel, subject_n))
         try:
             with open(prop_path, encoding="utf-8-sig") as fh:
                 prop_text = fh.read(1 << 20)
         except OSError:
-            deny(role, "issue-retrospective record write for subject issue-%s targets %s but its phase-1 proposal at %s exists and cannot be read; failing closed on phase ordering." % (subject_n, rel, prop_path[len(root):].lstrip("/")))
+            deny(label, "issue-retrospective record write for subject issue-%s targets %s but its phase-1 proposal at %s exists and cannot be read; failing closed on phase ordering." % (subject_n, rel, prop_path[len(root):].lstrip("/")))
         low = prop_text.lower()
         names_survey = bool(re.search(r'reports/issue-retrospective/survey\.md|current-state survey', low))
         names_scout = bool(re.search(r'scout-brief\.md', low))
         explicit_skip = bool(re.search(r'scout(ing)? (was )?skipped|no design decision', low))
         if not names_survey:
-            deny(role, "phase-1 proposal for subject issue-%s (%s) does not name a survey path (docs/issue-%s/reports/issue-retrospective/survey.md). Per contract v3 s19, a phase-2 record write requires its own phase-1 proposal to name the survey it read." % (subject_n, prop_path[len(root):].lstrip("/"), subject_n))
+            deny(label, "phase-1 proposal for subject issue-%s (%s) does not name a survey path (docs/issue-%s/reports/issue-retrospective/survey.md). Per contract v3 s19, a phase-2 record write requires its own phase-1 proposal to name the survey it read." % (subject_n, prop_path[len(root):].lstrip("/"), subject_n))
         if not (names_scout or explicit_skip):
-            deny(role, "phase-1 proposal for subject issue-%s (%s) names no scout-brief path and no explicit scout-skip statement. Per the platform scout directive, a phase-1 proposal must either link its scout brief or record why scouting was skipped." % (subject_n, prop_path[len(root):].lstrip("/")))
+            deny(label, "phase-1 proposal for subject issue-%s (%s) names no scout-brief path and no explicit scout-skip statement. Per the platform scout directive, a phase-1 proposal must either link its scout brief or record why scouting was skipped." % (subject_n, prop_path[len(root):].lstrip("/")))
         return True
 
     # survey-order-gate.sh stays a separate script (not folded in here):
@@ -564,9 +568,16 @@ try:
     # tests/test_ordering_gates_237.py from pass to fail (see
     # docs/issue-240/reports/implementation.md, Rationale for deviations).
 
-    # role table: (kill-switch env var name, mechanism function) for the
-    # 7 filename-scoped roles only.
-    ROLES = [
+    # dispatch table: (kill-switch env var name, mechanism function) for
+    # the 7 filename-scoped ordering mechanisms below. This is a static
+    # routing table over this file's OWN mech_* functions, never a
+    # validated identity axis -- no CLAUDE_ROLE (or any external value) is
+    # read or matched against it anywhere in this file; each mech_*
+    # decides applicability purely from the write's own file_path/command
+    # (issue-331: renamed from ROLES to drop the closed-role-vocabulary
+    # framing this table's name implied, even though its behavior never
+    # validated an external value against a closed set).
+    MECHANISMS = [
         ("CONTENT_DESIGN_PHASE1_BASIS_GATE_OFF", mech_content_design),
         ("PHASE_ORDER_GATE_OFF", mech_devrel),
         ("SECURITY_THREAT_MODEL_SEQUENCE_GATE_OFF", mech_security_threat_model),
@@ -576,13 +587,13 @@ try:
         ("ISSUE_RETROSPECTIVE_PROPOSAL_ORDER_GATE_OFF", mech_issue_retrospective),
     ]
 
-    for env_name, mech in ROLES:
+    for env_name, mech in MECHANISMS:
         if on(os.environ.get(env_name, "")):
             continue
         result = mech()
         if result is True:
             sys.exit(0)
-        # result is None: not this role's business, try the next role.
+        # result is None: not this mechanism's business, try the next one.
 
     sys.exit(0)
 except SystemExit:
