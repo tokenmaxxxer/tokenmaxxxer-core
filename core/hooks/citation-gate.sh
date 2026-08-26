@@ -9,17 +9,17 @@
 # security-threat-model's canon-citation methodology-gate,
 # technical-feasibility's evidence-citation gate, and test-authoring's
 # traceability-line gate. Behavior-equivalent per hook under its own row
-# of core/hooks/citation-config.json, keyed by CLAUDE_ROLE (one role may
-# carry several rows — interaction-design carries 2, run independently
-# against the same reconstructed write).
+# of core/hooks/citation-config.json — a flat list (issue #331: the role
+# axis is retired here; a row applies whenever its OWN target_path_regex
+# matches the write, never gated on who/what the acting session is).
 #
 # Promote-first: none of the 11 source hooks or their rulebooks'
 # hooks.json entries are touched by this fold; they keep running
 # unmodified.
 #
-# Empty-state / no-config-file: an acting role with no config row, or a
-# missing/unreadable config file, passes through silently (exit 0) —
-# same as a source hook whose target-path regex never matches.
+# Empty-state / no-config-file: a missing/unreadable/empty config file
+# passes through silently (exit 0) — same as a row whose target-path
+# regex never matches.
 #
 # Kill switch (whole gate): export CITATION_GATE_OFF=1
 # Kill switch (one row): its own kill_switch_env, e.g.
@@ -33,7 +33,6 @@ command -v python3 >/dev/null 2>&1 || gate_deny "citation-gate" "python3 not fou
 
 CIT_CONFIG="${CITATION_CONFIG:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/citation-config.json}"
 export CIT_CONFIG
-export CIT_ROLE="${CLAUDE_ROLE:-}"
 export CIT_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 export CIT_BRANCH="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 
@@ -86,10 +85,10 @@ try:
 except (OSError, ValueError):
     sys.exit(0)
 
-role = os.environ.get("CIT_ROLE", "")
-rows = config.get(role) if isinstance(config, dict) else None
+rows = config if isinstance(config, list) else None
 if not rows:
-    sys.exit(0)  # no citation row configured for this role -- empty state
+    sys.exit(0)  # no rows configured, or config is still the old role-keyed
+                 # shape -- empty state
 
 root = os.environ.get("CIT_PROJECT_DIR") or os.getcwd()
 branch = os.environ.get("CIT_BRANCH", "")
