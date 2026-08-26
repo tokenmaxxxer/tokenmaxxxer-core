@@ -35,7 +35,17 @@ fi
 base="${1:?usage: hunt-tier.sh <base-ref> [<head-ref>]}"
 head="${2:-HEAD}"
 
-diff_stat="$(git diff --numstat "$base" "$head" -- 2>/dev/null)"
+diff_stat="$(git diff --numstat "$base" "$head" -- 2>&1)"
+diff_rc=$?
+
+if [ "$diff_rc" -ne 0 ]; then
+  # F1 (issue-305): a bad/typo'd ref (git exit 128) produced no stdout,
+  # same as a genuinely empty diff — distinguish them so a broken base ref
+  # surfaces instead of silently cancelling the hunter dispatch.
+  echo "$diff_stat" >&2
+  echo "tier=none cap_seconds=0 max_stances=0 reason=git-diff-failed(rc=$diff_rc)"
+  exit 0
+fi
 
 if [ -z "$diff_stat" ]; then
   echo "tier=none cap_seconds=0 max_stances=0 reason=empty-diff"

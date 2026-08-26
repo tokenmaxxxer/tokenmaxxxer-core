@@ -673,5 +673,13 @@ sys.exit(0)
 PYEOF
 PY_EXIT=$?
 
-trap - EXIT
+# F14 (issue-305): the fail-closed EXIT trap (gate_trap_fail_closed)
+# exists to remap any non-0/2 exit to 2, but disarming it here before
+# re-exiting with the raw Python exit code let a config-authoring bug
+# (e.g. a bad regex in citation-config.json raising re.error, exit 1)
+# bypass the remap entirely -- exit 1 is non-blocking per Claude Code's
+# own convention (gate-lib.sh's doc comment), so the whole gate silently
+# disabled for that row with only a buried stderr traceback. Leaving the
+# trap armed is safe: it only acts when rc is neither 0 nor 2, so a
+# legitimate PY_EXIT of 0 or 2 passes through unchanged.
 exit "$PY_EXIT"

@@ -66,9 +66,24 @@ try:
         sys.exit(2)
 
     tool = ev.get("tool_name")
-    ti = ev.get("tool_input")
-    if not isinstance(ti, dict):
-        ti = {}
+    ti_raw = ev.get("tool_input")
+    if tool in ("Write", "Edit", "MultiEdit") and (
+        not isinstance(ti_raw, dict)
+        or ("file_path" in ti_raw and not isinstance(ti_raw.get("file_path"), str))
+    ):
+        # F11 (issue-305): a non-dict tool_input or a non-string file_path
+        # made every phase-ordering mechanism below return None (file_path
+        # stayed unset), falling through to the unconditional final
+        # sys.exit(0) -- a completely silent allow with no trace the gate
+        # ever saw the call. The well-typed-string form of the identical
+        # target denies correctly, so a malformed-type payload must not be
+        # a way to dodge that.
+        sys.stderr.write(
+            "ordering-gate: refused — %s tool_input is malformed (must be an object with a string "
+            "file_path); failing closed rather than silently treating this as no write\n" % tool
+        )
+        sys.exit(2)
+    ti = ti_raw if isinstance(ti_raw, dict) else {}
 
     root = posixpath.normpath(os.environ["OG_ROOT"].replace("\\", "/"))
 
@@ -300,9 +315,31 @@ try:
                         with open(status_path, encoding="utf-8") as fh:
                             data = json.load(fh)
                         if not isinstance(data, dict):
-                            data = {}
-                    except Exception:
-                        data = {}
+                            raise ValueError("status file root is not a JSON object")
+                    except Exception as _load_e:
+                        # F12 (issue-305): a read/parse failure previously
+                        # reset the ENTIRE multi-issue document to {} —
+                        # writing this subject's fresh entry back then
+                        # silently erased every other tracked issue's
+                        # stage history. Decline to write back at all
+                        # instead: this subject's own progress goes
+                        # unrecorded for this one call, which is a far
+                        # smaller loss than destroying every other issue's
+                        # history, and the warning below is now visible on
+                        # the allow path too (F13).
+                        _state_msg = (
+                            "id-stage-order: warning: %s is corrupt or unreadable (%r); declining to "
+                            "update it rather than silently resetting every other tracked issue's "
+                            "stage history to empty." % (status_path, _load_e)
+                        )
+                        sys.stderr.write(_state_msg + "\n")
+                        print(json.dumps({
+                            "hookSpecificOutput": {
+                                "hookEventName": "PreToolUse",
+                                "additionalContext": _state_msg,
+                            }
+                        }))
+                        return
                 if subject not in data or not isinstance(data.get(subject), dict):
                     data[subject] = {}
                 survey_p = posixpath.join(status_dir, "survey.md")
@@ -334,7 +371,22 @@ try:
                 with open(status_path, "w", encoding="utf-8") as fh:
                     json.dump(data, fh, indent=2)
             except Exception as _state_e:
-                sys.stderr.write("id-stage-order: warning: could not update status file: %r\n" % (_state_e,))
+                # F13 (issue-305): this warning previously fired only on
+                # stderr, but this is the invisible allow path (exit 0) --
+                # per this hook's own convention (see the advisory
+                # deny()-style hookSpecificOutput used elsewhere in this
+                # repo, e.g. facet-keyword-gate.sh), stderr on an allow is
+                # not surfaced to the model/human the way a deny (exit 2)
+                # is. Also emit it via additionalContext, the channel that
+                # is visible regardless of exit code.
+                _state_msg = "id-stage-order: warning: could not update status file: %r" % (_state_e,)
+                sys.stderr.write(_state_msg + "\n")
+                print(json.dumps({
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": _state_msg,
+                    }
+                }))
 
         m = PROPOSAL_RE.match(rel)
         if m:

@@ -96,12 +96,29 @@ def allow():
     sys.exit(0)
 
 
+def deny_or_allow_unparseable():
+    # F2 (issue-305): a well-formed dispatch is correctly refused once the
+    # session cap is hit; malformed/truncated JSON for what is plausibly
+    # the same dispatch must not be a silent bypass of that cap. Scoped to
+    # payloads that raw-text mention a dispatch-shaped tool_name — this
+    # hook's matcher is `.*` (every tool call), so failing closed on every
+    # unparseable payload regardless of content would block unrelated
+    # tool calls (Read, Bash, ...) on any harness JSON hiccup.
+    raw = os.environ.get("WARRANT_PAYLOAD", "")
+    if any(needle in raw for needle in ('"Agent"', '"Task"', '"Workflow"')):
+        print("warrant: unreadable PreToolUse payload while a possible Agent/Task/Workflow "
+              "dispatch is in flight; refusing rather than letting the hunter cap be silently "
+              "bypassed by a garbled payload.", file=sys.stderr)
+        sys.exit(2)
+    allow()
+
+
 try:
     event = json.loads(os.environ.get("WARRANT_PAYLOAD", ""))
 except ValueError:
-    allow()
+    deny_or_allow_unparseable()
 if not isinstance(event, dict):
-    allow()
+    deny_or_allow_unparseable()
 
 tool = event.get("tool_name") or ""
 if tool not in ("Agent", "Task", "Workflow"):
@@ -167,11 +184,26 @@ if os.path.exists(lock):
           % (age, STALE_SECONDS), file=sys.stderr)
     sys.exit(2)
 
-try:
-    with open(count) as handle:
-        used = int(handle.read().strip() or "0")
-except (OSError, ValueError):
-    used = 0
+used = 0
+if os.path.exists(count):
+    try:
+        with open(count) as handle:
+            raw_count = handle.read().strip()
+    except OSError as exc:
+        print("warrant: cannot read hunt count file %s (%s); declining to dispatch one." % (count, exc),
+              file=sys.stderr)
+        sys.exit(2)
+    if raw_count:
+        try:
+            used = int(raw_count)
+        except ValueError:
+            # F3 (issue-305): mirror the lock-corruption handling a few
+            # lines above instead of silently resetting the session cap to
+            # full budget on the identical kind of corruption.
+            print("warrant: hunt count file %s is corrupt (%r) — treating as budget exceeded "
+                  "rather than silently resetting to 0. Clear it if that is not what you want: "
+                  "rm %s" % (count, raw_count, count), file=sys.stderr)
+            sys.exit(2)
 
 cap = int(os.environ.get("WARRANT_HUNT_MAX", "3"))
 if used >= cap:

@@ -10,5 +10,5 @@
 # (board-gate.sh et al: `command -v python3 || exit 2`), so the
 # chain-level outcome without python3 was a deny; preserved here.
 set -uo pipefail
-command -v python3 >/dev/null 2>&1 || exit 2
+command -v python3 >/dev/null 2>&1 || { echo "pretooluse-dispatcher.sh: refused — python3 not found; cannot evaluate gate" >&2; exit 2; }
 exec python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/pretooluse_dispatcher.py"

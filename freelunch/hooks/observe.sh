@@ -42,7 +42,26 @@ log_path = sys.argv[1]
 enforce = os.environ.get("FREELUNCH_ENFORCE") == "1"
 try:
     payload = json.loads(os.environ.get("OBSERVE_PAYLOAD", ""))
-except Exception:
+except Exception as exc:
+    # F6 (issue-305): a malformed/truncated payload previously left
+    # neither a deny decision nor a log line -- the audit trail this file
+    # exists to keep gained no row at all, indistinguishable from "nothing
+    # was dispatched this turn." Log an anomaly row instead (never a deny
+    # -- tool_name is unrecoverable from broken JSON) so the bypass at
+    # least leaves a trace, same rationale as the log-unwritable case
+    # below.
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "tool": "unknown",
+                "violations": ["unparseable_payload"],
+                "enforced": False,
+                "parse_error": str(exc),
+            }, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
     sys.exit(0)
 
 tool = payload.get("tool_name", "")
