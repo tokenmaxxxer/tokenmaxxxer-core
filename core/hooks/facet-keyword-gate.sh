@@ -4,16 +4,16 @@
 # customer-support's escalation-path/five-whys/kcs/playbook-scenario/
 # sla-tier gates, finance-unit-economics' sensitivity-scenario gate, and
 # sales' playbook gate. Behavior-equivalent per hook under its own row of
-# core/hooks/facet-keyword-config.json, keyed by CLAUDE_ROLE (one role may
-# carry several facet rows — customer-support carries 5, run
-# independently against the same reconstructed write).
+# core/hooks/facet-keyword-config.json — a flat list (issue #331: the role
+# axis is retired here; a row applies whenever its OWN target_path_regex
+# matches the write, never gated on who/what the acting session is).
 #
 # Promote-first: none of the 8 source hooks or their rulebooks' hooks.json
 # entries are touched by this fold; they keep running unmodified.
 #
-# Empty-state / no-config-file: an acting role with no config row, or a
-# missing/unreadable config file, passes through silently (exit 0) — same
-# as a source hook whose target-path regex never matches.
+# Empty-state / no-config-file: a missing/unreadable/empty config file
+# passes through silently (exit 0) — same as a row whose target-path
+# regex never matches.
 #
 # Kill switch (whole gate): export FACET_KEYWORD_GATE_OFF=1
 # Kill switch (one facet row): its own kill_switch_env, e.g.
@@ -37,7 +37,6 @@ fi
 
 FK_CONFIG="${FACET_KEYWORD_CONFIG:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/facet-keyword-config.json}"
 export FK_CONFIG
-export FK_ROLE="${CLAUDE_ROLE:-}"
 export FK_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 # payload travels via env, never re-read from stdin inside the heredoc
@@ -97,10 +96,10 @@ except ValueError as exc:
     # this file's own deny() design below) but now visible.
     deny("config file %s is malformed JSON (%s); gate disabled for this call." % (config_path, exc))
 
-role = os.environ.get("FK_ROLE", "")
-facets = config.get(role) if isinstance(config, dict) else None
+facets = config if isinstance(config, list) else None
 if not facets:
-    sys.exit(0)  # no facet configured for this role -- empty state, pass through
+    sys.exit(0)  # no facets configured, or config is still the old
+                 # role-keyed shape -- empty state, pass through
 
 root = os.environ.get("FK_PROJECT_DIR") or os.getcwd()
 raw = os.environ.get("FK_PAYLOAD", "")

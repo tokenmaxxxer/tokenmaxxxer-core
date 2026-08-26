@@ -1,128 +1,202 @@
-{
-  "content-design": [
-    {
-      "hook": "tone-axis",
-      "kill_switch_env": "CONTENT_DESIGN_TONE_AXIS_GATE_OFF",
-      "target_path_regex": "^docs/issue-[0-9]+/reports/content-design\\.md$",
-      "check_type": "header_present_or_skip",
-      "header_split_regex": "^#{2,4}\\s.*string.*$",
-      "present_regex": "(funny|serious|formal|casual|respectful|irreverent|enthusiastic|matter-of-fact)",
-      "skip_regex": "skip.{0,30}(reason|because)",
-      "skip_secondary_regex": "not applicable",
-      "skip_secondary_context_regex": "tone",
-      "skip_secondary_window": 60,
-      "no_sections_message": "no per-string section header found -- cannot verify per-string tone-axis spec",
-      "missing_message_template": "copy string '{header}' missing tone-axis check (present-or-skipped-with-reason required)"
-    }
-  ],
-  "customer-support": [
-    {
-      "hook": "escalation-path",
-      "kill_switch_env": "CUSTOMER_SUPPORT_ESCALATION_PATH_GATE_OFF",
-      "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
-      "check_type": "trigger_required_elements",
-      "trigger_regex": "escalation path",
-      "section_scope_regex": "escalation path",
-      "required_elements": [
-        {"tag": "escalation-field:trigger", "regex": "trigger"},
-        {"tag": "escalation-field:owner", "regex": "owner"},
-        {"tag": "escalation-field:timeout", "regex": "timeout"}
-      ],
-      "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "escalation-field write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an escalation path where every tier row/block states a trigger condition, a named owner (a role/title, not a generic 'the team'), and a timeout, within the escalation-path section itself."
-    },
-    {
-      "hook": "five-whys",
-      "kill_switch_env": "CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF",
-      "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
-      "check_type": "trigger_count",
-      "trigger_regex": "repeat|recurring",
-      "label_regex": "5-whys|five whys",
-      "count_regex": "\\?\\s*$",
-      "min_count": 5,
-      "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "recurring-pattern write is missing required element(s): 5-whys-check. Per {doc_ref}, every deliverable/record write must carry: when content flags a repeat/recurring inbound pattern: a 5-whys check with at least 5 distinct question-shaped lines, present in the same section, before any hand-off decision. This mechanical check verifies presence-and-count of question-shaped lines only ('5-whys' label + >=5 lines ending '?') -- it does not verify that the five questions match checklists/5-whys-recurring.md's specific causal-chain questions, nor the checklist's §2.5 convergence rule; those remain the judgment layer's responsibility."
-    },
-    {
-      "hook": "kcs",
-      "kill_switch_env": "CUSTOMER_SUPPORT_KCS_GATE_OFF",
-      "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
-      "check_type": "marker_required_elements",
-      "marker_primary_regex": "^#+ .*scenario",
-      "marker_secondary_regex": "scenario|playbook",
-      "required_elements": [
-        {"tag": "kcs-element:issue", "regex": "^\\s*#*\\s*issue\\s*:"},
-        {"tag": "kcs-element:environment", "regex": "^\\s*#*\\s*environment\\s*:"},
-        {"tag": "kcs-element:resolution", "regex": "^\\s*#*\\s*resolution\\s*:"},
-        {"tag": "kcs-element:cause", "regex": "^\\s*#*\\s*cause\\s*:"},
-        {"tag": "kcs-element:metadata", "regex": "^\\s*#*\\s*(metadata|state|maturity)\\s*:"}
-      ],
-      "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "kcs write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each handbook article/scenario entry: KCS Content Standard fields Issue, Environment, Resolution, Cause, and Metadata (a reuse/lifecycle state field), each as its own labeled line -- not merely the word mentioned in passing prose."
-    },
-    {
-      "hook": "playbook-scenario",
-      "kill_switch_env": "CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF",
-      "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
-      "check_type": "marker_required_elements",
-      "marker_primary_regex": "^#+ .*scenario",
-      "marker_secondary_regex": "scenario|playbook",
-      "required_elements": [
-        {"tag": "playbook-element:trigger-or-scenario", "regex": "^\\s*#*\\s*(trigger|scenario)\\s*:"},
-        {"tag": "playbook-element:decision-criteria", "regex": "^\\s*#*\\s*decision criteria\\s*:"},
-        {"tag": "playbook-element:script-or-response", "regex": "^\\s*#*\\s*(script|response template|response)\\s*:"},
-        {"tag": "playbook-element:escalation-condition", "regex": "^\\s*#*\\s*escalation condition\\s*:"}
-      ],
-      "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "playbook-scenario write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each playbook scenario: a trigger/scenario description, decision criteria, a script/response template, and an escalation condition, each as its own labeled line -- not merely the word mentioned in passing prose."
-    },
-    {
-      "hook": "sla-tier",
-      "kill_switch_env": "CUSTOMER_SUPPORT_SLA_TIER_GATE_OFF",
-      "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
-      "check_type": "table_header_columns",
-      "columns": [
-        {"tag": "sla-table-column:priority", "regex": "priority"},
-        {"tag": "sla-table-column:impact", "regex": "impact"},
-        {"tag": "sla-table-column:urgency", "regex": "urgency"},
-        {"tag": "sla-table-column:first-response", "regex": "first response"},
-        {"tag": "sla-table-column:resolution", "regex": "resolution"},
-        {"tag": "sla-table-column:escalation-trigger", "regex": "escalation trigger"}
-      ],
-      "doc_ref": "docs/issue-1/proposals/customer-support.md §2",
-      "deny_message_template": "sla-table write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an SLA table with header-row columns Priority tier, Impact rating, Urgency rating, First response time target, Resolution time target, Escalation trigger time, each row derived from the ITIL Impact×Urgency priority matrix."
-    }
-  ],
-  "finance-unit-economics": [
-    {
-      "hook": "sensitivity-scenario",
-      "kill_switch_env": "FINANCE_SENSITIVITY_SCENARIO_GATE_OFF",
-      "target_path_regex": "^docs/issue-[0-9]+/reports/finance-unit-economics\\.md$",
-      "check_type": "heading_scenario_min_labels",
-      "trigger_word": "sensitivity",
-      "heading_scope_regex": "sensitivity|scenario",
-      "label_regex": "\\bscenario\\s*\\d\\b|\\bbase case\\b|\\bdownside\\b|\\bupside\\b|\\bbull\\b|\\bbear\\b",
-      "min_distinct": 2,
-      "deny_message_template": "sensitivity section present with fewer than two labeled numeric scenarios WITHIN the sensitivity/scenario section itself. Per docs/handbooks/finance-unit-economics/methodology.md, give at least two distinct scenarios (e.g. base case vs. downside) inside the actual sensitivity section -- labels parked under an unrelated heading do not count."
-    }
-  ],
-  "sales": [
-    {
-      "hook": "playbook",
-      "kill_switch_env": "SALES_PLAYBOOK_GATE_OFF",
-      "target_path_regex": "^docs/issue-[0-9]+/reports/sales\\.md$",
-      "check_type": "heading_sections_required",
-      "mentions_regex": "playbook",
-      "section_aliases": {
-        "process-overview": ["process overview"],
-        "qualification-framework": ["qualification framework"],
-        "icp-persona": ["icp / persona summary", "icp/persona summary", "icp persona summary", "buyer persona", "persona summary", "icp"],
-        "objection-handling-competitive-notes": ["objection-handling and competitive notes", "objection handling and competitive notes", "objection-handling", "objection handling", "competitive notes"],
-        "metrics": ["metrics"]
+[
+  {
+    "hook": "tone-axis",
+    "kill_switch_env": "CONTENT_DESIGN_TONE_AXIS_GATE_OFF",
+    "target_path_regex": "^docs/issue-[0-9]+/reports/content-design\\.md$",
+    "check_type": "header_present_or_skip",
+    "header_split_regex": "^#{2,4}\\s.*string.*$",
+    "present_regex": "(funny|serious|formal|casual|respectful|irreverent|enthusiastic|matter-of-fact)",
+    "skip_regex": "skip.{0,30}(reason|because)",
+    "skip_secondary_regex": "not applicable",
+    "skip_secondary_context_regex": "tone",
+    "skip_secondary_window": 60,
+    "no_sections_message": "no per-string section header found -- cannot verify per-string tone-axis spec",
+    "missing_message_template": "copy string '{header}' missing tone-axis check (present-or-skipped-with-reason required)"
+  },
+  {
+    "hook": "escalation-path",
+    "kill_switch_env": "CUSTOMER_SUPPORT_ESCALATION_PATH_GATE_OFF",
+    "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
+    "check_type": "trigger_required_elements",
+    "trigger_regex": "escalation path",
+    "section_scope_regex": "escalation path",
+    "required_elements": [
+      {
+        "tag": "escalation-field:trigger",
+        "regex": "trigger"
       },
-      "messaging_scope_keys": ["objection-handling-competitive-notes", "metrics"],
-      "messaging_needles": ["messaging script", "positioning copy", "sample email:", "email template", "call script"],
-      "deny_message_template": "sales playbook deliverable is missing required element(s) or crosses the marketing hand-off boundary: {missing}. Per docs/issue-1/proposals/methodology-norms.md (b) Sales playbook: all five sections (process overview, qualification framework, ICP/persona, objection-handling, metrics) must be present as actual headings, and messaging scripts/positioning copy must be referenced from marketing's assets, never duplicated inline."
-    }
-  ]
-}
+      {
+        "tag": "escalation-field:owner",
+        "regex": "owner"
+      },
+      {
+        "tag": "escalation-field:timeout",
+        "regex": "timeout"
+      }
+    ],
+    "doc_ref": "docs/issue-1/proposals/customer-support.md \u00a72",
+    "deny_message_template": "escalation-field write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an escalation path where every tier row/block states a trigger condition, a named owner (a role/title, not a generic 'the team'), and a timeout, within the escalation-path section itself."
+  },
+  {
+    "hook": "five-whys",
+    "kill_switch_env": "CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF",
+    "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
+    "check_type": "trigger_count",
+    "trigger_regex": "repeat|recurring",
+    "label_regex": "5-whys|five whys",
+    "count_regex": "\\?\\s*$",
+    "min_count": 5,
+    "doc_ref": "docs/issue-1/proposals/customer-support.md \u00a72",
+    "deny_message_template": "recurring-pattern write is missing required element(s): 5-whys-check. Per {doc_ref}, every deliverable/record write must carry: when content flags a repeat/recurring inbound pattern: a 5-whys check with at least 5 distinct question-shaped lines, present in the same section, before any hand-off decision. This mechanical check verifies presence-and-count of question-shaped lines only ('5-whys' label + >=5 lines ending '?') -- it does not verify that the five questions match checklists/5-whys-recurring.md's specific causal-chain questions, nor the checklist's \u00a72.5 convergence rule; those remain the judgment layer's responsibility."
+  },
+  {
+    "hook": "kcs",
+    "kill_switch_env": "CUSTOMER_SUPPORT_KCS_GATE_OFF",
+    "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
+    "check_type": "marker_required_elements",
+    "marker_primary_regex": "^#+ .*scenario",
+    "marker_secondary_regex": "scenario|playbook",
+    "required_elements": [
+      {
+        "tag": "kcs-element:issue",
+        "regex": "^\\s*#*\\s*issue\\s*:"
+      },
+      {
+        "tag": "kcs-element:environment",
+        "regex": "^\\s*#*\\s*environment\\s*:"
+      },
+      {
+        "tag": "kcs-element:resolution",
+        "regex": "^\\s*#*\\s*resolution\\s*:"
+      },
+      {
+        "tag": "kcs-element:cause",
+        "regex": "^\\s*#*\\s*cause\\s*:"
+      },
+      {
+        "tag": "kcs-element:metadata",
+        "regex": "^\\s*#*\\s*(metadata|state|maturity)\\s*:"
+      }
+    ],
+    "doc_ref": "docs/issue-1/proposals/customer-support.md \u00a72",
+    "deny_message_template": "kcs write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each handbook article/scenario entry: KCS Content Standard fields Issue, Environment, Resolution, Cause, and Metadata (a reuse/lifecycle state field), each as its own labeled line -- not merely the word mentioned in passing prose."
+  },
+  {
+    "hook": "playbook-scenario",
+    "kill_switch_env": "CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF",
+    "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
+    "check_type": "marker_required_elements",
+    "marker_primary_regex": "^#+ .*scenario",
+    "marker_secondary_regex": "scenario|playbook",
+    "required_elements": [
+      {
+        "tag": "playbook-element:trigger-or-scenario",
+        "regex": "^\\s*#*\\s*(trigger|scenario)\\s*:"
+      },
+      {
+        "tag": "playbook-element:decision-criteria",
+        "regex": "^\\s*#*\\s*decision criteria\\s*:"
+      },
+      {
+        "tag": "playbook-element:script-or-response",
+        "regex": "^\\s*#*\\s*(script|response template|response)\\s*:"
+      },
+      {
+        "tag": "playbook-element:escalation-condition",
+        "regex": "^\\s*#*\\s*escalation condition\\s*:"
+      }
+    ],
+    "doc_ref": "docs/issue-1/proposals/customer-support.md \u00a72",
+    "deny_message_template": "playbook-scenario write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: for each playbook scenario: a trigger/scenario description, decision criteria, a script/response template, and an escalation condition, each as its own labeled line -- not merely the word mentioned in passing prose."
+  },
+  {
+    "hook": "sla-tier",
+    "kill_switch_env": "CUSTOMER_SUPPORT_SLA_TIER_GATE_OFF",
+    "target_path_regex": "^customer-support/handbook\\.md$|^docs/issue-[0-9]+/reports/customer-support\\.md$",
+    "check_type": "table_header_columns",
+    "columns": [
+      {
+        "tag": "sla-table-column:priority",
+        "regex": "priority"
+      },
+      {
+        "tag": "sla-table-column:impact",
+        "regex": "impact"
+      },
+      {
+        "tag": "sla-table-column:urgency",
+        "regex": "urgency"
+      },
+      {
+        "tag": "sla-table-column:first-response",
+        "regex": "first response"
+      },
+      {
+        "tag": "sla-table-column:resolution",
+        "regex": "resolution"
+      },
+      {
+        "tag": "sla-table-column:escalation-trigger",
+        "regex": "escalation trigger"
+      }
+    ],
+    "doc_ref": "docs/issue-1/proposals/customer-support.md \u00a72",
+    "deny_message_template": "sla-table write is missing required element(s): {missing}. Per {doc_ref}, every deliverable/record write must carry: an SLA table with header-row columns Priority tier, Impact rating, Urgency rating, First response time target, Resolution time target, Escalation trigger time, each row derived from the ITIL Impact\u00d7Urgency priority matrix."
+  },
+  {
+    "hook": "sensitivity-scenario",
+    "kill_switch_env": "FINANCE_SENSITIVITY_SCENARIO_GATE_OFF",
+    "target_path_regex": "^docs/issue-[0-9]+/reports/finance-unit-economics\\.md$",
+    "check_type": "heading_scenario_min_labels",
+    "trigger_word": "sensitivity",
+    "heading_scope_regex": "sensitivity|scenario",
+    "label_regex": "\\bscenario\\s*\\d\\b|\\bbase case\\b|\\bdownside\\b|\\bupside\\b|\\bbull\\b|\\bbear\\b",
+    "min_distinct": 2,
+    "deny_message_template": "sensitivity section present with fewer than two labeled numeric scenarios WITHIN the sensitivity/scenario section itself. Per docs/handbooks/finance-unit-economics/methodology.md, give at least two distinct scenarios (e.g. base case vs. downside) inside the actual sensitivity section -- labels parked under an unrelated heading do not count."
+  },
+  {
+    "hook": "playbook",
+    "kill_switch_env": "SALES_PLAYBOOK_GATE_OFF",
+    "target_path_regex": "^docs/issue-[0-9]+/reports/sales\\.md$",
+    "check_type": "heading_sections_required",
+    "mentions_regex": "playbook",
+    "section_aliases": {
+      "process-overview": [
+        "process overview"
+      ],
+      "qualification-framework": [
+        "qualification framework"
+      ],
+      "icp-persona": [
+        "icp / persona summary",
+        "icp/persona summary",
+        "icp persona summary",
+        "buyer persona",
+        "persona summary",
+        "icp"
+      ],
+      "objection-handling-competitive-notes": [
+        "objection-handling and competitive notes",
+        "objection handling and competitive notes",
+        "objection-handling",
+        "objection handling",
+        "competitive notes"
+      ],
+      "metrics": [
+        "metrics"
+      ]
+    },
+    "messaging_scope_keys": [
+      "objection-handling-competitive-notes",
+      "metrics"
+    ],
+    "messaging_needles": [
+      "messaging script",
+      "positioning copy",
+      "sample email:",
+      "email template",
+      "call script"
+    ],
+    "deny_message_template": "sales playbook deliverable is missing required element(s) or crosses the marketing hand-off boundary: {missing}. Per docs/issue-1/proposals/methodology-norms.md (b) Sales playbook: all five sections (process overview, qualification framework, ICP/persona, objection-handling, metrics) must be present as actual headings, and messaging scripts/positioning copy must be referenced from marketing's assets, never duplicated inline."
+  }
+]

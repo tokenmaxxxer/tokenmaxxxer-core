@@ -336,7 +336,6 @@ def _setup_citation_gate(payload, obj, cwd):
                              os.path.join(HOOKS_DIR, "citation-config.json"))
     return "ok", {
         "CIT_PAYLOAD": payload, "CIT_CONFIG": config,
-        "CIT_ROLE": os.environ.get("CLAUDE_ROLE", ""),
         "CIT_PROJECT_DIR": cpd, "CIT_BRANCH": branch,
     }
 
@@ -348,8 +347,7 @@ def _setup_facet_keyword_gate(payload, obj, cwd):
     config = os.environ.get("FACET_KEYWORD_CONFIG",
                              os.path.join(HOOKS_DIR, "facet-keyword-config.json"))
     return "ok", {
-        "FK_PAYLOAD": payload, "FK_CONFIG": config,
-        "FK_ROLE": os.environ.get("CLAUDE_ROLE", ""), "FK_PROJECT_DIR": cpd,
+        "FK_PAYLOAD": payload, "FK_CONFIG": config, "FK_PROJECT_DIR": cpd,
     }
 
 
