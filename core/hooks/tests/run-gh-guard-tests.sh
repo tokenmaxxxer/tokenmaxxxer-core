@@ -8,7 +8,7 @@ pass=0; fail=0
 run() { # want name role cmd
   printf '{"tool_name":"Bash","tool_input":{"command":%s}}' \
     "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$4")" \
-    | { if [ -n "$3" ]; then env CLAUDE_ROLE="$3" /bin/bash "$GATE"; else env -u CLAUDE_ROLE /bin/bash "$GATE"; fi; } >/dev/null 2>&1
+    | { if [ -n "$3" ]; then env CLAUDE_ROLE="$3" /bin/bash "$GATE"; else env -u CLAUDE_ROLE -u TOKENMAXXXER_SPAWNED /bin/bash "$GATE"; fi; } >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   if [ "$got" = "$1" ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "$2" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=%s got=%s\n' "$2" "$1" "$got"; fi
 }

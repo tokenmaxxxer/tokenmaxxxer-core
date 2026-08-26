@@ -241,7 +241,11 @@ def _run_body(code, raw_stderr):
 def _setup_approval_gate(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("CORE_OFF", "")):
         return "skip", None
-    if not os.environ.get("CLAUDE_ROLE", ""):
+    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, mirroring
+    # approval-gate.sh's own presence test — unsetting only one of the
+    # two spawner-set vars must not flip this setup into "skip".
+    if not (os.environ.get("TOKENMAXXXER_SPAWNED", "")
+            or os.environ.get("CLAUDE_ROLE", "")):
         return "skip", None
     if not payload:
         return "deny", ("approval-gate.sh: refused -- empty tool-use payload "
@@ -266,7 +270,11 @@ def _setup_board_gate(payload, obj, cwd):
 def _setup_gh_guard(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("CORE_OFF", "")):
         return "skip", None
-    if not os.environ.get("CLAUDE_ROLE", ""):
+    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, mirroring
+    # gh-guard.sh's own presence test — unsetting only one of the two
+    # spawner-set vars must not flip this setup into "skip".
+    if not (os.environ.get("TOKENMAXXXER_SPAWNED", "")
+            or os.environ.get("CLAUDE_ROLE", "")):
         return "skip", None
     if not payload:
         return "deny", ("gh-guard.sh: refused -- empty tool-use payload on "

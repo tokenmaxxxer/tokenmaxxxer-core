@@ -19,8 +19,9 @@
 #
 # core_role_directive <you_decide> <use_when> <produces> <hand_off>
 #
-# Reads CLAUDE_ROLE from the environment (no role -> silent no-op, same as
-# core's own directive.sh). Kill switch, per role, via
+# Presence gated on TOKENMAXXXER_SPAWNED or CLAUDE_ROLE (issue #327; no
+# spawned session -> silent no-op, same as core's own directive.sh); the
+# role NAME itself still comes from CLAUDE_ROLE. Kill switch, per role, via
 # <ROLE>_CYCLE_OFF=1 (role name uppercased with `tr`, not bash 4's
 # `${var^^}`, to stay inside parse-check.sh's bash-3.2 compatibility
 # floor), tested via gate-lib.sh's shared gate_kill_switch_active so this
@@ -30,7 +31,11 @@
 core_role_directive() {
   local you_decide="$1" use_when="$2" produces="$3" hand_off="$4"
   local role="${CLAUDE_ROLE:-}"
-  [ -n "$role" ] || return 0
+  # Presence test (issue #327, per on-the-record #2538): OR of
+  # TOKENMAXXXER_SPAWNED and role, not the new var alone — same rationale
+  # as core's own directive.sh. The role NAME rendered below still comes
+  # only from CLAUDE_ROLE (value-dependent).
+  [ -n "${TOKENMAXXXER_SPAWNED:-}${role}" ] || return 0
 
   local role_upper
   role_upper="$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_')"

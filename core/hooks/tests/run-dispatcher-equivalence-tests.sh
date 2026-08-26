@@ -65,11 +65,11 @@ CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
   bash -c 'run_pair_wrap() { :; }'  # no-op, keep shellcheck quiet
 export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
 run_pair approval-gate.sh 2 "approval-gate: execution write, no approvers.md -> deny" "docs/specs/approvers.md"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_ROLE CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"src/foo.py","content":"x"}}'
-run_pair approval-gate.sh 0 "approval-gate: no CLAUDE_ROLE -> allow (not a role session)"
+run_pair approval-gate.sh 0 "approval-gate: no CLAUDE_ROLE, no TOKENMAXXXER_SPAWNED -> allow (not a role session)"
 
 # board-gate.sh: docs write with no resolvable project root -> deny;
 # non-docs write -> allow (fast path).
@@ -95,11 +95,11 @@ git init -q "$td"
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"gh pr merge 5"}}'
 export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
 run_pair gh-guard.sh 2 "gh-guard: role session gh pr merge -> deny" "two-account model"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_ROLE CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"gh pr merge 5"}}'
-run_pair gh-guard.sh 0 "gh-guard: no CLAUDE_ROLE -> allow"
+run_pair gh-guard.sh 0 "gh-guard: no CLAUDE_ROLE, no TOKENMAXXXER_SPAWNED -> allow"
 
 # ordering-gate.sh: architecture proposal written before its survey exists
 # -> deny; unmatched role -> allow (falls through ROLES table).
