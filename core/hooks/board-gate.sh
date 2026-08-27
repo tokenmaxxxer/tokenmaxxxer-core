@@ -635,7 +635,23 @@ elif tool == "Bash":
             scan_targets = [seg] if windows is None else windows
             own_hits = []
             for target in scan_targets:
-                own_hits.extend(re.findall(r"[\w./~$:-]*%s[\w./-]*" % re.escape(DOCS), target))
+                # issue-336: the trailing class used to be [\w./-]*, which
+                # excludes `+` -- and since #2572 made `--skills` the sole
+                # spawn form, a multi-skill session's own role/slug
+                # (skill_branch_slug() in the on-the-record plugin joins
+                # skill names with `+`) always contains one. A path tail
+                # that stops at the first `+` truncates the session's own
+                # record path to a PREFIX, which then fails the exact
+                # `tail[0] == role` owner comparison below even though the
+                # write is the session's own. `+` is added here, not
+                # special-cased around: it is simply one more character a
+                # `--skills`-composed slug can legitimately produce
+                # alongside the word chars, dots, slashes and hyphens
+                # already accepted -- the class still only ever matches a
+                # SUPERSET of what it matched before (every previously
+                # accepted tail stays accepted; `+`-bearing tails are no
+                # longer cut short).
+                own_hits.extend(re.findall(r"[\w./~$:-]*%s[\w.+/-]*" % re.escape(DOCS), target))
             if own_hits:
                 candidates.extend(own_hits)
             elif cd_tail:

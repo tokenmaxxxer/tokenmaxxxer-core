@@ -671,3 +671,37 @@ three issues remained live in the exact code the "closed" claim covered.
 cases: `var-indirected-brace-interpreter-head`,
 `var-indirected-brace-bash-head`, `awk-system-call-write` (deny);
 `awk-pure-read-not-overblocked` (allow).
+
+## issue-336: `+`-bearing multi-skill slug truncated at the own_hits tail
+
+Since #2572 made `--skills` the sole spawn form, every role/slug is
+composed by `skills.py`'s `skill_branch_slug()`, which joins skill names
+with `+` (e.g. `silent-failure-audit+secure-coding-input-validation-
+injection-defense-<hex>`). The `own_hits` char class after the `docs/`
+substring (`[\w./-]`, unchanged since the issue-149 fix above widened only
+the *prefix* class) does not include `+`, so a docs/ path under a
+multi-skill session's own record subtree got its match cut at the first
+`+` — e.g. `docs/issue-336/reports/silent-failure-audit+secure-coding-...`
+truncated to `docs/issue-336/reports/silent-failure-audit`. R5's owner
+check (`tail[0] == role`, line ~1013 — unchanged, and correct) then
+compared that truncated prefix against the session's full role string and
+denied the session's own record as foreign. Observed live: ten refusals
+in one session, `mkdir -p`/`git add <file>`/`git add <dir>` against the
+session's own `docs/issue-<n>/reports/<slug>/` all denied.
+
+Fixed by widening the char class to `[\w.+/-]` — a pure superset (every
+tail this class matched before still matches; a `+`-bearing tail is no
+longer cut short). No allow-list of the literal `+` character: the bound
+is "whatever `skill_branch_slug()` composes" (lowercase skill-directory
+names, `-`, and the `+` join character), which is exactly the set the
+existing word/dot/slash/hyphen class plus `+` already covers. The R5
+owner comparison itself is untouched.
+
+`run-board-gate-tests.sh`'s harness stays python-body-only (bash-fixture
+cases there don't cover this file/role-shaped input); the multi-skill
+repro instead lives in `test_board_gate.py` as a dedicated
+`multiskill_board` fixture on an `issue-336/<multiskill-role>` branch,
+pinning the three observed refusals as `allow` (`mkdir`, `git add` of a
+file, `git add` of the directory), a genuine-foreign-record `deny`
+control, and one path shape outside the fixture set above (a plain
+redirect to the slug's own `.md` record file, not a directory member).
