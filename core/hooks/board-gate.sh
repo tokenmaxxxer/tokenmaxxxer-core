@@ -215,6 +215,31 @@ GIT_READ_SUBCOMMANDS = ("log", "show", "diff", "status", "blame",
 # introduces an extra positional token for the loop below to misread.
 GIT_GLOBAL_VALUE_FLAGS = ("-C", "-c")
 
+# issue-335: `for`/`select` open a WORD LIST and `case` a dispatch
+# variable -- none of the three ever runs a program in its own header
+# text (a docs/-shaped item merely being enumerated, or switched on, is
+# not the same as that item being written). Before this, any segment
+# whose head was not read_only/git/read_unless_inplace fell through to
+# _segment_is_failing's own catch-all `return True`, and a *failing*
+# segment has every docs/-shaped substring in its raw text harvested as
+# an unproven write candidate (own_hits) a few lines below -- so
+# `for f in ... docs/issue-100/reports/coding.md ...; do <all-reads>;
+# done` was refused as a write to docs/issue-100/ even though the path
+# never appears anywhere but this word list and every actual command run
+# (find/echo/git log inside the loop body) is independently
+# read-only-classified on its own segment, unaffected by this. This is
+# not a command-name allow-list (the "must not" this issue names): these
+# three are shell reserved words, not programs a write could impersonate,
+# and a subshell or file redirect embedded in the same header text is
+# still caught by the SUBSHELL/FILE_REDIR check above this one runs
+# unconditionally -- a header like `for f in $(rm -rf docs/x); do` or
+# `case $x in` followed inline by a `>` still fails as before.
+# `do`/`then`/`else`/`elif` are deliberately excluded: bash lets the real
+# command follow one of those directly in the same segment with only a
+# space (`do rm -rf docs/x`), so treating THOSE heads as safe would blind
+# the scan to the command actually running.
+NONEXECUTING_LIST_HEADS = ("for", "select", "case")
+
 
 def _git_subcommand(segment):
     """The git subcommand a segment invokes, or "" if unresolved.
@@ -322,6 +347,8 @@ def _segment_is_failing(seg, stripped):
             return False
         return True
     head = gate_lib.gate_head_of(stripped)
+    if head in NONEXECUTING_LIST_HEADS:
+        return False
     if head == "git":
         return _git_subcommand(stripped) not in GIT_READ_SUBCOMMANDS
     if head in READ_ONLY_HEADS:
