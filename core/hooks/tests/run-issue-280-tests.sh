@@ -48,7 +48,12 @@ mk_workspace() { # sets $td
     && git add -A )
 }
 
-RECORD_OK_FIELDS='loop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream: docs/issue-9\n\n## open findings\nnone\n'
+# issue-341: the code_under_review requirement below is gated on the
+# record's own self-declared `kind: coding-record` (role->kind inference
+# via ROLE_TO_KIND was removed) -- these fixtures declare it explicitly so
+# the code_under_review check still fires the way it did when role=coding
+# alone used to be enough.
+RECORD_OK_FIELDS='kind: coding-record\nloop_state: landed\n\n## what was done\nx\n\n## why\ny\n\nupstream: docs/issue-9\n\n## open findings\nnone\n'
 
 run_rf() { # <want> <name> <content-json-string>; sets $out
   want="$1"; name="$2"; content="$3"
