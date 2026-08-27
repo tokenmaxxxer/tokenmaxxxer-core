@@ -291,3 +291,67 @@ def test_multiskill_path_shape_not_in_fixture_set(multiskill_board):
                % MULTISKILL_ROLE)
     rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
     assert rc == 0, err
+
+
+# --- issue-335: a `for`/`select`/`case` header is not itself a command --
+#
+# A read-only multi-line script whose only docs/ mentions sit inside a
+# `for ... in <word-list>` was refused as a WRITE to that path, misreported
+# as a branch-authorization problem: the for-header's own segment had no
+# recognized head, fell through to the unproven-write catch-all, and had
+# every docs/-shaped item in its word list harvested as a write candidate
+# -- even though nothing in that segment executes a program at all, and
+# every actual command the loop body runs (find/echo/git log) is
+# independently read-only on its own segment.
+
+def test_forloop_wordlist_over_foreign_paths_passes(board):
+    """The killed-session repro, recovered verbatim in the issue's
+    correcting comment (the issue body's own paraphrase could not
+    reproduce it): a multi-line script naming a foreign docs/issue-100/
+    path only as an item in a `for` word list, with every actual effect
+    -- find, echo, `git log --oneline -- "$f"` -- a read."""
+    command = (
+        "find docs -maxdepth 1 -type d -name 'issue-*' | wc -l\n"
+        "echo ---\n"
+        "for f in gates/spawn_on_pr.py docs/specs/record-kind-vocabulary.md "
+        "docs/issue-100/reports/coding.md "
+        "docs/decisions/2026-08-25-retire-role-axis-staging.md; do\n"
+        "  n=$(git log --oneline -- \"$f\" | wc -l)\n"
+        "  echo \"$f : $n commits\"\n"
+        "done"
+    )
+    rc, err = run_gate(board, command)
+    assert rc == 0, err
+
+
+def test_forloop_body_literal_write_still_denied(board):
+    """Regression guard: exempting the `for`-header segment must not
+    exempt the loop BODY. A body statement that writes a literal docs/
+    path (not the loop variable) sits in its own segment and is
+    classified exactly as before -- still denied."""
+    command = ("for x in a b c; do echo bad > docs/issue-198/reports/"
+               "verify.md; done")
+    rc, err = run_gate(board, command)
+    assert rc == 2
+    assert "belongs to another role" in err
+
+
+def test_case_dispatch_mentioning_foreign_issue_passes(board):
+    """issue-335 acceptance bullet 3: the same rule applied to a command
+    not in READ_ONLY_HEADS and not the `for` case the issue named --
+    `case WORD in` where WORD is a literal foreign docs/ path. The switch
+    value is data being matched against, not a target being written, the
+    same reasoning as a `for` word list."""
+    command = "case docs/issue-651/reports/x.md in\n  *) echo matched ;;\nesac"
+    rc, err = run_gate(board, command)
+    assert rc == 0, err
+
+
+def test_case_arm_literal_write_still_denied(board):
+    """Regression guard for the `case` head: a write inside a case ARM
+    (a different segment from the `case ... in` header) is unaffected."""
+    command = ("case x in\n  *) echo bad > docs/issue-198/reports/verify.md "
+               ";;\nesac")
+    rc, err = run_gate(board, command)
+    assert rc == 2
+    assert "belongs to another role" in err
