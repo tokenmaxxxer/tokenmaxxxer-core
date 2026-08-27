@@ -197,3 +197,97 @@ def test_extra_subtree_keys_match_current_role_names():
     table = ast.literal_eval(m.group(1))
     assert table == {"technical-feasibility": "spikes",
                       "release-engineering": "postmortems"}
+
+
+# --- issue-336: a `+`-bearing multi-skill slug is not truncated ----------
+#
+# Since #2572 `--skills` is the sole spawn form: skills.py's
+# skill_branch_slug() joins skill names with `+`
+# (e.g. "silent-failure-audit+secure-coding-input-validation-injection-
+# defense-<hex>"), so every current role/slug can carry one. The
+# own_hits regex's trailing character class used to stop at the first
+# `+`, truncating the session's own record path to a prefix and making
+# the R5 owner check (`tail[0] == role`, unchanged and correct) compare
+# a truncated tail against the full role -- denying the session's own
+# record as foreign.
+
+MULTISKILL_ROLE = ("silent-failure-audit+secure-coding-input-validation-"
+                    "injection-defense-a7be2546")
+
+
+@pytest.fixture
+def multiskill_board(tmp_path):
+    """Same shape as `board`, but on a `+`-bearing multi-skill branch."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "remote", "add", "origin",
+         "git@github.com:tokenmaxxxer/probe.git"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "checkout", "-q", "-b",
+         "issue-336/%s" % MULTISKILL_ROLE],
+        check=True,
+    )
+    specs = tmp_path / "docs" / "specs"
+    specs.mkdir(parents=True)
+    (specs / "approvers.md").write_text("- jw-human\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-q", "-m", "init"],
+                    check=True)
+    return tmp_path
+
+
+def test_multiskill_mkdir_own_record_dir_allowed(multiskill_board):
+    """The first of the three observed refusals: mkdir -p of the
+    session's own record subtree."""
+    command = ('mkdir -p "docs/issue-336/reports/%s"' % MULTISKILL_ROLE)
+    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    assert rc == 0, err
+
+
+def test_multiskill_git_add_own_record_file_allowed(multiskill_board):
+    """The second observed refusal: staging a file inside the session's
+    own record subtree."""
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_ROLE
+    record_dir.mkdir(parents=True)
+    (record_dir / "2026-08-27-hunt-x.md").write_text("body\n")
+    command = ('git add "docs/issue-336/reports/%s/2026-08-27-hunt-x.md"'
+               % MULTISKILL_ROLE)
+    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    assert rc == 0, err
+
+
+def test_multiskill_git_add_own_record_dir_allowed(multiskill_board):
+    """The third observed refusal: staging the whole record subtree."""
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_ROLE
+    record_dir.mkdir(parents=True)
+    (record_dir / "2026-08-27-hunt-x.md").write_text("body\n")
+    command = "git add docs/issue-336/reports/%s/" % MULTISKILL_ROLE
+    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    assert rc == 0, err
+
+
+def test_multiskill_foreign_record_still_denied(multiskill_board):
+    """A genuinely foreign record is still refused with today's message --
+    widening the character class must not smuggle a foreign write past
+    the unchanged `tail[0] == role` comparison."""
+    other_role = "a-different-skill-combo+another-skill-bbbbbbbb"
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / other_role
+    record_dir.mkdir(parents=True)
+    (record_dir / "x.md").write_text("body\n")
+    command = "git add docs/issue-336/reports/%s/" % other_role
+    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    assert rc == 2
+    assert "belongs to another role" in err
+
+
+def test_multiskill_path_shape_not_in_fixture_set(multiskill_board):
+    """issue-336 acceptance bullet 3: the disposition applied to a path
+    shape not exercised anywhere else above -- a `+`-bearing slug's
+    record .md FILE (not a directory member) written directly via a
+    plain redirect."""
+    command = ("echo 'loop_state: landed' > docs/issue-336/reports/%s.md"
+               % MULTISKILL_ROLE)
+    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    assert rc == 0, err
