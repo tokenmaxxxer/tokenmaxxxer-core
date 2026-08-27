@@ -178,15 +178,21 @@ run_rf allow "C2/issue-189: 'withdrawn' paired with a finding pointer allowed" c
   "docs/issue-3/reports/coding.md" \
   '"loop_state: withdrawn\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nfinding: docs/issue-3/reports/coding.md#finding-1\n\n## next steps\nwait for a revised WITHDRAW token or a human waiver\n\n## resolution path\nsame as next steps\n"'
 
-# before-landing hunt (issue-147, stance 0): a self-declared `kind:` field
-# used to be trusted even when it disagreed with CLAUDE_ROLE, letting a qa
-# record borrow coding-record's terminal-state set. Pinned: for a role
-# contract §2 names, the role's own mapped kind is authoritative regardless
-# of what `kind:` claims in the record body.
-run_rf allow "hunt fix: qa record cannot borrow coding-record's terminal state via a spoofed kind: field (issue-147)" qa \
+# issue-341 (operator ruling, 2026-08-27): the role->kind closed-set map
+# (ROLE_TO_KIND) that used to make a role's own mapped kind authoritative
+# over a self-declared `kind:` field was removed as an identity closed-set
+# validation. Capability dropped: a qa-role record CAN now borrow
+# coding-record's terminal-state set by self-declaring `kind: coding-record`
+# -- nothing catches it any more, since kind is resolved solely from the
+# record's own `kind:` field. This test pins the new (weaker) behavior so
+# a future change doesn't silently reintroduce a role-keyed check to close
+# the gap back up under another name.
+kind_spoof_out="$(printf '%s' "$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' \
   "docs/issue-3/reports/qa.md" \
   "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "kind: coding-record
-$(rf_body landed)")"
+$(rf_body landed)")")" \
+  | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+report "" "$kind_spoof_out" "issue-341: qa record CAN now borrow coding-record's terminal state via self-declared kind: (capability dropped)"
 
 run_rf allow  "implementation record code_under_review bare sha denied (issue-100)" implementation \
   "docs/issue-3/reports/implementation.md" \

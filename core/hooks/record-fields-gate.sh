@@ -45,9 +45,12 @@ trap __fc EXIT
 # verify-record and undefined for an ops-record, and "steady" is the
 # reverse. Terminal states are now derived from a {kind: {terminal states}}
 # table copied from contract §2, keyed by the record's own `kind:`
-# frontmatter field (falling back to a role->kind mapping for records not
-# yet carrying `kind:`, and to the old flat set for a role this repo's
-# contract does not name). The env-var override channel above is retired
+# frontmatter field (falling back to the old flat set when `kind:` is
+# absent or unrecognized -- issue-341 removed the role-name-keyed dict this
+# used to fall back to first, a closed-set identity validation the
+# role-axis removal (issue-331) left live by accident; see the removal note
+# further down for what stopped being checked). The env-var override
+# channel above is retired
 # (never reached any process it could take effect in, per the seven broken
 # downstream attempts the issue documents): the working override channel is
 # a repo-committed config file, docs/specs/record-fields-terminal-states.json,
@@ -165,18 +168,18 @@ try:
         "ops-record": {"steady"},
         "reflect-record": {"round-done"},
     }
-    ROLE_TO_KIND = {
-        "product": "product-record",
-        "coding": "coding-record",
-        "implementation": "coding-record",
-        "qa": "qa-record",
-        "feasibility": "feasibility-record",
-        "ux-design": "ux-design-record",
-        "review": "review-record",
-        "verify": "verify-record",
-        "ops": "ops-record",
-        "reflect": "reflect-record",
-    }
+    # issue-341: a role-name-keyed dict used to sit here (ten fixed
+    # legacy role names -> kind) as a closed-set identity validation --
+    # role-axis removal (issue-331) left it live by accident. Removed per
+    # operator ruling (2026-08-27, issue-341): kind is now resolved *only*
+    # from the record's own self-declared `kind:` frontmatter field (see
+    # below, near the old code_under_review role check), never from role
+    # identity. Capability dropped: nothing now catches a record that
+    # self-declares a kind more lenient than its actual content (the
+    # anti-gaming behavior issue-147 C2's "before-landing hunt" added,
+    # which trusted self-declared kind only for a role contract §2 did not
+    # name -- that distinction no longer exists because there is no closed
+    # set of role names left to check membership in).
 
     def resolve(p):
         n = p.replace("\\", "/")
@@ -343,7 +346,16 @@ try:
             pass
         return []
 
-    if role in ("coding", "implementation"):
+    # issue-341: kind resolved from the record's own self-declared `kind:`
+    # field only (see the role-name-keyed-dict removal note above) -- an
+    # unrecognized or absent `kind:` leaves `kind` as None, and the
+    # code_under_review requirement below and the terminal-states lookup
+    # further down both key off this same resolution.
+    m_kind = re.search(r'^\s*kind:\s*([A-Za-z0-9_-]+)', new_text, re.M)
+    record_kind = m_kind.group(1).strip() if m_kind else None
+    kind = record_kind if record_kind in KIND_TERMINAL_DEFAULTS else None
+
+    if kind == "coding-record":
         m_cur = re.search(r'^\s*code_under_review:\s*(.+?)\s*$', new_text, re.M)
         if m_cur and re.match(r'^[0-9a-f]{7,40}$', m_cur.group(1).strip()):
             # issue-280 combined form: a bare sha on the field line is
@@ -397,25 +409,8 @@ try:
         v = re.sub(r'(\d)([a-z])', r'\1-\2', v)
         return v
 
-    # issue-147 C2: resolve which contract §2 kind this record is, and
-    # derive TERMINAL from that kind rather than one global flat list.
-    #
-    # before-landing hunt (issue-147, stance 0): a record's own `kind:`
-    # frontmatter is written in the SAME tool call the gate is judging, so
-    # trusting it unconditionally let a role self-declare a foreign kind
-    # (e.g. a qa record claiming `kind: coding-record`) to borrow that
-    # kind's terminal-state set and skip next-steps/resolution-path. Fixed:
-    # for a role contract §2 names, the role->kind mapping is authoritative
-    # and a self-declared `kind:` is never consulted; the record's own
-    # `kind:` field is trusted only as a fallback for a role contract §2
-    # does not name (an unmapped rulebook role, where nothing else can
-    # resolve which kind applies).
-    kind = ROLE_TO_KIND.get(role)
-    if kind is None:
-        m_kind = re.search(r'^\s*kind:\s*([A-Za-z0-9_-]+)', new_text, re.M)
-        record_kind = m_kind.group(1).strip() if m_kind else None
-        if record_kind and record_kind in KIND_TERMINAL_DEFAULTS:
-            kind = record_kind
+    # issue-341: `kind` was already resolved above (self-declared `kind:`
+    # field only, no role->kind map) -- derive TERMINAL from it here.
     TERMINAL = set(KIND_TERMINAL_DEFAULTS[kind]) if kind else set(LEGACY_FALLBACK_TERMINAL)
 
     override_path = posixpath.join(root, "docs/specs/record-fields-terminal-states.json")

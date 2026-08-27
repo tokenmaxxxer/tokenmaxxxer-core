@@ -4,22 +4,35 @@ trap __fc EXIT
 # PreToolUse gate (Write|Edit|MultiEdit) — enforces the implementation
 # role's phase-2 record shape adopted in issue-52
 # (docs/issue-52/proposals/2026-07-31-implementation-domain-norms.md,
-# section (b)), EXTENDED (issue-263, phase-4b-4) with a config-driven
-# CHECKERS dispatch that folds the 145 `record-section-shape`-family
-# hooks across all 43 rulebooks (per
-# docs/reports/keep-role-family-classification.md) into this same file,
-# mirroring citation-gate.sh's/ordering-norm-gate.sh's CHECKERS pattern.
+# section (b)).
 #
-# Dispatch order: the hardcoded implementation-role check below always
-# runs first and unconditionally for docs/issue-<n>/reports/
-# implementation.md writes (unchanged behavior, issue-52's own contract).
-# For every other write, config/record-shape-config.json rows for the
-# acting CLAUDE_ROLE are checked; an unmatched role or an absent/
-# malformed config file is a silent no-op (empty-state contract, same as
-# citation-gate.sh).
+# issue-341 (operator ruling, 2026-08-27): this file used to also carry a
+# config-driven CHECKERS dispatch (issue-263, phase-4b-4) that folded 145
+# `record-section-shape`-family hooks across 43 rulebooks into one
+# per-rulebook-JSON-config lookup keyed by CLAUDE_ROLE -- a config object
+# indexed by the acting role's name, against a ~40-entry role-keyed dict,
+# a closed-set identity validation the role-axis removal (issue-331) left
+# live by accident (documented then as a deliberate deferral,
+# docs/issue-331/reports/implementation.md:471,494). That dispatch, its
+# env-var plumbing, and its JSON config file are removed here (see
+# docs/issue-341/reports/architecture-interface-contract-shape+
+# silent-failure-audit-e0c3b8a8.md for the exact identifiers removed). The
+# decision those 145 rows made -- "does this
+# specific role's specific proposal/report path carry these specific
+# checklist fields/section markers/tokens" -- is inherently a lookup by role
+# identity against a fixed role roster; per the operator ruling, that
+# capability is dropped rather than re-expressed under another name.
+# Capability lost: none of the 43 rulebooks' folded per-role record-shape
+# checks run any more (e.g. accessibility's WCAG-EM methodology-gate.sh
+# check, folded in as the `accessibility` config row, no longer requires a
+# `fail` key in docs/issue-10/proposals/gate-remediation.md -- and likewise
+# for the other 144 rows). The hardcoded implementation-role check below,
+# which was never role-keyed-dict-driven (it matches one fixed path,
+# docs/issue-<n>/reports/implementation.md), is unaffected and still runs
+# unconditionally, unchanged from issue-52's own contract.
 #
-# Target: docs/issue-<n>/reports/implementation.md only for the hardcoded
-# check. Requires `loop_state:`, `type:`, `verdict:` frontmatter keys
+# Target: docs/issue-<n>/reports/implementation.md only. Requires
+# `loop_state:`, `type:`, `verdict:` frontmatter keys
 # always, plus `code_under_review:`, `breaking:` and a `## What did not
 # work` heading UNLESS the current workspace diff (git diff HEAD
 # --numstat) is trivial -- docs-only or <=5 changed lines total
@@ -46,10 +59,7 @@ trap __fc EXIT
 # substring "deviation"); only a concrete assertion that one happened
 # (scope-exceeded, or diverged/deviated from the proposal) counts.
 #
-# Kill switch (whole gate, both the hardcoded check and config dispatch):
-# export RECORD_SHAPE_GATE_OFF=1
-# Kill switch (one config row): its own kill_switch_env, e.g.
-#   export WCAG_EM_GATE_METHODOLOGY_GATE_SH_GATE_OFF=1
+# Kill switch: export RECORD_SHAPE_GATE_OFF=1
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-shape-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
@@ -60,13 +70,8 @@ gate_kill_switch_active "${RECORD_SHAPE_GATE_OFF:-}" || exit 0
 
 command -v python3 >/dev/null 2>&1 || deny "record-shape-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 
-RS_CONFIG="${RECORD_SHAPE_CONFIG:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/record-shape-config.json}"
-export RS_CONFIG
-export RS_ROLE="${CLAUDE_ROLE:-}"
-
 payload="$(cat 2>/dev/null || true)"
 [ -n "$payload" ] || deny "record-shape-gate: empty tool-use payload on stdin; cannot evaluate the record-shape gate."
-export RS_PAYLOAD="$payload"
 
 _target="$(printf '%s' "$payload" | python3 -c '
 import json,sys
@@ -103,7 +108,6 @@ if [ -z "$root" ]; then
 fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (record-shape check cannot run)."
-export RS_ROOT="$root"
 
 PG_PAYLOAD="$payload" PG_ROOT="$root" \
 python3 <<'PY'
@@ -314,180 +318,5 @@ if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
   echo "record-shape: refused — fail-closed: internal error (judge exited $_fc_rc)" >&2
   exit 2
 fi
-if [ "$_fc_rc" -eq 2 ]; then
-  trap - EXIT
-  exit 2
-fi
-
-# --- config-driven CHECKERS dispatch (issue-263 fold), only reached when
-# the hardcoded implementation-role check above did not already deny and
-# did not already match the implementation-role target path. ---
-PG_PAYLOAD="$payload" PG_ROOT="$root" PG_CONFIG="$RS_CONFIG" PG_ROLE="$RS_ROLE" \
-python3 <<'PY2'
-import sys as _fc_sys
-try:
-    import importlib.util, json, os, re, sys
-
-    _spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
-    gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
-
-    GATE_NAME = "record-shape-gate"
-
-    def deny(msg):
-        print(f"{GATE_NAME}: refused — {msg}", file=sys.stderr)
-        sys.exit(2)
-
-    config_path = os.environ["PG_CONFIG"]
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-    except (OSError, ValueError):
-        sys.exit(0)
-
-    role = os.environ.get("PG_ROLE", "")
-    rows = config.get(role) if isinstance(config, dict) else None
-    if not rows:
-        sys.exit(0)  # no record-shape row configured for this role -- empty state
-
-    root = os.environ.get("PG_ROOT") or os.getcwd()
-    raw = os.environ.get("PG_PAYLOAD", "")
-    event = gate_lib.gate_parse_json_or_deny(raw, deny)
-    tool = event.get("tool_name") or ""
-    ti = event.get("tool_input")
-    if not isinstance(ti, dict):
-        sys.exit(0)
-
-    if tool not in ("Write", "Edit", "MultiEdit", "Bash"):
-        sys.exit(0)
-
-    def row_kill_switch_active(env_name):
-        v = os.environ.get(env_name, "").strip().lower()
-        return v not in ("1", "true", "yes", "on")
-
-    def candidate_paths():
-        if tool == "Bash":
-            return gate_lib.gate_bash_write_targets(ti.get("command", "") or "")
-        fp = ti.get("file_path")
-        return [fp] if isinstance(fp, str) else []
-
-    matched_rows = []
-    for row in rows:
-        if not row_kill_switch_active(row["kill_switch_env"]):
-            continue
-        try:
-            pattern = re.compile(row["target_path_regex"])
-        except re.error:
-            continue
-        for c in candidate_paths():
-            norm = gate_lib.gate_normalize_path(root, c)
-            if norm is not None and pattern.search(norm):
-                matched_rows.append((row, norm))
-                break
-
-    if not matched_rows:
-        sys.exit(0)
-
-    if tool == "Bash":
-        names = ", ".join(r["hook"] for r, _p in matched_rows)
-        deny(
-            f"a Bash-tool command targets a file governed by record-section-shape row(s) "
-            f"[{names}], and the gate cannot reconstruct a Bash-written file's "
-            "resulting content to check it; refusing an unverifiable write rather "
-            "than passing it through (consistent with citation-gate.sh/ordering-norm-gate.sh)"
-        )
-
-    file_path = ti.get("file_path", "") or ""
-    abs_path = file_path if os.path.isabs(file_path) else os.path.join(root, file_path)
-    current_content = None
-    if tool != "Write":
-        if os.path.isfile(abs_path):
-            try:
-                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
-                    current_content = f.read()
-            except OSError:
-                deny(f"{abs_path} exists but cannot be read; failing closed.")
-        else:
-            sys.exit(0)  # base file doesn't exist yet — no prior content to check against, not this gate's business on a fresh non-Write op
-
-    new_text, ok = gate_lib.gate_reconstruct_write(tool, ti, current_content)
-    if not ok or new_text is None:
-        deny(
-            f"this write targets a record-section-shape-governed file but the gate cannot "
-            f"determine the resulting content from the tool input (tool={tool!r})"
-        )
-
-    # --- check_type handlers -------------------------------------------
-
-    def check_checklist_entry_fields(row, text):
-        required_keys = row.get("required_keys") or []
-        if not required_keys:
-            return None
-        missing = [k for k in required_keys if k not in text]
-        if missing:
-            return (
-                f"record-section-shape row {row['hook']!r}: checklist-entry field(s) "
-                f"not found anywhere in the write: {', '.join(missing)}"
-            )
-        return None
-
-    def check_section_markers_conditional(row, text):
-        required_sections = row.get("required_sections") or []
-        if not required_sections:
-            return None
-        if row.get("loop_state_gated") and "loop_state" not in text:
-            return None  # not yet in a state where the section requirement is gated on
-        missing = [s for s in required_sections if s not in text]
-        if missing:
-            return (
-                f"record-section-shape row {row['hook']!r}: required section marker(s) "
-                f"not found: {', '.join(missing)}"
-            )
-        return None
-
-    def check_field_literal_token_cooccurrence(row, text):
-        required_tokens = row.get("required_tokens") or []
-        if not required_tokens:
-            return None
-        missing = [t for t in required_tokens if t not in text]
-        if len(missing) == len(required_tokens):
-            return (
-                f"record-section-shape row {row['hook']!r}: none of the required "
-                f"co-occurring literal token(s) found: {', '.join(required_tokens)}"
-            )
-        return None
-
-    def check_methodology_checklist_gated(row, text):
-        topic_tokens = row.get("topic_tokens") or []
-        if not topic_tokens:
-            return None
-        low = text.lower()
-        triggered = any(t in low for t in topic_tokens)
-        if not triggered:
-            return None  # topic not named in this write — methodology checklist not gated on
-        return None  # topic-triggered checklist field enumeration deferred to hand-verification (low-confidence rows); presence of the topic alone does not fail the write
-
-    CHECKERS = {
-        "checklist_entry_fields": check_checklist_entry_fields,
-        "section_markers_conditional": check_section_markers_conditional,
-        "field_literal_token_cooccurrence": check_field_literal_token_cooccurrence,
-        "methodology_checklist_gated": check_methodology_checklist_gated,
-    }
-
-    for row, rel in matched_rows:
-        check_type = row.get("check_type")
-        handler = CHECKERS.get(check_type)
-        if handler is None:
-            deny(f"unknown check_type {check_type!r} in record-shape-config.json row {row.get('hook')!r}")
-        msg = handler(row, new_text)
-        if msg is not None:
-            deny(msg)
-
-    sys.exit(0)
-except Exception as _fc_e:
-    _fc_sys.stderr.write("record-shape-gate.sh: fail-closed: internal error (config dispatch): %r\n" % (_fc_e,))
-    _fc_sys.exit(2)
-PY2
-PY2_EXIT=$?
-
 trap - EXIT
-exit "$PY2_EXIT"
+exit "$_fc_rc"

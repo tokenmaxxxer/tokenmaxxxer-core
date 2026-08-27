@@ -309,15 +309,10 @@ def _setup_record_shape_gate(payload, obj, cwd):
         return "deny", ("record-shape-gate.sh: fail-closed: internal "
                          "error: no project root could be determined "
                          "(record-shape check cannot run).")
-    config = os.environ.get("RECORD_SHAPE_CONFIG",
-                             os.path.join(HOOKS_DIR, "record-shape-config.json"))
-    role = os.environ.get("CLAUDE_ROLE", "")
-    return "ok", {
-        "PG_PAYLOAD": payload, "PG_ROOT": root,
-        "PG_CONFIG": config, "PG_ROLE": role,
-        "RS_CONFIG": config, "RS_ROLE": role,
-        "RS_ROOT": root, "RS_PAYLOAD": payload,
-    }
+    # issue-341: the env-var plumbing that used to feed a role-keyed config
+    # dispatch in record-shape-gate.sh itself is removed here too -- nothing
+    # in that script reads a role or a config path any more.
+    return "ok", {"PG_PAYLOAD": payload, "PG_ROOT": root}
 
 
 def _setup_citation_gate(payload, obj, cwd):
