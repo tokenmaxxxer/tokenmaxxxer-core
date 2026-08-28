@@ -245,3 +245,21 @@ independently hand-classified as inert), the test-suite claim holds,
 and the #344/#345 duplicate comparison surfaces no missed capability.
 The one open finding (grep-count discrepancy) is cosmetic and does not
 change the verdict.
+
+## Skill verdicts
+
+skill-verdict: adversarial-review — applied: invoked; used the
+two-party blindness posture (fresh worktree/context, no reliance on
+the builder session's own record as evidence) to structure every
+bullet's re-derivation above, and to catch the bullet-1 grep
+undercount that a same-session self-review of PR #345 would have been
+structurally unlikely to flag.
+
+skill-verdict: silent-failure-audit — applied: invoked; traced the
+diff's error-handling sites (the `gh issue view` `subprocess.run`
+try/except, the `json.loads` try/except, and the removed
+closer-lookup try/except block) and confirmed no new Silently Absorbed
+path was introduced — the removed exemption's own `except OSError:
+continue` / `except ValueError: continue` absorption sites were
+deleted along with the feature, not left dangling; the remaining sites
+all still `deny()` (fail-closed) on failure, unchanged by this diff.
