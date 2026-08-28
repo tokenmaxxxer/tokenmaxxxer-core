@@ -27,17 +27,16 @@
 # First, the issue's own state and comments together (gh issue view
 # --json state,comments) — the issue is the one anchor stable across the
 # subject's two PRs (phase 1's, then phase 2's), so a closed issue denies
-# unconditionally before either approval path is even considered, EXCEPT
-# for an execution-observation/conformance-review session whose issue was
-# closed specifically by a MERGED pull request on that issue's own
-# issue-<n>/implementation branch (issue-295) — the expected shape of the
-# implementation role's own Closes trailer landing, not a human
-# revocation; see the issue-state precondition below. Then,
-# if a PR is currently open on this branch, its reviews (gh pr view
-# --json reviews) decide the two-account path; the single-account path
-# scans the issue comments already fetched for an exact `APPROVE
-# issue-<n>/<role>` string from a listed approver — no PR open is an
-# expected gap between the subject's two PRs, not itself a denial.
+# unconditionally before either approval path is even considered, for
+# every role, no exemption (issue-343 removed the issue-295
+# execution-observation/conformance-review closed-issue exemption; see
+# the issue-state precondition below for why it could not be preserved
+# without reintroducing a closed identity set). Then, if a PR is
+# currently open on this branch, its reviews (gh pr view --json reviews)
+# decide the two-account path; the single-account path scans the issue
+# comments already fetched for an exact `APPROVE issue-<n>/<role>` string
+# from a listed approver — no PR open is an expected gap between the
+# subject's two PRs, not itself a denial.
 # Neither result is cached: a cache file would be writable by the model's
 # own tools, i.e. a forgeable approval. gh unavailable or failing on
 # either call = deny (fail closed). Kill switch: CORE_OFF=1. Test seam:
@@ -273,7 +272,7 @@ if not approvers:
 gh = os.environ.get("CORE_GH") or "gh"
 try:
     issue_out = subprocess.run([gh, "issue", "view", issue_num, "--json",
-                                "state,comments,stateReason,closedByPullRequestsReferences"],
+                                "state,comments,stateReason"],
                                capture_output=True, text=True, cwd=root)
 except OSError:
     deny("cannot run %r to check issue #%s's state — refusing execution "
@@ -292,58 +291,59 @@ try:
     # enforcement input — closing an issue stays exclusively human
     # (gh-guard.sh, unchanged).
     issue_state_reason = issue_parsed.get("stateReason") or ""
-    issue_closers = issue_parsed.get("closedByPullRequestsReferences") or []
 except (ValueError, AttributeError):
     deny("unreadable issue JSON from gh; refusing rather than assuming "
          "approval")
-# issue-295: execution-observation and conformance-review are designed to
-# keep verifying an implementation role's own landed work AFTER that
-# role's issue auto-closes via its own PR's Closes trailer — an expected
-# side effect of merge, not a human revocation signal. stateReason alone
-# ("COMPLETED") cannot tell that apart from a human deliberately closing
-# the issue as completed with no new merge (a warrant-hunt finding,
-# issue-295): both produce stateReason COMPLETED, so a stateReason-only
-# check would silently let a human's own revocation-by-closing act (see
-# above) through for exactly these two roles whenever a standing PR
-# review or APPROVE comment already existed. Instead this asks the
-# causal question directly: is there a MERGED pull request, on this
-# exact issue's own implementation branch (issue-<n>/implementation),
-# among the PRs GitHub itself recorded as having closed this issue
-# (closedByPullRequestsReferences)? That is true only for the auto-close-
-# via-merge shape and false for a manual close with no new merge — a
-# human re-closing an issue after reopening it, with nothing merged in
-# between, denies every role, observer roles included, exactly as before
-# issue-295; that is the regression guard this exemption must not weaken.
-# Non-observer roles are unaffected: the precondition below still denies
-# them unconditionally on any closed state, exactly as before issue-295.
-OBSERVER_ROLES = ("execution-observation", "conformance-review")
-observer_role_on_implementation_merge_close = False
-if issue_state != "OPEN" and role in OBSERVER_ROLES:
-    impl_branch = "issue-%s/implementation" % issue_num
-    for closer in issue_closers:
-        if not isinstance(closer, dict):
-            continue
-        pr_num = closer.get("number")
-        if not isinstance(pr_num, int):
-            continue
-        try:
-            closer_out = subprocess.run(
-                [gh, "pr", "view", str(pr_num), "--json",
-                 "headRefName,state"],
-                capture_output=True, text=True, cwd=root)
-        except OSError:
-            continue
-        if closer_out.returncode != 0:
-            continue
-        try:
-            closer_parsed = json.loads(closer_out.stdout)
-        except ValueError:
-            continue
-        if (closer_parsed.get("state") == "MERGED"
-                and closer_parsed.get("headRefName") == impl_branch):
-            observer_role_on_implementation_merge_close = True
-            break
-if issue_state != "OPEN" and not observer_role_on_implementation_merge_close:
+# issue-343 removed the issue-295 observer-role exemption that used to
+# live here. issue-295 carved out a closed-issue exemption for exactly
+# two named roles (execution-observation, conformance-review) verifying
+# an implementation role's own landed work after their shared issue
+# auto-closed via that role's PR merge. It was implemented as
+# OBSERVER_ROLES = ("execution-observation", "conformance-review"),
+# membership-tested at runtime (`role in OBSERVER_ROLES`) — the exact
+# retired identity-keyed-exemption shape issue-2593 already removed from
+# subject_deliverable_record() elsewhere in this codebase, just at a
+# different call site. The paired `impl_branch = "issue-%s/implementation"
+# % issue_num` literal hard-coded a second identity (the implementation
+# role's own branch name) on the same live path.
+#
+# This gate has no structural (non-identity) signal available to it that
+# means "this role's job is specifically post-hoc verification of
+# already-merged work" as distinct from any other role — the only
+# candidate distinguishing fact is the role's own name, and matching on
+# role name, by any container/location/config-file shape, is the same
+# closed-set membership test in a different disguise (the #2548 test).
+# Widening the exemption instead — e.g. "any role whose own branch
+# differs from the merged closer's branch," which needs no role name at
+# all — was considered and rejected: issue-295's own comment documented
+# "non-observer roles are unaffected ... exactly as before issue-295" as
+# a deliberate restriction to those two roles, not an incidental
+# byproduct of the branch check. Silently widening it to every other
+# role would hand out a new capability nobody asked for and nobody
+# reviewed, which is not "preserving" the exemption.
+#
+# Per the operator ruling of 2026-08-27 (issue-343): when a capability
+# cannot be preserved without reintroducing a closed identity set, remove
+# the capability instead and say plainly what stops working.
+#
+# CAPABILITY REMOVED: execution-observation and conformance-review
+# sessions can no longer act on their subject issue once it is closed,
+# even when the close came from a MERGED pull request on the
+# implementation role's own branch. They are now denied on any closed
+# issue exactly like every other role, unconditionally, by the single
+# precondition immediately below — there is no carve-out left anywhere
+# in this gate. A human relying on the old exemption must keep the issue
+# open (or reopen it) for the remainder of that role's phase-2 work;
+# there is no longer a way to keep writing after the issue's own
+# auto-close.
+#
+# The issue-295 regression guard (a human's manual re-close with nothing
+# newly merged must still deny everyone) is preserved as a strict
+# superset of its old form: with no exemption left at all, every closed
+# state denies every role unconditionally — already true for
+# non-observer roles before this change, now true for the two
+# previously-exempted roles as well.
+if issue_state != "OPEN":
     # issue-189 decision 1: interpolate state_reason (already fetched
     # above, previously unused) when GitHub supplied one, so a session or
     # human reading the refusal knows shipped-vs-abandoned without a
@@ -352,11 +352,15 @@ if issue_state != "OPEN" and not observer_role_on_implementation_merge_close:
     if issue_state_reason:
         deny("issue #%s is not open (state: %s, reason: %s) — a closed "
              "issue's board is not live for any role, regardless of any "
-             "standing PR review or APPROVE comment. (contract v3 s19)"
+             "standing PR review or APPROVE comment. (contract v3 s19; "
+             "issue-343: no per-role exemption remains, including for "
+             "execution-observation/conformance-review)"
              % (issue_num, issue_state or "unknown", issue_state_reason))
     deny("issue #%s is not open (state: %s) — a closed issue's board is "
          "not live for any role, regardless of any standing PR review or "
-         "APPROVE comment. (contract v3 s19)"
+         "APPROVE comment. (contract v3 s19; issue-343: no per-role "
+         "exemption remains, including for execution-observation/"
+         "conformance-review)"
          % (issue_num, issue_state or "unknown"))
 
 # --- the Approve signal -------------------------------------------------
