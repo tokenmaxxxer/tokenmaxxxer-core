@@ -357,7 +357,7 @@ def _setup_handbook_trigger_gate(payload, obj, cwd):
     self_path = os.path.join(HOOKS_DIR, "handbook-trigger-gate.sh")
     return "ok", {
         "HT_PAYLOAD": payload, "HT_ROOT": root,
-        "HT_ROLE": os.environ.get("CLAUDE_ROLE", ""), "HT_SELF": self_path,
+        "HT_SKILL": os.environ.get("CLAUDE_ROLE", ""), "HT_SELF": self_path,
     }
 
 
@@ -396,7 +396,7 @@ def _setup_record_fields_gate(payload, obj, cwd):
     terminal = os.environ.get(
         "RECORD_FIELDS_TERMINAL_STATES",
         "landed complete closed done delivered phase-2-complete")
-    return "ok", {"RF_PAYLOAD": payload, "RF_ROOT": root, "RF_ROLE": role,
+    return "ok", {"RF_PAYLOAD": payload, "RF_ROOT": root, "RF_SKILL": role,
                   "RF_TERMINAL": terminal}
 
 
@@ -412,7 +412,7 @@ def _setup_survey_order_gate(payload, obj, cwd):
                          "determined; failing closed (write order cannot "
                          "be judged).")
     return "ok", {"PG_PAYLOAD": payload, "PG_ROOT": root,
-                  "PG_ROLE": os.environ.get("CLAUDE_ROLE", "")}
+                  "PG_SKILL": os.environ.get("CLAUDE_ROLE", "")}
 
 
 def _setup_trailer_gate(payload, obj, cwd):
@@ -424,7 +424,7 @@ def _setup_trailer_gate(payload, obj, cwd):
     self_path = os.path.join(HOOKS_DIR, "trailer-gate.sh")
     return "ok", {
         "TRAILER_GATE_PAYLOAD": payload,
-        "TRAILER_GATE_ROLE": os.environ.get("CLAUDE_ROLE", ""),
+        "TRAILER_GATE_SKILL": os.environ.get("CLAUDE_ROLE", ""),
         "TRAILER_GATE_CPD": os.environ.get("CLAUDE_PROJECT_DIR", ""),
         "TRAILER_GATE_CWD": cwd, "TRAILER_GATE_SELF": self_path,
     }

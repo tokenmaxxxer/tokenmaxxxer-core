@@ -43,12 +43,12 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§21 handbook-trigger cannot be judged)."
 
-HT_PAYLOAD="$payload" HT_ROOT="$root" HT_ROLE="$role" HT_SELF="$self_path" python3 <<'PY'
+HT_PAYLOAD="$payload" HT_ROOT="$root" HT_SKILL="$role" HT_SELF="$self_path" python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
     import json, os, posixpath, re, shlex, subprocess, sys
 
-    role = os.environ.get("HT_ROLE", "").strip() or "handbook-trigger-gate"
+    role = os.environ.get("HT_SKILL", "").strip() or "handbook-trigger-gate"
     self_path = os.environ.get("HT_SELF", "") or "handbook-trigger-gate.sh"
 
     def deny(m):

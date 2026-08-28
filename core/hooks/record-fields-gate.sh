@@ -111,14 +111,14 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§20 field check cannot run)."
 
-RF_PAYLOAD="$payload" RF_ROOT="$root" RF_ROLE="$role" \
+RF_PAYLOAD="$payload" RF_ROOT="$root" RF_SKILL="$role" \
 RF_TERMINAL="${RECORD_FIELDS_TERMINAL_STATES:-landed complete closed done delivered phase-2-complete}" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
     import json, os, posixpath, re, subprocess, sys
 
-    role = os.environ["RF_ROLE"]
+    role = os.environ["RF_SKILL"]
 
     def deny(m):
         # issue-282 DEMOTE: advisory only -- detection logic unchanged.
