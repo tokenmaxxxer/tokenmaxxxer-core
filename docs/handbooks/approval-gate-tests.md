@@ -167,6 +167,33 @@ Bash generally (`bash-redirect-src` et al., since the gate's first
 commit), it just had no case exercising it against a record path
 specifically.
 
+Also covers issue-343's removal of issue-295's observer-role exemption:
+`approval-gate.sh` used to carve out `OBSERVER_ROLES =
+("execution-observation", "conformance-review")`, a hard-coded two-name
+tuple membership-tested at runtime (`role in OBSERVER_ROLES`), letting
+either of those two roles keep acting after their shared issue closed via
+a MERGED PR on that issue's own `issue-<n>/implementation` branch
+(fetched via `gh issue view --json ...,closedByPullRequestsReferences`
+and cross-checked with `gh pr view <n> --json headRefName,state`). Per
+the 2026-08-27 operator ruling (no structural, non-identity signal
+distinguishes those two roles from any other role, so the closed-set
+membership test cannot be preserved under another name), the tuple, the
+branch literal, and the `closedByPullRequestsReferences` fetch that fed
+them are all removed; the closed-issue precondition is now the single
+unconditional `if issue_state != "OPEN":` for every role. Capability
+lost: execution-observation/conformance-review can no longer act on a
+closed issue at all, even when the close came from their own
+implementation role's merge — they are denied exactly like every other
+role now. The two `observer-completed-close-*` cases that used to `run
+allow` on the merge-closed shape now `run deny`;
+`observer-completed-close-no-merge-closer` (the issue-295 regression
+guard: a human's manual re-close with nothing newly merged must still
+deny everyone) is unchanged and still `run deny`; a new
+`observer-open-issue-with-pr-review` case pins the open-issue control
+(unaffected either way). See
+`docs/issue-343/reports/architecture-interface-contract-shape+silent-failure-audit-076c9768.md`
+for the full before/after verdict matrix.
+
 Also covers issue-212's build-now bypass (contract v3 s19a,
 on-the-record#785 cross-repo-blocked basis): when the spawn task sets
 `CORE_BUILD_NOW=1` in the session's environment, `approval-gate.sh` now
