@@ -37,14 +37,14 @@ payload="$(cat 2>/dev/null)"
 [ -n "$payload" ] || deny "trailer-gate: empty tool-use payload on stdin; cannot evaluate the trailer gate."
 
 TRAILER_GATE_PAYLOAD="$payload" \
-TRAILER_GATE_ROLE="$role" \
+TRAILER_GATE_SKILL="$role" \
 TRAILER_GATE_CPD="${CLAUDE_PROJECT_DIR:-}" \
 TRAILER_GATE_CWD="$(pwd -P 2>/dev/null || echo)" \
 TRAILER_GATE_SELF="$self_path" \
 python3 <<'PY'
 import json, os, posixpath, re, shlex, subprocess, sys
 
-role = os.environ.get("TRAILER_GATE_ROLE", "").strip() or "trailer-gate"
+role = os.environ.get("TRAILER_GATE_SKILL", "").strip() or "trailer-gate"
 self_path = os.environ.get("TRAILER_GATE_SELF", "") or "trailer-gate.sh"
 
 def deny(msg):

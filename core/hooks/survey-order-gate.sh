@@ -67,8 +67,8 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (write order cannot be judged)."
 
-export SOG_ROLE="${CLAUDE_ROLE:-}"
-PG_PAYLOAD="$payload" PG_ROOT="$root" PG_ROLE="$SOG_ROLE" \
+export SOG_SKILL="${CLAUDE_ROLE:-}"
+PG_PAYLOAD="$payload" PG_ROOT="$root" PG_SKILL="$SOG_SKILL" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
@@ -132,7 +132,7 @@ try:
         sys.exit(0)  # not a phase-1 proposal write surface — not this gate's business
 
     issue_n = m.group(1)
-    role = os.environ.get("PG_ROLE", "")
+    role = os.environ.get("PG_SKILL", "")
     if role:
         survey_rel = "docs/issue-%s/reports/%s/survey.md" % (issue_n, role)
     else:
