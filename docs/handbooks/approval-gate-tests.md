@@ -179,3 +179,28 @@ the bypass allowing even with no PR, no approvers file, or a raw Bash
 redirect; `build-now-unset-still-gated` is the empty-state sibling — the
 same `nopr` fixture with `CORE_BUILD_NOW` left unset still denies,
 proving the default two-phase gate is unchanged.
+
+Also covers issue-343's removal of the issue-295 observer-role
+exemption: `approval-gate.sh` used to carry `OBSERVER_ROLES =
+("execution-observation", "conformance-review")`, a closed-set
+membership test (`role in OBSERVER_ROLES`) that lifted the closed-issue
+precondition when the issue closed via a MERGED PR on the issue's own
+`issue-<n>/implementation` branch — the same identity-keyed-exemption
+shape removed elsewhere in this codebase (issue-341, issue-2593). Per
+the 2026-08-27 operator ruling, the capability is removed rather than
+reshaped: no role gets a closed-issue exemption any more, and the `gh
+issue view` call no longer requests `closedByPullRequestsReferences`.
+`observer-completed-close-with-comment-now-denied` and
+`observer-completed-close-conformance-review-now-denied` pin the
+previously-exempted roles now denying on the exact merge-close shape
+that used to allow them; `observer-completed-close-no-merge-closer` and
+`observer-not-planned-close-with-comment` keep pinning the issue-295
+regression guard (a manual re-close with nothing newly merged denies
+everyone), now true unconditionally rather than via the removed
+exemption's own fallback path; `observer-open-issue-with-pr-review` is
+the new empty-state sibling proving the open-issue quadrant is
+untouched. Suite is 65/67 against this build; the 2 failures
+(`checkpoint-refusal-names-await-approval`, `execute-without-remote`)
+are pre-existing on `main` before this change (confirmed via `git
+stash`) and unrelated to the observer-role exemption or the
+issue-state precondition.
