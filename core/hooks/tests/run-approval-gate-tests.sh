@@ -29,13 +29,13 @@ report() {
 # stub_gh <dir> <mode> [role]: modes set the issue's state/comments and the
 # PR's reviews independently. The generated gh stub is argument-aware — it
 # branches on $1 ("issue" vs "pr") so the two gh calls approval-gate.sh
-# makes (issue view --json state,comments; pr view --json reviews) get
-# independent, mode-controlled responses. A THIRD gh shape (issue-295) is
-# `pr view <number> --json headRefName,state`, used to confirm a candidate
-# closedByPullRequestsReferences entry is a MERGED PR on the issue's own
-# implementation branch; the stub tells this apart from the branch-review
-# lookup by whether "headRefName" appears anywhere in the invocation's
-# arguments, since both are `gh pr view ... --json ...` shape. [role]
+# makes (issue view --json state,comments,stateReason; pr view --json
+# reviews) get independent, mode-controlled responses. issue_closers and
+# closer_json remain as fixture fields (some modes still set them for
+# their own historical-shape documentation) but approval-gate.sh no
+# longer makes a third `gh pr view <number> --json headRefName,state`
+# call to consume them — issue-343 removed the closedByPullRequestsRef-
+# erences-driven observer-role exemption that call existed for. [role]
 # (default "coding") fills the APPROVE-comment challenge string for modes
 # that need to match a non-default role's own issue-<n>/<role> subject.
 stub_gh() {
@@ -176,27 +176,42 @@ run deny  closed-issue-with-comment           closed-with-comment     src/app.py
 run deny  closed-issue-with-pr-review         closed-with-pr-review   src/app.py
 run deny  issue-comment-minimized             comment-minimized       src/app.py
 
-# --- issue-295: observer-role exemption for a merge-closed issue -----------
-# execution-observation/conformance-review continuing after the
-# implementation role's own Closes-trailer merge (stateReason COMPLETED)
-# still needs a real Approve signal — the exemption only lifts the closed-
-# issue precondition, never the approval requirement itself.
-run allow observer-completed-close-with-comment closed-completed-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
-run allow observer-completed-close-conformance-review closed-completed-with-comment src/app.py role=conformance-review branch=issue-7/conformance-review
+# --- issue-343: the issue-295 observer-role exemption is REMOVED -----------
+# issue-295 used to lift the closed-issue precondition for exactly two
+# named roles (execution-observation, conformance-review) when the issue
+# closed via a MERGED PR on the implementation role's own branch --
+# OBSERVER_ROLES, a hard-coded two-name tuple membership-tested at
+# runtime, the same retired identity-keyed-exemption shape issue-2593
+# already removed elsewhere in this codebase. issue-343 removed that
+# capability rather than reintroduce the closed set (operator ruling,
+# 2026-08-27): no role gets a closed-issue exemption anymore, period.
+# The four cases below are the full 2x2 matrix from the issue (issue
+# open/closed x close-came-from-an-implementation-merge or not),
+# demonstrated for the previously-exempted role -- denied in every
+# quadrant where the issue is not open, including the legitimate
+# merge-close shape that used to be allowed; allowed on the open-issue
+# quadrant, unaffected by any of this.
+run deny  observer-completed-close-with-comment-now-denied closed-completed-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
+run deny  observer-completed-close-conformance-review-now-denied closed-completed-with-comment src/app.py role=conformance-review branch=issue-7/conformance-review
 run deny  observer-completed-close-no-approval  closed-completed-no-approval  src/app.py role=execution-observation branch=issue-7/execution-observation
 # regression guard: a genuinely rejected/not-planned close still denies
 # observer roles exactly like any other role.
 run deny  observer-not-planned-close-with-comment closed-not-planned-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
-# regression guard: a non-observer role on the SAME merge-closed shape is
-# unaffected by the exemption — still denied, exactly as before issue-295.
+# a non-observer role on the SAME merge-closed shape was already denied
+# before issue-295 existed and stays denied now -- unaffected either way.
 run deny  non-observer-completed-close-with-comment closed-completed-with-comment src/app.py role=coding
-# warrant-hunt regression (issue-295): stateReason COMPLETED plus a
-# standing PR-review APPROVED is NOT enough on its own -- without a
-# merged issue-<n>/implementation PR in closedByPullRequestsReferences
-# (e.g. a human closed the issue as completed directly, nothing new
-# merged), the exemption must not fire even for an observer role, or a
-# human's own revocation-by-closing act would be silently bypassed.
+# issue-295's own regression guard (a human's manual re-close with
+# nothing newly merged must deny everyone) still holds, now as a strict
+# superset: with no exemption left at all, this denies too, same as
+# before.
 run deny  observer-completed-close-no-merge-closer closed-completed-no-merge-closer-with-pr-review src/app.py role=execution-observation branch=issue-7/execution-observation
+# open-issue control (the other half of the 2x2 matrix): an observer
+# role with a real Approve on an OPEN issue is unaffected by any of
+# this -- the removed exemption only ever touched the closed-issue
+# precondition. (mode "human" is a PR-review APPROVED, not
+# role-text-matched, so it authorizes any role/branch pair the same
+# way.)
+run allow observer-open-issue-with-pr-review human src/app.py role=execution-observation branch=issue-7/execution-observation
 
 # --- build-now bypass (contract v3 s19a, issue-212) ------------------------
 # CORE_BUILD_NOW=1, set only by the spawner, skips the whole Approve chain
