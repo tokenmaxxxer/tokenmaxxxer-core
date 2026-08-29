@@ -266,14 +266,36 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # inside a later ARGUMENT, e.g. `grep "$PATTERN" file -e extra`'s
     # legitimate read-only `-e`), consume one whitespace-delimited word
     # that contains `$`/a backtick somewhere in it.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    #
+    # issue-233 independent verification round 2 (PR #354 review): `$`/
+    # backtick is generic across ways of producing those two characters,
+    # but not against shell WORD FORMATION -- brace expansion
+    # (`{python3,} -c ...`) and quote-splicing (`pyt''hon3 -c ...`) both
+    # produce a resolvable interpreter head with neither character
+    # present anywhere in the raw text this gate scans. Widened the head-
+    # word character class from `` [`$] `` to `` [`$'\x22{}] `` (backtick,
+    # `$`, both quote characters, both brace characters) -- a head word
+    # built from brace or quote syntax was not typed as a single plain
+    # program name, so it is equally unanalyzable regardless of whether a
+    # `$`/backtick also appears. Same false-refusal cost as board-gate.sh:
+    # a head quoted or brace-decorated for no functional reason (e.g.
+    # `"python3" -c ...`) now denies where it previously fell through
+    # unrecognized -- it was never reaching the literal `python3\b`
+    # alternative above either, so this is not a new over-block on any
+    # previously-allowed plain interpreter invocation, only on ones
+    # already falling through unrecognized. Still requires a real `-c`/
+    # `-e` flag later on the same head word's boundary-delimited run, so
+    # a merely quoted/braced head with no code flag stays unaffected.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$'\x22{}]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     # The fusion example above (`python3${X}-c`) puts the `-c`/`-e` flag
     # FUSED onto the same head word, with no literal space before it at
     # all -- the `\s-[A-Za-z]*[ce]` tail above requires that space and
     # never fires for it. A second, narrower alternative for the fused
     # case: same head-token boundary, but the flag ends the SAME
     # whitespace-delimited word the expansion sits in, not a later one.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$]\S*-[A-Za-z]*[ce]\b"
+    # Widened the same way as the spaced alternative above (issue-233
+    # round 2): brace/quote characters added alongside backtick/`$`.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$'\x22{}]\S*-[A-Za-z]*[ce]\b"
 )
 
 

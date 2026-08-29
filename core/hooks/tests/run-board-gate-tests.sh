@@ -758,6 +758,33 @@ run deny  generic-var-whitespace-fusion  Bash '{"command":"cd '$BOARD' && X=A; p
 # later argument".
 run allow grep-dollar-arg-dash-e-not-overblocked Bash '{"command":"cd '$BOARD' && grep \"$PATTERN\" reports/review.md -e extra"}'
 
+# --- issue-233 independent verification round 2 (PR #354 CHANGES review):
+# `$`/backtick is generic across ways of PRODUCING those two characters,
+# but not against shell WORD FORMATION -- two more single-token-expansion
+# mechanisms produce a resolvable interpreter head with neither `$` nor a
+# backtick present anywhere in the literal command text, confirmed live
+# (real file write) against the pre-fix gate:
+# (1) brace expansion with null-field removal: `{python3,}` expands to two
+# fields (`python3`, empty); the empty one is removed by ordinary word-
+# splitting, collapsing the head to exactly `python3` with `-c` as a plain
+# second word. The gate's literal, unexpanded head token is `{python3,}`
+# -- no `$`/backtick, not equal to any enumerated literal.
+run deny  brace-expansion-null-field-head Bash '{"command":"cd '$BOARD' && {python3,} -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# (2) quote-splicing: bash concatenates adjacent quoted/unquoted pieces
+# into one word at parse time (`pyt''"'"'hon3` -> `python3`), but
+# gate_head_of's plain `.split()` sees the raw, quote-including token.
+run deny  quote-splice-single-quotes      Bash '{"command":"cd '$BOARD' && pyt'"'"''"'"'hon3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run deny  quote-splice-double-quotes      Bash '{"command":"cd '$BOARD' && pyt\"hon\"3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# negative control: a head merely quoted or brace-decorated with NO -c/-e
+# flag at all must not be over-blocked -- the widened EXPANDED_HEAD_RE
+# alone (head contains a quote/brace character) is not enough.
+run allow quoted-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && \"cat\" reports/review.md"}'
+run allow braced-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && {cat} reports/review.md"}'
+# negative control: `awk '"'"'{print $1}'"'"' file` puts braces in the
+# PROGRAM TEXT argument, not the head token gate_head_of resolves -- the
+# widened check only ever inspects `head`, never argument text.
+run allow awk-braces-in-program-not-overblocked Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment
