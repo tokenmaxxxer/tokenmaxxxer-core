@@ -47,14 +47,14 @@ gh_guard_case() {
   GATE="$HERE/../gh-guard.sh"
   # baseline: unescaped "gh pr merge" denies.
   printf '{"tool_name": "Bash", "tool_input": {"command": "gh pr merge 42 --squash"}}' \
-    | env CLAUDE_ROLE=implementation /bin/bash "$GATE" >/dev/null 2>&1
+    | env CLAUDE_SKILL=implementation /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "gh-guard-unescaped-merge-denies"
 
   # F15 regression pin: the same command, "gh" JSON-escaped as \u0067h,
   # decodes to a byte-identical command string and must deny identically.
   printf '{"tool_name": "Bash", "tool_input": {"command": "\\u0067h pr merge 42 --squash"}}' \
-    | env CLAUDE_ROLE=implementation /bin/bash "$GATE" >/dev/null 2>&1
+    | env CLAUDE_SKILL=implementation /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "gh-guard-escaped-merge-still-denies-F15"
 
@@ -63,7 +63,7 @@ gh_guard_case() {
   mktd; stubdir="$td"; stub_python3 "$stubdir"
   marker="$stubdir/marker"
   printf '{"tool_name":"Bash","tool_input":{"command":"echo hello world"}}' \
-    | env CLAUDE_ROLE=implementation PATH="$stubdir:/usr/bin:/bin" \
+    | env CLAUDE_SKILL=implementation PATH="$stubdir:/usr/bin:/bin" \
       PYTHON3_INVOKED_MARKER="$marker" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report allow "$got" "gh-guard-irrelevant-payload-fast-skips"
@@ -85,21 +85,21 @@ approval_gate_case() {
 
   # baseline: unescaped src/ write, no approval anywhere, denies.
   printf '{"tool_name": "Write", "tool_input": {"file_path": "src/bad_file.py", "content":"x"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "approval-gate-unescaped-src-write-denies"
 
   # F17 regression pin: "src/" JSON-escaped as \u0073rc/ decodes to a
   # byte-identical path and must deny identically.
   printf '{"tool_name": "Write", "tool_input": {"file_path": "\\u0073rc/bad_file.py", "content":"x"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "approval-gate-escaped-src-write-still-denies-F17"
 
   # same class via the Bash tool_input.command path (record's "reproduced
   # a second way" note).
   printf '{"tool_name":"Bash","tool_input":{"command":"echo hi > \\u0073rc/bad_file.py"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "approval-gate-escaped-src-bash-write-still-denies-F17"
 
@@ -107,7 +107,7 @@ approval_gate_case() {
   mktd; stubdir="$td"; stub_python3 "$stubdir"
   marker="$stubdir/marker"
   printf '{"tool_name":"Write","tool_input":{"file_path":"README.md","content":"x"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$repo" PATH="$stubdir:/usr/bin:/bin" \
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$repo" PATH="$stubdir:/usr/bin:/bin" \
       PYTHON3_INVOKED_MARKER="$marker" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report allow "$got" "approval-gate-irrelevant-payload-fast-skips"
@@ -129,7 +129,7 @@ board_gate_case() {
 
   # baseline: an unescaped bad-bucket docs/ write denies.
   printf '{"tool_name":"Write","tool_input":{"file_path":"docs/badbucket/x.md","content":"x"},"cwd":"%s"}' "$repo" \
-    | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
+    | env CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "board-gate-unescaped-badbucket-denies"
 
@@ -138,7 +138,7 @@ board_gate_case() {
   # identically -- this is the escape the #301 record's "no escapable /"
   # reasoning did not try, and it does bypass the fast path as shipped.
   printf '{"tool_name":"Write","tool_input":{"file_path":"d\\u006fcs/badbucket/x.md","content":"x"},"cwd":"%s"}' "$repo" \
-    | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
+    | env CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$repo" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "board-gate-escaped-badbucket-still-denies"
 
@@ -146,7 +146,7 @@ board_gate_case() {
   mktd; stubdir="$td"; stub_python3 "$stubdir"
   marker="$stubdir/marker"
   printf '{"tool_name":"Write","tool_input":{"file_path":"README.md","content":"x"},"cwd":"%s"}' "$repo" \
-    | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$repo" PATH="$stubdir:/usr/bin:/bin" \
+    | env CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$repo" PATH="$stubdir:/usr/bin:/bin" \
       PYTHON3_INVOKED_MARKER="$marker" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report allow "$got" "board-gate-irrelevant-payload-fast-skips"
@@ -189,7 +189,7 @@ dispatcher_case() {
 
   # gh-guard.sh via the dispatcher: F15 pin.
   printf '{"tool_name": "Bash", "tool_input": {"command": "\\u0067h pr merge 42 --squash"}}' \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=implementation OTR_DISPATCH_ONLY=gh-guard.sh \
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=implementation OTR_DISPATCH_ONLY=gh-guard.sh \
       python3 "$DISPATCHER" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "dispatcher-gh-guard-escaped-merge-denies-F15"
@@ -205,7 +205,7 @@ dispatcher_case() {
   mkdir -p "$repo/docs/specs"
   printf -- '- jw-human\n' > "$repo/docs/specs/approvers.md"
   printf '{"tool_name": "Write", "tool_input": {"file_path": "\\u0073rc/bad.py", "content":"x"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$repo" \
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$repo" \
       OTR_DISPATCH_ONLY=approval-gate.sh python3 "$DISPATCHER" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "dispatcher-approval-gate-escaped-src-denies-F17"
@@ -219,7 +219,7 @@ dispatcher_case() {
   mkdir -p "$repo/docs/specs"
   printf -- '- jw-human\n' > "$repo/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"d\\u006fcs/badbucket/x.md","content":"x"},"cwd":"%s"}' "$repo" \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$repo" \
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$repo" \
       OTR_DISPATCH_ONLY=board-gate.sh python3 "$DISPATCHER" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report deny "$got" "dispatcher-board-gate-escaped-badbucket-denies"
@@ -229,7 +229,7 @@ dispatcher_case() {
   # OTR_DISPATCH_ONLY-scoped): still allows, empty-state performance
   # intent preserved end to end.
   printf '{"tool_name":"Bash","tool_input":{"command":"echo hello world"}}' \
-    | env -u CORE_BUILD_NOW CLAUDE_ROLE=implementation python3 "$DISPATCHER" >/dev/null 2>&1
+    | env -u CORE_BUILD_NOW CLAUDE_SKILL=implementation python3 "$DISPATCHER" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report allow "$got" "dispatcher-irrelevant-payload-allows-full-chain"
 }

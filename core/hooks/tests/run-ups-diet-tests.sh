@@ -45,7 +45,7 @@ scout/hooks/directive.sh
 warrant/hooks/directive.sh"
 
 render() { # <script-rel-path> <outfile>
-  CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" CLAUDE_ROLE=implementation \
+  CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" CLAUDE_SKILL=implementation \
     /bin/bash "$REPO/$1" </dev/null >"$2" 2>/dev/null
 }
 
@@ -93,7 +93,7 @@ chmod +x "$fakebin/gh"
 
 render_ss() { # <outfile>
   PATH="$fakebin:$PATH" CLAUDE_PROJECT_DIR="$fakerepo" TMPDIR="$tmp" \
-    CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" CLAUDE_ROLE=implementation \
+    CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" CLAUDE_SKILL=implementation \
     /bin/bash "$CORE_ROOT/hooks/directive.sh" </dev/null >"$1" 2>/dev/null
 }
 render_ss "$tmp/ss-a"

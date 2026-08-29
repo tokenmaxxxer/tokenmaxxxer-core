@@ -16,14 +16,14 @@
 #       zero information (the hash check forced them identical) and made
 #       every contract revision an atomic N-repo re-sync.
 #
-#   R3  A write under docs/issue-<n>/ requires CLAUDE_ROLE in the
+#   R3  A write under docs/issue-<n>/ requires CLAUDE_SKILL in the
 #       environment. Role sessions get it from on-the-record; the orchestrator's
 #       own interactive session carries no rulebook gates and has no
 #       business writing the board.
 #
 #   R4  Branch. A role session writes an issue tree only from that issue's
 #       own role branch: writing docs/issue-<n>/... requires the current
-#       git branch to be exactly issue-<n>/<CLAUDE_ROLE>. Writing the board
+#       git branch to be exactly issue-<n>/<CLAUDE_SKILL>. Writing the board
 #       from main (or any other branch) is refused — every role output
 #       reaches main only through a PR the human merges (contract v3 s10).
 #
@@ -732,7 +732,7 @@ for c in candidates:
             continue      # resolves outside the repo: not a board write
     hits.append(tail)
 
-role = os.environ.get("CLAUDE_ROLE", "").strip()
+role = os.environ.get("CLAUDE_SKILL", "").strip()
 is_board = bool(root) and os.path.isfile(
     os.path.join(root, "docs", "specs", "approvers.md"))
 
@@ -816,7 +816,7 @@ if not issue_hits:
 
 # --- R3: no role, no board writes ---------------------------------------
 if not role:
-    deny("a write under docs/issue-<n>/ from a session with no CLAUDE_ROLE. "
+    deny("a write under docs/issue-<n>/ from a session with no CLAUDE_SKILL. "
          "The board belongs to role sessions; this one carries no rulebook "
          "gates. (contract v3 s8/s10)")
 

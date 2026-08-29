@@ -17,7 +17,7 @@ trap __fc EXIT
 # copies had drifted in message prefix beyond role substitution — one
 # rulebook's copy denied under the literal prefix "warrant:", unrelated to
 # that rulebook's own role, a stale copy-paste rather than intentional
-# behavior. This canon copy derives the prefix from CLAUDE_ROLE
+# behavior. This canon copy derives the prefix from CLAUDE_SKILL
 # unconditionally, closing that bug as a side effect of promotion.
 #
 # Kill switch: export HANDBOOK_TRIGGER_GATE_OFF=1
@@ -25,7 +25,7 @@ trap __fc EXIT
 set -uo pipefail
 
 self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
-role="${CLAUDE_ROLE:-}"
+role="${CLAUDE_SKILL:-}"
 deny() { echo "${role:-handbook-trigger-gate}: refused — $* (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${HANDBOOK_TRIGGER_GATE_OFF:-}" || exit 0

@@ -67,7 +67,7 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (write order cannot be judged)."
 
-export SOG_SKILL="${CLAUDE_ROLE:-}"
+export SOG_SKILL="${CLAUDE_SKILL:-}"
 PG_PAYLOAD="$payload" PG_ROOT="$root" PG_SKILL="$SOG_SKILL" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error

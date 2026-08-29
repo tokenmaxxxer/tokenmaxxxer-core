@@ -144,7 +144,7 @@ run() {
   fi
   printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" \
+      CLAUDE_SKILL="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" \
       CORE_CHECKPOINT="$checkpoint" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -248,10 +248,10 @@ checkpoint_wording() {
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td")"
   err_default="$(printf '%s' "$payload" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" 2>&1 >/dev/null)"
+      CLAUDE_SKILL=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" 2>&1 >/dev/null)"
   err_ckpt="$(printf '%s' "$payload" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" CORE_CHECKPOINT=1 /bin/bash "$GATE" 2>&1 >/dev/null)"
+      CLAUDE_SKILL=coding CORE_GH="$td/stub/gh" CORE_CHECKPOINT=1 /bin/bash "$GATE" 2>&1 >/dev/null)"
   rm -rf "$td"
   got=absent; case "$err_default" in *checkpoint*|*CORE_CHECKPOINT*) got=present ;; esac
   report absent "$got" "default-refusal-has-no-checkpoint-wording"
@@ -271,7 +271,7 @@ noremote() {
   stub_gh "$td/stub" human
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=coding CORE_GH="$td/stub/gh" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -349,7 +349,7 @@ norole() {
   mktd
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
-    | env -u CLAUDE_ROLE -u TOKENMAXXXER_SPAWNED CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    | env -u CLAUDE_SKILL -u TOKENMAXXXER_SPAWNED CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -363,7 +363,7 @@ kill_switch() {
   mktd
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
-    | env CLAUDE_ROLE=coding CORE_OFF=1 CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    | env CLAUDE_SKILL=coding CORE_OFF=1 CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   rm -rf "$td"
@@ -376,7 +376,7 @@ kill_switch
 # empty stdin (delivery failure) must deny, not fall through the fast path.
 empty_payload() {
   mktd; git init -q "$td"
-  printf '' | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  printf '' | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   rm -rf "$td"
@@ -398,7 +398,7 @@ internal_error() {
   printf '#!/usr/bin/env bash\nexit 1\n' > "$stubdir/python3"
   chmod +x "$stubdir/python3"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
-    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   rm -rf "$td" "$stubdir"

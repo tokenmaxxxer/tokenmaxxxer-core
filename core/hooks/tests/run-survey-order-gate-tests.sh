@@ -4,7 +4,7 @@
 #
 # Coverage per the approved proposal (docs/issue-271/proposals/):
 #   (a) existing implementation-role behavior unchanged, with and without
-#       CLAUDE_ROLE set;
+#       CLAUDE_SKILL set;
 #   (b) a non-implementation role's phase-1 proposal write is allowed once
 #       its own reports/<role>/survey.md exists, and denied when only
 #       reports/implementation/survey.md exists (no accept-any-glob);
@@ -31,7 +31,7 @@ run() { # <want> <name> <role> <file_path> <content> [extra env NAME=VAL ...]
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"; shift 5
   content_json="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$content")"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content_json")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
       /bin/bash "$GATE" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -85,15 +85,15 @@ tests pass
 
 # --- (a) implementation-role unchanged, survey present --------------------
 : > "$td/docs/issue-9/reports/implementation/survey.md"
-run allow "implementation role, CLAUDE_ROLE unset, survey present" \
+run allow "implementation role, CLAUDE_SKILL unset, survey present" \
   "" "docs/issue-9/proposals/x.md" "$ordinary_body"
-run allow "implementation role, CLAUDE_ROLE=implementation, survey present" \
+run allow "implementation role, CLAUDE_SKILL=implementation, survey present" \
   implementation "docs/issue-9/proposals/x.md" "$ordinary_body"
 
 rm -f "$td/docs/issue-9/reports/implementation/survey.md"
-run allow "implementation role, CLAUDE_ROLE unset, survey absent" \
+run allow "implementation role, CLAUDE_SKILL unset, survey absent" \
   "" "docs/issue-9/proposals/x.md" "$ordinary_body"
-run allow "implementation role, CLAUDE_ROLE=implementation, survey absent" \
+run allow "implementation role, CLAUDE_SKILL=implementation, survey absent" \
   implementation "docs/issue-9/proposals/x.md" "$ordinary_body"
 
 # --- (b) non-implementation role: own survey required, no accept-any-glob -

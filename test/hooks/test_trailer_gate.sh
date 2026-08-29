@@ -35,7 +35,7 @@ run() {
   : > "$td/docs/issue-141/reports/implementation/x.md"
   git -C "$td" add docs/issue-141/reports/implementation/x.md
   payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","tool_input":{"command":sys.argv[1]}}))' "$cmdstr")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   last_out="$out"
@@ -99,7 +99,7 @@ capture() { # <command-string>
   : > "$td/docs/issue-141/reports/implementation/x.md"
   git -C "$td" add docs/issue-141/reports/implementation/x.md
   payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","tool_input":{"command":sys.argv[1]}}))' "$1")"
-  printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" >>"$DENY_LOG" 2>&1
+  printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" >>"$DENY_LOG" 2>&1
   rm -rf "$td"
 }
 capture 'git commit -m "docs(issue-141): plain message, no trailer"'
@@ -139,7 +139,7 @@ printf '#!/bin/sh\necho "SHADOW_CAT_INVOKED args=$*" >> %s\nexec /bin/cat "$@"\n
 chmod +x "$fakebin/cat"
 
 payload="$(python3 -c 'import json; print(json.dumps({"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\nSubject: issue-141\nEOF\n)\""}}))')"
-out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" PATH="$fakebin:$PATH" /bin/bash "$GATE" 2>&1)"
+out="$(printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" PATH="$fakebin:$PATH" /bin/bash "$GATE" 2>&1)"
 rc=$?
 invocations="$(wc -l < "$shadow_log" | tr -d ' ')"
 rm -rf "$td" "$fakebin"

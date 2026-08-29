@@ -55,9 +55,9 @@ def run_gate(board, command, role="implementation"):
     env["CLAUDE_PROJECT_DIR"] = str(board)
     env["CLAUDE_PLUGIN_ROOT"] = PLUGIN_ROOT
     if role:
-        env["CLAUDE_ROLE"] = role
+        env["CLAUDE_SKILL"] = role
     else:
-        env.pop("CLAUDE_ROLE", None)
+        env.pop("CLAUDE_SKILL", None)
     proc = subprocess.run(
         ["/bin/bash", GATE], input=payload, capture_output=True, text=True, env=env,
     )

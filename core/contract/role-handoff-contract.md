@@ -909,7 +909,7 @@ code, tests, and its record, and open one PR carrying the delivered work
 
 **The mechanism.** The spawner (never the role itself) sets
 `CORE_BUILD_NOW=1` in the environment of the spawned session, the same
-way it already sets `CLAUDE_ROLE`. `core/hooks/approval-gate.sh` checks
+way it already sets `CLAUDE_SKILL`. `core/hooks/approval-gate.sh` checks
 this before any of section 19's gh-backed Approve checks: when set to
 exactly `1`, an execution-surface write is allowed unconditionally; when
 unset (the default), the gate is unchanged and section 19 applies in

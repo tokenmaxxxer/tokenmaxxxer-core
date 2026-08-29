@@ -81,8 +81,8 @@ the next compaction.
 One file per work unit, named for its proposal. The dispatcher hands you the
 path to use — write there. If you are ever invoked standalone, with no
 dispatcher prompt naming the path, derive it yourself: first check whether
-this session is issue-scoped and role-scoped — `CLAUDE_ROLE` is set AND this
-session's own current branch resolves as exactly `issue-<n>/<CLAUDE_ROLE>`
+this session is issue-scoped and role-scoped — `CLAUDE_SKILL` is set AND this
+session's own current branch resolves as exactly `issue-<n>/<CLAUDE_SKILL>`
 (the same check board-gate's R4 performs). If so, the record goes to
 `docs/issue-<n>/reports/<role>/<date>-hunt-<proposal-slug>.md` (inside the
 role's own subtree, so board-gate's R5 admits it). Otherwise, derive it from

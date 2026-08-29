@@ -4,7 +4,7 @@ trap __fc EXIT
 # PreToolUse gate (Write|Edit|MultiEdit) — contract §20.
 #
 # On a write whose resolved target is the acting role's own record
-# docs/issue-<n>/reports/${CLAUDE_ROLE}.md, parse the PROPOSED content and
+# docs/issue-<n>/reports/${CLAUDE_SKILL}.md, parse the PROPOSED content and
 # require §20's minimum fields: a "what was done" section, a "why" section,
 # the upstream basis, the record's own loop_state, and an open-findings
 # section. Whenever loop_state is non-terminal, additionally require a
@@ -30,7 +30,7 @@ trap __fc EXIT
 # count as terminal ({"landed"} in one copy, {"decided","scope-proposed"}
 # in another). The message-prefix divergence was a copy-paste bug, not
 # intentional role behavior, and is fixed here by deriving the prefix from
-# CLAUDE_ROLE unconditionally. The terminal-states divergence looks like
+# CLAUDE_SKILL unconditionally. The terminal-states divergence looks like
 # genuine per-role semantics (a proposal-shaped role may treat
 # "scope-proposed" as its own terminal state), so it is kept as
 # configuration injected via RECORD_FIELDS_TERMINAL_STATES (space-separated
@@ -63,12 +63,12 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-fields-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-role="${CLAUDE_ROLE:-}"
+role="${CLAUDE_SKILL:-}"
 deny() { echo "${role:-record-fields-gate}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${RECORD_FIELDS_GATE_OFF:-}" || exit 0
 
-[ -n "$role" ] || deny "record-fields-gate: no CLAUDE_ROLE in the environment; the gate cannot resolve which record is this role's own."
+[ -n "$role" ] || deny "record-fields-gate: no CLAUDE_SKILL in the environment; the gate cannot resolve which record is this role's own."
 
 command -v python3 >/dev/null 2>&1 || deny "record-fields-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 

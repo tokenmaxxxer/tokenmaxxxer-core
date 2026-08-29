@@ -24,7 +24,7 @@ report() { # <want> <got> <name>
 # run against the corpus = rendered index + the on-demand section file,
 # mirroring on-the-record #2106.
 SECTION="$(cd "$HOOKS/.." && pwd -P)/directive/session-protocol.md"
-out="$(CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" 2>/dev/null; cat "$SECTION")"
+out="$(CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" 2>/dev/null; cat "$SECTION")"
 
 # Row 3: spec-index regeneration.
 spec_index=""
@@ -137,11 +137,11 @@ run_hook_kill_switch survey-order-directive.sh SURVEY_ORDER_OFF "[survey-order-d
 
 # role-directive.sh: a sourced library, not a standalone script — exercise
 # core_role_directive directly in a subshell per case, keyed off the
-# <ROLE>_CYCLE_OFF convention (core_role_directive uppercases CLAUDE_ROLE).
+# <ROLE>_CYCLE_OFF convention (core_role_directive uppercases CLAUDE_SKILL).
 role_directive_case() { # <off-value-or-empty>
   (
-    CLAUDE_ROLE=implementation
-    export CLAUDE_ROLE
+    CLAUDE_SKILL=implementation
+    export CLAUDE_SKILL
     [ -z "$1" ] || { export IMPLEMENTATION_CYCLE_OFF="$1"; }
     . "$LIB"
     core_role_directive "YD" "UW" "PR" "HO"
