@@ -705,7 +705,38 @@ VAR_INTERP_RE = re.compile(
 # gate_head_of/_resolve_transparent decided is this segment's head, so a
 # `$`/backtick anywhere inside it is always suspect, never a false hit
 # borrowed from some later, unrelated argument.
-EXPANDED_HEAD_RE = re.compile(r"[`$]")
+#
+# issue-233 independent verification round 2 (PR #354 review): `$`/backtick
+# is generic across ways of producing those two characters, but NOT
+# generic across shell WORD FORMATION -- brace expansion
+# (`{python3,} -c ...`, comma-field removed by word-splitting) and
+# quote-splicing (`pyt''hon3 -c ...`, adjacent quoted/unquoted pieces
+# concatenated at parse time) both produce a resolvable interpreter head
+# with neither `$` nor a backtick present anywhere in the literal text.
+# `head` here is still raw, unsplit-by-shell-rules text (`_resolve_transparent`
+# does a plain `.split()`, no quote removal or brace expansion) -- so the
+# same "head is never argument text" safety argument above extends
+# cleanly to a wider class: a head token built from brace syntax or
+# containing a quote character was NOT typed as a single plain word, so
+# this gate cannot vouch for what it resolves to, regardless of whether
+# a `$`/backtick is also present. Widened from "expansion" to "word
+# formation": `{`/`}` (brace expansion/removal) and `'`/`"` (quote
+# splicing/concatenation) added to the character class alongside
+# `` ` ``/`$`. False-refusal cost: a head token that is quoted or
+# brace-decorated for no functional reason (e.g. `"python3" -c ...`,
+# `{python3} -c ...` with a single brace-group and no comma) now also
+# denies where it previously allowed via literal `head in
+# INTERPRETER_HEADS` matching only the bare name -- but such a head was
+# never actually reaching INTERPRETER_HEADS's literal-string membership
+# check either (the quote/brace characters are part of the token, so it
+# never equalled the bare interpreter name), so this is not a new
+# over-block on any PREVIOUSLY-ALLOWED interpreter -c/-e invocation, only
+# on ones that were already falling through unrecognized. Pure reads are
+# unaffected: this branch only ever fires when combined with a separate
+# INLINE_FLAG_WORDS (`-c`/`-e`) trailing word, so a head merely typed with
+# quotes/braces and no code flag (e.g. `"cat" reports/x.md`) still falls
+# through untouched.
+EXPANDED_HEAD_RE = re.compile(r"[`$'\x22{}]")
 # The same hunt round found a SECOND spelling: an expansion FUSED into an
 # otherwise-literal name (`python3${X}-c` where `X` holds a space --
 # generalizing issue-227's `$IFS` fix to ANY variable holding whitespace,
@@ -718,8 +749,10 @@ EXPANDED_HEAD_RE = re.compile(r"[`$]")
 # characters starting the segment, containing `$`/a backtick, ending in a
 # fused `-c`/`-e`-shaped flag -- anchored to the START of the segment (not
 # `re.search` over the whole thing), so this can only ever match the head
-# token itself, never a later argument.
-EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[`$]\S*-[A-Za-z]*[ce]\b")
+# token itself, never a later argument. Widened the same way as
+# EXPANDED_HEAD_RE above, for a brace/quote-fused flag
+# (`{python3,}-c`/`pyt''hon3-c` with no space before the flag).
+EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[`$'\x22{}]\S*-[A-Za-z]*[ce]\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
