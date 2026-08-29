@@ -419,5 +419,57 @@ run deny  backslash-newline-splice       Bash \
 run allow backslash-newline-inside-single-quotes-not-overblocked Bash \
   '{"command":"grep '"'"'foo t\\\nee bar'"'"' src/other.py"}'
 
+# --- issue-233 CHANGES review (PR #358): an escaped-space real filesystem
+# path to an interpreter (ordinary shell syntax -- what bash's own
+# tab-completion inserts) is neither expansion nor quote-splicing, but
+# this gate's boundary-anchored "any unsafe char in the run up to -c/-e"
+# scan does not need to resolve a precise head token the way
+# board-gate.sh's tokenizer does -- a stray backslash or quote character
+# anywhere in that run already trips the same allowlist-complement
+# alternative, so both directions were already correct here with no code
+# change; recorded as regression coverage, not a fix.
+run deny  escaped-space-interpreter-path-c-flag Bash \
+  '{"command":"/opt/My\\ Python/python3 -c \"open(1)\""}'
+run allow escaped-space-interpreter-path-no-flag-not-overblocked Bash \
+  '{"command":"/opt/My\\ Python/python3 -m pytest -q"}'
+# a quoted path containing spaces stresses the identical boundary the
+# escaped-space form does.
+run deny  quoted-path-with-spaces-c-flag    Bash \
+  '{"command":"\"/opt/My Python/python3\" -c \"open(1)\""}'
+run allow quoted-path-with-spaces-no-flag-not-overblocked Bash \
+  '{"command":"\"/opt/My Python/python3\" -m pytest -q"}'
+# known, disclosed, OUT-OF-SCOPE residual (not this issue's word-formation
+# class): this gate has no tokenizer at all (see _splice_line_continuations's
+# own docstring) and its literal-interpreter-name alternative only matches
+# right after a boundary, so a full absolute path to an interpreter --
+# escaped/quoted or perfectly plain, e.g. `/usr/bin/python3 -c ...` --
+# never resolves to a basename the way board-gate.sh's gate_head_of does.
+# board-gate.sh does not share this gap (it extracts the basename after
+# the last `/`). Left unfixed here: closing it means giving this gate a
+# real path/basename resolver, a materially larger change than making the
+# existing scan aware of escaped/quoted whitespace, and orthogonal to the
+# expansion/word-formation class issue-233 targets.
+run allow absolute-path-interpreter-c-flag-not-caught-preexisting-gap Bash \
+  '{"command":"/usr/bin/python3 -c \"open(1)\""}'
+# known, disclosed, OUT-OF-SCOPE residual, same class as the one above:
+# PR #354's own "Out of scope" list already named a quoted `-c`/`-e` flag
+# on a LITERAL (undecorated) interpreter head (`python3 "-c" ...`) as a
+# disclosed, accepted gap -- this gate's regex requires a literal `-c`/
+# `-e` immediately after whitespace, and any single-token decoration on
+# the FLAG word (not the head) defeats that adjacency regardless of which
+# decoration mechanism is used. The before-landing warrant-hunt for this
+# delivery found ANSI-C quoting (`$'-c'`) reproduces the identical gap on
+# `core/hooks/board-gate.sh` (fixed there -- its tokenizer resolves
+# `$'-c'` to the plain word "-c" before the flag-membership check ever
+# runs); this gate has no equivalent tokenizer for FLAG words (only the
+# HEAD-adjacent character-class scan `_splice_line_continuations`
+# feeds), so the same `$'-c'` shape still passes through here. Named
+# explicitly (extending the existing disclosure to this decoration
+# mechanism) rather than fixed: closing it needs a real flag-word
+# tokenizer, not an escaped/quoted-whitespace-aware HEAD scan, and no
+# head decoration is involved in this shape at all.
+run allow ansi-c-quoted-flag-word-not-caught-preexisting-gap Bash \
+  '{"command":"python3 $'"'"'-c'"'"' \"open(1)\""}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
