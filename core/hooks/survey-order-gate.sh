@@ -132,9 +132,9 @@ try:
         sys.exit(0)  # not a phase-1 proposal write surface — not this gate's business
 
     issue_n = m.group(1)
-    role = os.environ.get("PG_SKILL", "")
-    if role:
-        survey_rel = "docs/issue-%s/reports/%s/survey.md" % (issue_n, role)
+    skill = os.environ.get("PG_SKILL", "")
+    if skill:
+        survey_rel = "docs/issue-%s/reports/%s/survey.md" % (issue_n, skill)
     else:
         survey_rel = "docs/issue-%s/reports/implementation/survey.md" % issue_n
     survey_abs = posixpath.join(root, survey_rel)

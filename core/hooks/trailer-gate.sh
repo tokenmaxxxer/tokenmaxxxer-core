@@ -26,8 +26,8 @@ trap __fc EXIT
 set -uo pipefail
 
 self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
-role="${CLAUDE_SKILL:-}"
-deny() { echo "${role:-trailer-gate}: refused — $1 (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
+skill="${CLAUDE_SKILL:-}"
+deny() { echo "${skill:-trailer-gate}: refused — $1 (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${TRAILER_GATE_OFF:-}" || exit 0
 
@@ -37,19 +37,19 @@ payload="$(cat 2>/dev/null)"
 [ -n "$payload" ] || deny "trailer-gate: empty tool-use payload on stdin; cannot evaluate the trailer gate."
 
 TRAILER_GATE_PAYLOAD="$payload" \
-TRAILER_GATE_SKILL="$role" \
+TRAILER_GATE_SKILL="$skill" \
 TRAILER_GATE_CPD="${CLAUDE_PROJECT_DIR:-}" \
 TRAILER_GATE_CWD="$(pwd -P 2>/dev/null || echo)" \
 TRAILER_GATE_SELF="$self_path" \
 python3 <<'PY'
 import json, os, posixpath, re, shlex, subprocess, sys
 
-role = os.environ.get("TRAILER_GATE_SKILL", "").strip() or "trailer-gate"
+skill = os.environ.get("TRAILER_GATE_SKILL", "").strip() or "trailer-gate"
 self_path = os.environ.get("TRAILER_GATE_SELF", "") or "trailer-gate.sh"
 
 def deny(msg):
     # issue-282 DEMOTE: advisory only -- detection logic unchanged.
-    reason = "%s: %s (gate: %s)" % (role, msg, self_path)
+    reason = "%s: %s (gate: %s)" % (skill, msg, self_path)
     sys.stderr.write(reason + "\n")
     print(json.dumps({
         "hookSpecificOutput": {
@@ -65,7 +65,7 @@ def allow():
 
 def _fail_closed(_t, _v, _tb):
     try:
-        sys.stderr.write("%s: refused — fail-closed: internal error (%s: %s) (gate: %s)\n" % (role, _t.__name__, _v, self_path))
+        sys.stderr.write("%s: refused — fail-closed: internal error (%s: %s) (gate: %s)\n" % (skill, _t.__name__, _v, self_path))
     except Exception:
         pass
     os._exit(2)
@@ -398,7 +398,7 @@ allow()
 PY
 rc=$?
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-  echo "${role:-trailer-gate}: refused — fail-closed: internal error (gate judge exited $rc)" >&2
+  echo "${skill:-trailer-gate}: refused — fail-closed: internal error (gate judge exited $rc)" >&2
   exit 2
 fi
 exit "$rc"

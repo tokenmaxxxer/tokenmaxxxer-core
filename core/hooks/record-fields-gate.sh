@@ -63,12 +63,12 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-fields-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-role="${CLAUDE_SKILL:-}"
-deny() { echo "${role:-record-fields-gate}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
+skill="${CLAUDE_SKILL:-}"
+deny() { echo "${skill:-record-fields-gate}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${RECORD_FIELDS_GATE_OFF:-}" || exit 0
 
-[ -n "$role" ] || deny "record-fields-gate: no CLAUDE_SKILL in the environment; the gate cannot resolve which record is this role's own."
+[ -n "$skill" ] || deny "record-fields-gate: no CLAUDE_SKILL in the environment; the gate cannot resolve which record is this role's own."
 
 command -v python3 >/dev/null 2>&1 || deny "record-fields-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 
@@ -111,18 +111,18 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§20 field check cannot run)."
 
-RF_PAYLOAD="$payload" RF_ROOT="$root" RF_SKILL="$role" \
+RF_PAYLOAD="$payload" RF_ROOT="$root" RF_SKILL="$skill" \
 RF_TERMINAL="${RECORD_FIELDS_TERMINAL_STATES:-landed complete closed done delivered phase-2-complete}" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
     import json, os, posixpath, re, subprocess, sys
 
-    role = os.environ["RF_SKILL"]
+    skill = os.environ["RF_SKILL"]
 
     def deny(m):
         # issue-282 DEMOTE: advisory only -- detection logic unchanged.
-        reason = "%s: %s" % (role, m)
+        reason = "%s: %s" % (skill, m)
         sys.stderr.write(reason + "\n")
         print(json.dumps({
             "hookSpecificOutput": {
@@ -147,7 +147,7 @@ try:
         deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (§20).")
 
     root = posixpath.normpath(os.environ["RF_ROOT"].replace("\\", "/"))
-    RECORDS_RE = re.compile(r'^docs/issue-[0-9]+/reports/%s\.md$' % re.escape(role))
+    RECORDS_RE = re.compile(r'^docs/issue-[0-9]+/reports/%s\.md$' % re.escape(skill))
     PROPOSALS_RE = re.compile(r'^docs/issue-[0-9]+/proposals/.*\.md$')
     LEGACY_FALLBACK_TERMINAL = set(os.environ["RF_TERMINAL"].split())
 
@@ -491,7 +491,7 @@ except Exception as _fc_e:  # fail-closed-on-internal-error
 PY
 _fc_rc=$?  # fail-closed-on-internal-error
 if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
-  echo "${role:-record-fields-gate}: refused — fail-closed: internal error (judge exited $_fc_rc)" >&2
+  echo "${skill:-record-fields-gate}: refused — fail-closed: internal error (judge exited $_fc_rc)" >&2
   exit 2
 fi
 exit "$_fc_rc"

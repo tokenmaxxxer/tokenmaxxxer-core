@@ -45,7 +45,7 @@ def board(tmp_path):
     return tmp_path
 
 
-def run_gate(board, command, role="implementation"):
+def run_gate(board, command, skill="implementation"):
     payload = json.dumps({
         "tool_name": "Bash",
         "tool_input": {"command": command},
@@ -54,8 +54,8 @@ def run_gate(board, command, role="implementation"):
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(board)
     env["CLAUDE_PLUGIN_ROOT"] = PLUGIN_ROOT
-    if role:
-        env["CLAUDE_SKILL"] = role
+    if skill:
+        env["CLAUDE_SKILL"] = skill
     else:
         env.pop("CLAUDE_SKILL", None)
     proc = subprocess.run(
@@ -108,7 +108,7 @@ def test_heredoc_redirect_to_foreign_issue_dir_denied(board):
     assert "issue-999" in err
 
 
-def test_heredoc_redirect_to_foreign_role_report_denied(board):
+def test_heredoc_redirect_to_foreign_skill_report_denied(board):
     command = "cat <<'EOF' > docs/issue-198/reports/verify.md\nbody\nEOF"
     rc, err = run_gate(board, command)
     assert rc == 2
@@ -178,7 +178,7 @@ def test_author_bearing_record_allows_append_from_a_different_author(board):
     assert rc == 0, err
 
 
-def test_author_less_legacy_record_still_enforces_role_filename_rule(board):
+def test_author_less_legacy_record_still_enforces_skill_filename_rule(board):
     """A record predating stage 1 (on disk, but with no `author:` field
     at all) falls back to the original role-filename rule, unchanged."""
     _write_record(board, "verify.md", author=None, body="no frontmatter here\n")
@@ -187,7 +187,7 @@ def test_author_less_legacy_record_still_enforces_role_filename_rule(board):
     assert "belongs to another role" in err
 
 
-def test_extra_subtree_keys_match_current_role_names():
+def test_extra_subtree_keys_match_current_skill_names():
     """issue-2241 stage 3 (survey finding 2): EXTRA_SUBTREE's keys must
     be real spawn.py role names, not the stale "feasibility"/"ops"
     orphans -- grep the gate's own source for the dict literal."""
@@ -207,11 +207,11 @@ def test_extra_subtree_keys_match_current_role_names():
 # defense-<hex>"), so every current role/slug can carry one. The
 # own_hits regex's trailing character class used to stop at the first
 # `+`, truncating the session's own record path to a prefix and making
-# the R5 owner check (`tail[0] == role`, unchanged and correct) compare
+# the R5 owner check (`tail[0] == skill`, unchanged and correct) compare
 # a truncated tail against the full role -- denying the session's own
 # record as foreign.
 
-MULTISKILL_ROLE = ("silent-failure-audit+secure-coding-input-validation-"
+MULTISKILL_SKILL = ("silent-failure-audit+secure-coding-input-validation-"
                     "injection-defense-a7be2546")
 
 
@@ -226,7 +226,7 @@ def multiskill_board(tmp_path):
     )
     subprocess.run(
         ["git", "-C", str(tmp_path), "checkout", "-q", "-b",
-         "issue-336/%s" % MULTISKILL_ROLE],
+         "issue-336/%s" % MULTISKILL_SKILL],
         check=True,
     )
     specs = tmp_path / "docs" / "specs"
@@ -241,43 +241,43 @@ def multiskill_board(tmp_path):
 def test_multiskill_mkdir_own_record_dir_allowed(multiskill_board):
     """The first of the three observed refusals: mkdir -p of the
     session's own record subtree."""
-    command = ('mkdir -p "docs/issue-336/reports/%s"' % MULTISKILL_ROLE)
-    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    command = ('mkdir -p "docs/issue-336/reports/%s"' % MULTISKILL_SKILL)
+    rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 0, err
 
 
 def test_multiskill_git_add_own_record_file_allowed(multiskill_board):
     """The second observed refusal: staging a file inside the session's
     own record subtree."""
-    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_ROLE
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_SKILL
     record_dir.mkdir(parents=True)
     (record_dir / "2026-08-27-hunt-x.md").write_text("body\n")
     command = ('git add "docs/issue-336/reports/%s/2026-08-27-hunt-x.md"'
-               % MULTISKILL_ROLE)
-    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+               % MULTISKILL_SKILL)
+    rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 0, err
 
 
 def test_multiskill_git_add_own_record_dir_allowed(multiskill_board):
     """The third observed refusal: staging the whole record subtree."""
-    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_ROLE
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / MULTISKILL_SKILL
     record_dir.mkdir(parents=True)
     (record_dir / "2026-08-27-hunt-x.md").write_text("body\n")
-    command = "git add docs/issue-336/reports/%s/" % MULTISKILL_ROLE
-    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    command = "git add docs/issue-336/reports/%s/" % MULTISKILL_SKILL
+    rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 0, err
 
 
 def test_multiskill_foreign_record_still_denied(multiskill_board):
     """A genuinely foreign record is still refused with today's message --
     widening the character class must not smuggle a foreign write past
-    the unchanged `tail[0] == role` comparison."""
-    other_role = "a-different-skill-combo+another-skill-bbbbbbbb"
-    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / other_role
+    the unchanged `tail[0] == skill` comparison."""
+    other_skill = "a-different-skill-combo+another-skill-bbbbbbbb"
+    record_dir = multiskill_board / "docs" / "issue-336" / "reports" / other_skill
     record_dir.mkdir(parents=True)
     (record_dir / "x.md").write_text("body\n")
-    command = "git add docs/issue-336/reports/%s/" % other_role
-    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+    command = "git add docs/issue-336/reports/%s/" % other_skill
+    rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 2
     assert "belongs to another role" in err
 
@@ -288,8 +288,8 @@ def test_multiskill_path_shape_not_in_fixture_set(multiskill_board):
     record .md FILE (not a directory member) written directly via a
     plain redirect."""
     command = ("echo 'loop_state: landed' > docs/issue-336/reports/%s.md"
-               % MULTISKILL_ROLE)
-    rc, err = run_gate(multiskill_board, command, role=MULTISKILL_ROLE)
+               % MULTISKILL_SKILL)
+    rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 0, err
 
 

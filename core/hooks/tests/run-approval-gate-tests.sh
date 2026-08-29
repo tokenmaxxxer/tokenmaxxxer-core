@@ -42,7 +42,7 @@ stub_gh() {
   issue_state='OPEN'; issue_comments='[]'; issue_state_reason=''
   issue_closers='[]'; closer_json='{}'
   pr_ok=1; reviews='[]'
-  stub_role="${3:-coding}"
+  stub_skill="${3:-coding}"
   case "$2" in
     human)    reviews='[{"author":{"login":"jw-human"},"state":"APPROVED"}]' ;;
     comment-challenge) issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/coding"}]' ;;
@@ -62,11 +62,11 @@ stub_gh() {
     # issue-7/implementation) -- the legitimate observer-exemption shape.
     closed-completed-with-comment)
       issue_state='CLOSED'; issue_state_reason='COMPLETED'; pr_ok=0
-      issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_role"'"}]'
+      issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_skill"'"}]'
       issue_closers='[{"number":301}]'
       closer_json='{"headRefName":"issue-7/implementation","state":"MERGED"}'
       ;;
-    closed-not-planned-with-comment) issue_state='CLOSED'; issue_state_reason='NOT_PLANNED'; pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_role"'"}]' ;;
+    closed-not-planned-with-comment) issue_state='CLOSED'; issue_state_reason='NOT_PLANNED'; pr_ok=0; issue_comments='[{"author":{"login":"jw-human"},"body":"APPROVE issue-7/'"$stub_skill"'"}]' ;;
     # same legitimate closer shape as closed-completed-with-comment, but
     # no APPROVE signal anywhere -- the exemption must not grant approval
     # by itself, only lift the closed-issue precondition.
@@ -109,17 +109,17 @@ SCRIPT
 }
 
 # run <want> <name> <gh-mode> <file_path> [opts]
-#   opts: noapprovers | emptyapprovers | branch=<b> | role=<r> | tool=Bash cmd=...
+#   opts: noapprovers | emptyapprovers | branch=<b> | skill=<r> | tool=Bash cmd=...
 run() {
   want="$1"; name="$2"; mode="$3"; fp="$4"; shift 4
-  branch="issue-7/coding"; role="coding"; tool="Write"; cmd=""
+  branch="issue-7/coding"; skill="coding"; tool="Write"; cmd=""
   approvers="yes"; buildnow=""; checkpoint=""
   for o in "$@"; do
     case "$o" in
       noapprovers) approvers="no" ;;
       emptyapprovers) approvers="empty" ;;
       branch=*) branch="${o#branch=}" ;;
-      role=*) role="${o#role=}" ;;
+      skill=*) skill="${o#skill=}" ;;
       cmd=*) tool="Bash"; cmd="${o#cmd=}" ;;
       buildnow) buildnow="1" ;;
       checkpoint) checkpoint="1" ;;
@@ -136,7 +136,7 @@ run() {
     empty) printf 'no list lines here\n' > "$td/docs/specs/approvers.md" ;;
     no)    : ;;
   esac
-  stub_gh "$td/stub" "$mode" "$role"
+  stub_gh "$td/stub" "$mode" "$skill"
   if [ "$tool" = "Bash" ]; then
     tinput="$(printf '{"command":"%s"}' "$cmd")"
   else
@@ -144,7 +144,7 @@ run() {
   fi
   printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_SKILL="$role" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" \
+      CLAUDE_SKILL="$skill" CORE_GH="$td/stub/gh" CORE_BUILD_NOW="$buildnow" \
       CORE_CHECKPOINT="$checkpoint" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -191,27 +191,27 @@ run deny  issue-comment-minimized             comment-minimized       src/app.py
 # quadrant where the issue is not open, including the legitimate
 # merge-close shape that used to be allowed; allowed on the open-issue
 # quadrant, unaffected by any of this.
-run deny  observer-completed-close-with-comment-now-denied closed-completed-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
-run deny  observer-completed-close-conformance-review-now-denied closed-completed-with-comment src/app.py role=conformance-review branch=issue-7/conformance-review
-run deny  observer-completed-close-no-approval  closed-completed-no-approval  src/app.py role=execution-observation branch=issue-7/execution-observation
+run deny  observer-completed-close-with-comment-now-denied closed-completed-with-comment src/app.py skill=execution-observation branch=issue-7/execution-observation
+run deny  observer-completed-close-conformance-review-now-denied closed-completed-with-comment src/app.py skill=conformance-review branch=issue-7/conformance-review
+run deny  observer-completed-close-no-approval  closed-completed-no-approval  src/app.py skill=execution-observation branch=issue-7/execution-observation
 # regression guard: a genuinely rejected/not-planned close still denies
 # observer roles exactly like any other role.
-run deny  observer-not-planned-close-with-comment closed-not-planned-with-comment src/app.py role=execution-observation branch=issue-7/execution-observation
+run deny  observer-not-planned-close-with-comment closed-not-planned-with-comment src/app.py skill=execution-observation branch=issue-7/execution-observation
 # a non-observer role on the SAME merge-closed shape was already denied
 # before issue-295 existed and stays denied now -- unaffected either way.
-run deny  non-observer-completed-close-with-comment closed-completed-with-comment src/app.py role=coding
+run deny  non-observer-completed-close-with-comment closed-completed-with-comment src/app.py skill=coding
 # issue-295's own regression guard (a human's manual re-close with
 # nothing newly merged must deny everyone) still holds, now as a strict
 # superset: with no exemption left at all, this denies too, same as
 # before.
-run deny  observer-completed-close-no-merge-closer closed-completed-no-merge-closer-with-pr-review src/app.py role=execution-observation branch=issue-7/execution-observation
+run deny  observer-completed-close-no-merge-closer closed-completed-no-merge-closer-with-pr-review src/app.py skill=execution-observation branch=issue-7/execution-observation
 # open-issue control (the other half of the 2x2 matrix): an observer
 # role with a real Approve on an OPEN issue is unaffected by any of
 # this -- the removed exemption only ever touched the closed-issue
 # precondition. (mode "human" is a PR-review APPROVED, not
 # role-text-matched, so it authorizes any role/branch pair the same
 # way.)
-run allow observer-open-issue-with-pr-review human src/app.py role=execution-observation branch=issue-7/execution-observation
+run allow observer-open-issue-with-pr-review human src/app.py skill=execution-observation branch=issue-7/execution-observation
 
 # --- build-now bypass (contract v3 s19a, issue-212) ------------------------
 # CORE_BUILD_NOW=1, set only by the spawner, skips the whole Approve chain
@@ -327,7 +327,7 @@ run deny  record-before-approve  nopr    docs/issue-7/reports/coding.md
 run deny  record-comment-only    comment docs/issue-7/reports/coding.md
 run allow record-after-approve   human   docs/issue-7/reports/coding.md
 run deny  foreign-area-preapprove nopr   docs/issue-7/specs/design.md
-run deny  spikes-before-approve  nopr    docs/issue-7/reports/spikes/probe.md role=feasibility branch=issue-7/feasibility
+run deny  spikes-before-approve  nopr    docs/issue-7/reports/spikes/probe.md skill=feasibility branch=issue-7/feasibility
 
 # issue-290: a Bash-native heredoc write to the SAME phase-2 record path
 # (docs/issue-<n>/reports/<role>.md) must deny/allow identically to the
@@ -345,7 +345,7 @@ run allow standing-docs-write    nopr    docs/reports/opportunity-tree.md
 run allow readme-write           nopr    README.md
 
 # non-role session: gate stands aside entirely
-norole() {
+noskill() {
   mktd
   git init -q "$td"
   printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x"},"cwd":"%s"}' "$td" \
@@ -356,7 +356,7 @@ norole() {
   rm -rf "$td"
   report allow "$got" "no-role-session"
 }
-norole
+noskill
 
 # kill switch
 kill_switch() {

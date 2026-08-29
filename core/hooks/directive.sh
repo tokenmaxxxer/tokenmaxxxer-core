@@ -18,14 +18,14 @@ set -uo pipefail
 
 gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
-role="${CLAUDE_SKILL:-}"
+skill="${CLAUDE_SKILL:-}"
 # Presence test (issue #327, per on-the-record #2538): OR of
-# TOKENMAXXXER_SPAWNED and role, not the new var alone — no SessionStart
+# TOKENMAXXXER_SPAWNED and skill, not the new var alone — no SessionStart
 # snapshot exists in core to fall back to, so unsetting only one of the
-# two spawner-set vars must not silently skip the directive. The role
+# two spawner-set vars must not silently skip the directive. The skill
 # NAME (used below to render the invariants block) still comes only from
 # CLAUDE_SKILL — that part is value-dependent, not presence.
-[ -n "${TOKENMAXXXER_SPAWNED:-}${role}" ] || { trap - EXIT; exit 0; }
+[ -n "${TOKENMAXXXER_SPAWNED:-}${skill}" ] || { trap - EXIT; exit 0; }
 
 # Precondition probe (contract v3 s10): the target must be a git repo with
 # a GitHub-reachable remote, and gh must be authenticated — issues, PRs,
@@ -83,7 +83,7 @@ fi
 
 if [ -n "$missing" ]; then
   cat <<EOF
-[core] PRECONDITIONS NOT MET for role '${role}' (contract v3 s10):
+[core] PRECONDITIONS NOT MET for role '${skill}' (contract v3 s10):
 ${missing}
 
 Until every item above is resolved: do NOT start work, do NOT improvise a
@@ -98,12 +98,12 @@ fi
 
 DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol.md"
 cat <<EOF
-[core] Interaction protocol for role ${role} (role-handoff contract v3). INVARIANTS:
+[core] Interaction protocol for role ${skill} (role-handoff contract v3). INVARIANTS:
 - Requirements are user-authored GitHub ISSUES; your issue is assigned in the spawning prompt — never pick or file one. No issue named: ask and stop.
-- ALL output returns as a PULL REQUEST from branch issue-<n>/${role}; never push main. The board is what is MERGED to main, not open PRs.
+- ALL output returns as a PULL REQUEST from branch issue-<n>/${skill}; never push main. The board is what is MERGED to main, not open PRs.
 - Two phases (s19): phase 1 commits survey + proposal, opens the PR; phase 2 (work + record) opens only on a human Approve — a PR review Approve from a different approvers.md account, or an issue comment whose entire body is exactly APPROVE issue-<n>/<role>. String equality only; never approve or merge yourself. Default (two-session): stop after the phase-1 PR. Checkpoint (single-session): only when the spawning prompt declared it — run the declared await-approval wait, then continue in-session.
 - Build-now bypass (s19a): when the environment carries CORE_BUILD_NOW=1, set by the spawner, never by you — skip the proposal round and deliver directly.
-- Layout: code src/, tests test/, docs/ six buckets; your record is docs/issue-<n>/reports/${role}.md, and you write only your own record area. docs/issue-<n> commits use git commit -m with a Subject: issue-<n> trailer; git add new files explicitly first.
+- Layout: code src/, tests test/, docs/ six buckets; your record is docs/issue-<n>/reports/${skill}.md, and you write only your own record area. docs/issue-<n> commits use git commit -m with a Subject: issue-<n> trailer; git add new files explicitly first.
 - A session that stages a change to any docs/specs/* file also regenerates docs/specs/reconciled-index.md (python3 gates/spec_index.py --update) in the same commit, where the repo ships that generator.
 - PR trailer phase split: a phase-1 proposal PR references its issue as a plain #<issue>; Closes/Fixes/Resolves #<issue> is forbidden until the phase-2 delivery PR, which must carry it.
 - Verification is verify-at-landing: a deliverable is work plus EXECUTED acceptance evidence — command and output in your record. Do not author persistent test files by default. Never omit SKIPPED lines; a hand-typed pass count must equal the pasted summary count.
@@ -121,7 +121,7 @@ EOF
 # same convention issue-<n> above already uses — so this block renders
 # byte-identical every session regardless of role, keeping it a stable
 # prefix for prompt caching across spawns; only the INVARIANTS block above
-# (rendered with the real ${role}) varies per session.
+# (rendered with the real ${skill}) varies per session.
 if [ -r "$DFILE" ]; then
   echo
   echo "[core] Full protocol (session-protocol.md), delivered inline, no Read needed:"

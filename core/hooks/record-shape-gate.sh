@@ -63,8 +63,8 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-shape-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-role="${CLAUDE_SKILL:-record-shape}"
-deny() { echo "${role}: refused — $1" >&2; exit 2; }
+skill="${CLAUDE_SKILL:-record-shape}"
+deny() { echo "${skill}: refused — $1" >&2; exit 2; }
 
 gate_kill_switch_active "${RECORD_SHAPE_GATE_OFF:-}" || exit 0
 

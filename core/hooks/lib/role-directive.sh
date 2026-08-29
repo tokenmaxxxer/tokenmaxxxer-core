@@ -30,28 +30,28 @@
 
 core_role_directive() {
   local you_decide="$1" use_when="$2" produces="$3" hand_off="$4"
-  local role="${CLAUDE_SKILL:-}"
+  local skill="${CLAUDE_SKILL:-}"
   # Presence test (issue #327, per on-the-record #2538): OR of
-  # TOKENMAXXXER_SPAWNED and role, not the new var alone — same rationale
-  # as core's own directive.sh. The role NAME rendered below still comes
+  # TOKENMAXXXER_SPAWNED and skill, not the new var alone — same rationale
+  # as core's own directive.sh. The skill NAME rendered below still comes
   # only from CLAUDE_SKILL (value-dependent).
-  [ -n "${TOKENMAXXXER_SPAWNED:-}${role}" ] || return 0
+  [ -n "${TOKENMAXXXER_SPAWNED:-}${skill}" ] || return 0
 
-  local role_upper
-  role_upper="$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_')"
-  local off_var="${role_upper}_CYCLE_OFF"
+  local skill_upper
+  skill_upper="$(printf '%s' "$skill" | tr '[:lower:]-' '[:upper:]_')"
+  local off_var="${skill_upper}_CYCLE_OFF"
   eval "local off_val=\"\${${off_var}:-}\""
   gate_kill_switch_active "$off_val" || return 0
 
   cat <<EOF
-[${role}] Role directive (on top of core's protocol):
+[${skill}] Role directive (on top of core's protocol):
 
 ${you_decide}
 ${use_when}
 ${produces}
 ${hand_off}
 
-RECORD: docs/issue-<n>/reports/${role}.md, phase-gated per contract v3 s19
+RECORD: docs/issue-<n>/reports/${skill}.md, phase-gated per contract v3 s19
 RECORD FORMAT: code_under_review: is a file list (- path per reviewed/
 changed file), never a commit sha. Any count claim cites an actual
 code-fenced command output, preceded by a derived: <command or path>

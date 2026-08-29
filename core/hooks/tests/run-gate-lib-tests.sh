@@ -298,14 +298,14 @@ out="$(printf '%s' "$payload" | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="/tmp
 got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })
 report deny "$got" "record-fields-gate.sh: RECORD_FIELDS_GATE_OFF=banana stays active (issue-72 fix)"
 
-rfedit() { # <want> <name> <role> <file_path-on-disk-relative-content> <tool_name> <tool_input-json>
-  want="$1"; name="$2"; role="$3"; content="$4"; tool="$5"; ti="$6"
+rfedit() { # <want> <name> <skill> <file_path-on-disk-relative-content> <tool_name> <tool_input-json>
+  want="$1"; name="$2"; skill="$3"; content="$4"; tool="$5"; ti="$6"
   mktd
-  fp="$td/docs/issue-3/reports/$role.md"
+  fp="$td/docs/issue-3/reports/$skill.md"
   mkdir -p "$(dirname "$fp")"
   printf '%s' "$content" > "$fp"
   payload="$(printf '{"tool_name":"%s","tool_input":%s}' "$tool" "$(printf '%s' "$ti" | sed "s#__FP__#$fp#")")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="$td" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })

@@ -25,8 +25,8 @@ trap __fc EXIT
 set -uo pipefail
 
 self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
-role="${CLAUDE_SKILL:-}"
-deny() { echo "${role:-handbook-trigger-gate}: refused — $* (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
+skill="${CLAUDE_SKILL:-}"
+deny() { echo "${skill:-handbook-trigger-gate}: refused — $* (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${HANDBOOK_TRIGGER_GATE_OFF:-}" || exit 0
 
@@ -43,17 +43,17 @@ fi
 [ -z "$root" ] && root="$(git -C "$(pwd -P)" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§21 handbook-trigger cannot be judged)."
 
-HT_PAYLOAD="$payload" HT_ROOT="$root" HT_SKILL="$role" HT_SELF="$self_path" python3 <<'PY'
+HT_PAYLOAD="$payload" HT_ROOT="$root" HT_SKILL="$skill" HT_SELF="$self_path" python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
     import json, os, posixpath, re, shlex, subprocess, sys
 
-    role = os.environ.get("HT_SKILL", "").strip() or "handbook-trigger-gate"
+    skill = os.environ.get("HT_SKILL", "").strip() or "handbook-trigger-gate"
     self_path = os.environ.get("HT_SELF", "") or "handbook-trigger-gate.sh"
 
     def deny(m):
         # issue-282 DEMOTE: advisory only -- detection logic unchanged.
-        reason = "%s: %s (gate: %s)" % (role, m, self_path)
+        reason = "%s: %s (gate: %s)" % (skill, m, self_path)
         sys.stderr.write(reason + "\n")
         print(json.dumps({
             "hookSpecificOutput": {
@@ -224,7 +224,7 @@ except Exception as _fc_e:  # fail-closed-on-internal-error
 PY
 _fc_rc=$?  # fail-closed-on-internal-error
 if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
-  echo "${role:-handbook-trigger-gate}: refused — fail-closed: internal error (judge exited $_fc_rc) (gate: $self_path)" >&2
+  echo "${skill:-handbook-trigger-gate}: refused — fail-closed: internal error (judge exited $_fc_rc) (gate: $self_path)" >&2
   exit 2
 fi
 exit "$_fc_rc"
