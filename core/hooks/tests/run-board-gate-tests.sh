@@ -804,6 +804,54 @@ run deny  backslash-newline-splice       Bash '{"command":"cd '$BOARD' && pyth\\
 # not be over-blocked.
 run allow backslash-escaped-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && \\cat reports/review.md"}'
 
+# --- issue-233 CHANGES review (PR #358): an escaped-space real filesystem
+# path to an interpreter is ordinary shell syntax (what bash's own
+# tab-completion inserts for a space-containing path), not an expansion
+# or a quote-splice -- `_resolve_transparent`'s plain `segment.split()`
+# fragmented it anyway, leaving a garbage head that either evaded every
+# check (PR #354's own gap: an escaped-space `-c` invocation the review
+# confirmed live to run was silently ALLOWED) or, after the allowlist-
+# complement widening, denied for the wrong reason (a stray backslash in
+# the fragment, not a correctly-resolved interpreter name). Fixed at the
+# tokenizer (gate-lib.py's new `_shell_split`, aware of backslash-escaped
+# and quoted whitespace) rather than by exempting the backslash character
+# from EXPANDED_HEAD_RE, so the resolved head is the same "python3" a
+# plain invocation resolves to either way -- consistent DENY with `-c`,
+# consistent ALLOW without it.
+run deny  escaped-space-interpreter-path-c-flag Bash '{"command":"cd '$BOARD' && /opt/My\\ Python/python3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run allow escaped-space-interpreter-path-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && /opt/My\\ Python/python3 file.py"}'
+# a quoted path containing spaces stresses the identical boundary. This
+# one is not just a wrong-reason DENY: under the pre-tokenizer-fix code,
+# `_resolve_transparent`'s naive split resolved this head to "My" (the
+# fragment between the opening quote and the escaping-irrelevant space) --
+# a fully safe-looking word carrying no interpreter-shaped content at
+# all, so EXPANDED_HEAD_RE never fired and the `-c` invocation sailed
+# through ALLOWED: a live, previously-undetected bypass this same review
+# round surfaced, not merely a cost-accounting inconsistency.
+run deny  quoted-path-with-spaces-c-flag    Bash '{"command":"cd '$BOARD' && \"/opt/My Python/python3\" -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run allow quoted-path-with-spaces-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && \"/opt/My Python/python3\" file.py"}'
+# a path containing a character that IS in the safe set
+# (`[A-Za-z0-9_./+=@:-]`) but unusual in an executable name: no escaping
+# or quoting mechanism is even involved here, so this already worked
+# before the tokenizer fix -- recorded as regression coverage for the
+# same boundary, not a fix of its own.
+run deny  safe-set-unusual-char-path-c-flag Bash '{"command":"cd '$BOARD' && /opt/py+thon-env/python3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run allow safe-set-unusual-char-path-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && /opt/py+thon-env/python3 file.py"}'
+
+# issue-233 before-landing warrant-hunt (background, blind to this fix's
+# rationale): the first tokenizer version had no notion of `$'...'`
+# ANSI-C quoting -- its leading `$` was consumed as an ordinary bare
+# character by the generic fallback alternative before the quote-span
+# alternatives ever saw the following `'`, so `$'-c'` tokenized to the
+# fused word `$-c`, never the plain `-c` real bash evaluates it to.
+# Confirmed live (real bash: `python3 $'-c' "..."` runs as an ordinary
+# `-c` invocation) as a full, working bypass before this fix: ALLOW where
+# the identical plain `-c` shape already denied.
+run deny  ansi-c-quoted-flag-word        Bash '{"command":"cd '$BOARD' && python3 $'"'"'-c'"'"' open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# negative control: `$'...'` quoting the HEAD itself with NO -c/-e flag
+# at all must not be over-blocked.
+run allow ansi-c-quoted-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && $'"'"'python3'"'"' file.py"}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment
