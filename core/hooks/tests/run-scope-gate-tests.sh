@@ -327,5 +327,28 @@ run deny  generic-var-whitespace-fusion  Bash \
 run allow grep-dollar-arg-dash-e-not-overblocked Bash \
   '{"command":"grep \"$PATTERN\" src/other.py -e extra"}'
 
+# --- issue-233 independent verification round 2 (PR #354 CHANGES review):
+# `$`/backtick is generic across ways of PRODUCING those two characters,
+# but not against shell WORD FORMATION -- brace expansion and quote-
+# splicing produce a resolvable interpreter head with neither character
+# present anywhere in the literal command text, confirmed live against
+# the pre-fix gate (real file write).
+run deny  brace-expansion-null-field-head Bash \
+  '{"command":"{python3,} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quote-splice-single-quotes      Bash \
+  '{"command":"pyt'"'"''"'"'hon3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quote-splice-double-quotes      Bash \
+  '{"command":"pyt\"hon\"3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# negative control: a head merely quoted or brace-decorated with NO -c/-e
+# flag at all must not be over-blocked.
+run allow quoted-head-no-flag-not-overblocked Bash \
+  '{"command":"\"cat\" src/other.py"}'
+run allow braced-head-no-flag-not-overblocked Bash \
+  '{"command":"{cat} src/other.py"}'
+# negative control: braces in the PROGRAM TEXT argument (not the head
+# token) must not be over-blocked.
+run allow awk-braces-in-program-not-overblocked Bash \
+  '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
