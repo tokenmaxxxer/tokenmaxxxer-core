@@ -704,6 +704,44 @@ EXPANDED_HEAD_RE = re.compile(r"[^A-Za-z0-9_./+=@:-]")
 # `re.search` over the whole thing), so this can only ever match the head
 # token itself, never a later argument.
 EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z]*[ce]\b")
+# issue-233 independent verification round 4 (PR #360 CHANGES review): the
+# literal-membership INLINE_FLAG_WORDS check right below already treats a
+# resolved head as safe only up to the same "can this gate actually read
+# what runs" bar EXPANDED_HEAD_RE enforces on the head itself -- but that
+# bar was never applied to a TRAILING word. `_shell_split`'s `_WORD_TOKEN_RE`
+# has a dedicated token form for all four quote styles, so a quoted flag
+# tokenizes as one word regardless of interior whitespace, but it has NO
+# form for a `$(...)`/backtick command-substitution span: that span is left
+# to the generic `\S` fallback and fragments at any internal whitespace like
+# ordinary unquoted text. A substitution that PRODUCES the flag word itself
+# (`python3 $(echo -c) "..."`, `` perl `printf %s -e` "..." `` -- both
+# confirmed live, real file write) never reassembles into a fragment that
+# literal-equals "-c"/"-e", so INLINE_FLAG_WORDS never fires, even though
+# the identical mechanism producing the HEAD is already denied by
+# EXPANDED_HEAD_RE above. This is the same "unresolved expansion" class,
+# just on the other side of the same check.
+#
+# The fix mirrors EXPANDED_HEAD_RE's own structural rule instead of adding a
+# new tokenizer form that would still require guessing what the
+# substitution evaluates to at runtime (which this gate never executes and
+# must not try to): a trailing word containing an unresolved `$(` or a
+# backtick is itself unanalyzable, exactly the same complement
+# EXPANDED_HEAD_RE already applies to the head -- and an unanalyzable word
+# in flag-checking position, combined with an interpreter head, is treated
+# the same conservative way an unanalyzable HEAD combined with a literal
+# flag already is: unsafe. This does not try to determine whether the
+# substitution's output would actually be "-c"/"-e"; it cannot be
+# determined from the command text, which is exactly why the head-side rule
+# does not try either. False-refusal cost, same shape as EXPANDED_HEAD_RE's
+# own documented cost above: an interpreter invocation that passes a
+# command-substitution argument for a reason having nothing to do with
+# `-c`/`-e` (e.g. `python3 script.py $(date)`) now also denies, because
+# this gate cannot tell that case apart from one where the substitution
+# resolves to the flag -- accepted as narrow, since no test fixture in this
+# suite relies on such a shape and issue-233's own fix direction already
+# prioritizes refusing to (mis)analyze an unresolvable word over guessing
+# it is safe.
+UNRESOLVED_SUBSTITUTION_WORD_RE = re.compile(r"\$\(|`")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -726,7 +764,10 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     if "<<" in stripped:
         return True
     if head in INTERPRETER_HEADS or EXPANDED_HEAD_RE.search(head):
-        if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+        trailing = gate_lib.gate_trailing_words(stripped)
+        if any(w in INLINE_FLAG_WORDS for w in trailing):
+            return True
+        if any(UNRESOLVED_SUBSTITUTION_WORD_RE.search(w) for w in trailing):
             return True
     if EXPANDED_HEAD_FUSED_FLAG_RE.match(stripped):
         return True

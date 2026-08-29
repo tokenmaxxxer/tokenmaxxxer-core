@@ -852,6 +852,40 @@ run deny  ansi-c-quoted-flag-word        Bash '{"command":"cd '$BOARD' && python
 # at all must not be over-blocked.
 run allow ansi-c-quoted-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && $'"'"'python3'"'"' file.py"}'
 
+# --- issue-233 independent verification round 4 (PR #360 CHANGES review):
+# `_WORD_TOKEN_RE` has a dedicated token form for all four quote styles but
+# none for a `$(...)`/backtick command-substitution span -- unlike a quoted
+# flag, a substitution is split at internal whitespace like plain text, so
+# a substitution that PRODUCES the flag word itself never reassembles into
+# a fragment that literal-equals "-c"/"-e". Confirmed live (real execution,
+# real file write) for both python3 -c and perl -e, via both substitution
+# syntaxes, before this fix -- the identical mechanism producing the HEAD
+# was already denied (expanded-head-cmdsub-produces-head above), but the
+# same mechanism producing the FLAG sailed through allowed. Fixed by
+# applying EXPANDED_HEAD_RE's own structural rule to a trailing word
+# instead of a new tokenizer form: an unresolved `$(`/backtick anywhere in
+# a trailing word is itself unanalyzable, and combined with an interpreter
+# head, unsafe -- UNRESOLVED_SUBSTITUTION_WORD_RE.
+run deny  cmdsub-dollarparen-produces-flag-python Bash '{"command":"cd '$BOARD' && python3 $(echo -c) open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run deny  cmdsub-backtick-produces-flag-python    Bash '{"command":"cd '$BOARD' && python3 `echo -c` open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# perl's own code-argument flag is `-e`, not `-c` (INLINE_FLAG_WORDS
+# covers both) -- confirmed live with the identical substitution mechanism.
+run deny  cmdsub-dollarparen-produces-flag-perl-e Bash '{"command":"cd '$BOARD' && perl $(printf %s -e) '"'"'open(FH,\">reports/qa/pwn.md\");print FH 1'"'"'"}'
+run deny  cmdsub-backtick-produces-flag-perl-e    Bash '{"command":"cd '$BOARD' && perl `printf %s -e` '"'"'open(FH,\">reports/qa/pwn.md\");print FH 1'"'"'"}'
+# negative control: pure-read forms named in issue-233's own acceptance
+# criteria (a bare param-expansion path, an awk pure-read program) must not
+# be over-blocked by this trailing-word check -- neither touches an
+# interpreter head combined with a `$(`/backtick trailing word at all.
+run allow param-expansion-path-read-not-overblocked-r4 Bash '{"command":"echo see '$BOARD'/x.md ; cat \"${HOME}/x\""}'
+run allow awk-pure-read-not-overblocked-r4        Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
+# documented accepted cost (same shape as EXPANDED_HEAD_RE's own
+# documented false-refusal cost above): this gate cannot tell a
+# substitution that happens to produce "-c"/"-e" apart from one used for an
+# unrelated reason, so an interpreter invocation carrying ANY unresolved
+# `$(...)`/backtick trailing word now also denies, even when the
+# substitution has nothing to do with the code flag.
+run deny  cmdsub-unrelated-trailing-word-still-denied-r4 Bash '{"command":"cd '$BOARD' && python3 file.py $(date)"}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment
