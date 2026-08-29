@@ -866,6 +866,14 @@ try:
             and isinstance(_sidecar.get("issue"), int)):
         _sidecar_issue = _sidecar["issue"]
         _sidecar_skill = _sidecar["skill"]
+    else:
+        sys.stderr.write(
+            "board-gate: .on-the-record/role.json present but not in "
+            "the expected shape (skill: str, issue: int) -- falling back "
+            "to branch-name parsing (issue #2741: this key was renamed "
+            "role -> skill, forward-only; a sidecar written before that "
+            "rename no longer resolves here).\n"
+        )
 except (OSError, ValueError):
     pass
 
