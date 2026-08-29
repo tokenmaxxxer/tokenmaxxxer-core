@@ -862,10 +862,18 @@ try:
     with open(os.path.join(root, ".on-the-record", "role.json"),
               encoding="utf-8") as _f:
         _sidecar = json.load(_f)
-    if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("role"), str)
+    if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("skill"), str)
             and isinstance(_sidecar.get("issue"), int)):
         _sidecar_issue = _sidecar["issue"]
-        _sidecar_skill = _sidecar["role"]
+        _sidecar_skill = _sidecar["skill"]
+    else:
+        sys.stderr.write(
+            "board-gate: .on-the-record/role.json present but not in "
+            "the expected shape (skill: str, issue: int) -- falling back "
+            "to branch-name parsing (issue #2741: this key was renamed "
+            "role -> skill, forward-only; a sidecar written before that "
+            "rename no longer resolves here).\n"
+        )
 except (OSError, ValueError):
     pass
 
