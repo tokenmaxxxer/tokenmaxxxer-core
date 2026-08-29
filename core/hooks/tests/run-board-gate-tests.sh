@@ -688,6 +688,76 @@ run deny  awk-system-call-write           Bash '{"command":"cd '$BOARD' && awk '
 # write-unsafe head the way scope-gate's sibling clause once did.
 run allow awk-pure-read-not-overblocked   Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
 
+# --- issue-233: third adversarial review found the class still leaking
+# through spellings FUSED_INTERP_RE/VAR_INTERP_RE do not name: parameter-
+# default expansion (`${x:-python3}`, `${x:=bash}`) and a command
+# substitution that PRODUCES the head outright (`$(echo python3)`) -- none
+# of these carry a literal interpreter name at the HEAD position
+# gate_head_of resolves, so EXPANDED_HEAD_RE (structural: the head token
+# itself begins with `$`/a backtick, so no enumeration of interpreter
+# spellings is needed) closes the class generically instead of naming a
+# fourth/fifth alternative.
+run deny  expanded-head-param-default-dash    Bash '{"command":"cd '$BOARD' && ${x:-python3} -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run deny  expanded-head-param-default-equals  Bash '{"command":"cd '$BOARD' && ${x:=bash} -c echo hi > reports/qa/pwn.md"}'
+run deny  expanded-head-cmdsub-produces-head  Bash '{"command":"cd '$BOARD' && $(echo python3) -c open(\"reports/qa/pwn.md\", \"w\")"}'
+run deny  expanded-head-backtick-produces-head Bash '{"command":"cd '$BOARD' && `echo python3` -c open(\"reports/qa/pwn.md\", \"w\")"}'
+# `eval STRING` runs STRING as freshly-typed shell text with no `-c`/`-e`
+# flag at all -- the same "confirmed live" residual the issue names,
+# unconditional (like ed/ex), not gated on a flag check.
+run deny  eval-hides-interpreter-head         Bash '{"command":"cd '$BOARD' && eval '"'"'python3 -c \"open(1)\"'"'"'"}'
+# negative control: an expansion-headed segment with NO -c/-e flag at all
+# must NOT be over-blocked -- EXPANDED_HEAD_RE alone (head begins with
+# `$`/a backtick) is not enough; a bare -c/-e flag is still required.
+run allow expanded-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && ${x:-cat} reports/review.md"}'
+# pure-read forms named in the issue's acceptance stay allowed.
+run allow param-expansion-path-read-allowed   Bash '{"command":"echo see '$BOARD'/x.md ; cat \"${HOME}/x\""}'
+# an interpreter given a script FILE argument (no `-c`/`-e`, the script's
+# own content is opaque to this gate) is a DIFFERENT, already-known-open
+# residual (issue-227 amendment 2 explicitly left it out of scope) --
+# named here as a standing negative-space marker, not claimed fixed by
+# this issue.
+run allow script-file-arg-not-this-issue-scope Bash '{"command":"cd '$BOARD' && sh -x file.sh"}'
+# an unrestricted session (no board contract, no CLAUDE_SKILL) is
+# unaffected by the same expanded-head shape -- no write-set is being
+# enforced for anyone to bypass.
+runUnrestrictedExpandedHead() {
+  mktd
+  git init -q "$td"
+  git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
+  mkdir -p "$td/docs/specs"
+  printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' \
+    '${x:-python3} -c open(\"docs/specs/notes.md\", \"w\").write(\"x\")' "$td" \
+    | env -u CLAUDE_SKILL CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" /bin/bash "$GATE" >/dev/null 2>&1
+  rc=$?
+  case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+  rm -rf "$td"
+  report allow "$got" "expanded-head-unrestricted-session-unaffected"
+}
+runUnrestrictedExpandedHead
+
+# --- issue-233 hunt round: two spellings the first pass of EXPANDED_HEAD_RE
+# missed (an independent adversarial hunt agent, blind to this fix's
+# rationale, found both by reading the code and reasoning like an
+# attacker) --
+# (1) a QUOTED expansion head: an anchored `^[`$]` never fires when a
+# literal quote sits before the `$`/backtick, even though the shell still
+# resolves it to an expansion-produced program.
+run deny  quoted-expansion-head-double   Bash '{"command":"cd '$BOARD' && \"$SHELL\" -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+run deny  quoted-expansion-head-backtick Bash '{"command":"cd '$BOARD' && \"`which python3`\" -c open(\"reports/qa/pwn.md\", \"w\")"}'
+run deny  quoted-positional-param-head   Bash '{"command":"cd '$BOARD' && \"$0\" -c open(\"reports/qa/pwn.md\", \"w\")"}'
+# (2) a whitespace-fusion variable that is NOT `$IFS` by name -- issue-227
+# only checked for the literal name `IFS`; ANY variable holding a space
+# fuses `python3${X}-c` into one token the exact same way, and the -c
+# flag here is FUSED onto the head token itself, so INLINE_FLAG_WORDS's
+# separate-trailing-word check never sees it either.
+run deny  generic-var-whitespace-fusion  Bash '{"command":"cd '$BOARD' && X=A; python3${X}-c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# calibration: a legitimate grep -e read must not be over-blocked merely
+# because some EARLIER argument on the same line happens to contain `$`
+# -- the boundary anchor (right after `;`/`&&`/`|`/`\n`/start, not bare
+# whitespace) must tell "this is the head token" apart from "this is some
+# later argument".
+run allow grep-dollar-arg-dash-e-not-overblocked Bash '{"command":"cd '$BOARD' && grep \"$PATTERN\" reports/review.md -e extra"}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment
