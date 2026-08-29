@@ -228,6 +228,33 @@ def _split_segments(cmdline):
     from real separators; a plain .split() would still cut at those spans.
     This walks the matches instead: a quote match extends the current
     segment, a separator match ends it.
+
+    issue-233 independent verification round 3 (background adversarial
+    hunt agent): a backslash immediately before a newline is bash's own
+    line-continuation syntax -- it deletes BOTH characters and splices
+    the words on either side into one token with zero residue
+    (`pyth\`-newline-`on3 -c ...` runs as `python3 -c ...`), the same
+    word-formation mechanism EXPANDED_HEAD_RE below already treats as
+    suspect once it lands INSIDE a head token -- but only if this
+    splitter keeps both halves in the SAME segment for gate_head_of's
+    `.split()` to see as one word run. Before this fix, every `\n` was
+    treated as a hard separator regardless of a preceding backslash: the
+    continued line was mis-split into two segments (`pyth\` and
+    `on3 -c ...`), whose OWN heads (`pyth\` alone, `on3` alone) each look
+    innocuous on their own, and the trailing `-c` word landed in the
+    wrong segment entirely to ever pair with the tainted head. Whether a
+    given `\n` is really a continuation depends on the number of
+    consecutive backslashes immediately before it -- an ODD count means
+    the last one is unescaped and does splice (the earlier pairs are
+    each a self-escaped, literal backslash); an EVEN count (including
+    zero) means the newline is a genuine, unescaped separator. Counted
+    directly here (not a fixed-width regex lookbehind, which cannot
+    express an unbounded run) and only for `\n`: a backslash before `;`/
+    `|` is also bash-escapable, but only neutralizes it into a literal
+    argument character rather than splicing two words into one new head
+    -- a different, narrower question not part of this class, checked
+    live and found not to compose into a working `-c`/`-e` bypass (see
+    the issue-233 record's Open findings).
     """
     segments = []
     current = []
@@ -238,6 +265,14 @@ def _split_segments(cmdline):
         token = m.group()
         if token[:1] in ("'", '"'):
             current.append(token)
+        elif token == "\n":
+            joined = "".join(current)
+            backslash_run = len(joined) - len(joined.rstrip("\\"))
+            if backslash_run % 2 == 1:
+                current.append(token)
+            else:
+                segments.append(joined)
+                current = []
         else:
             segments.append("".join(current))
             current = []
@@ -706,53 +741,73 @@ VAR_INTERP_RE = re.compile(
 # `$`/backtick anywhere inside it is always suspect, never a false hit
 # borrowed from some later, unrelated argument.
 #
-# issue-233 independent verification round 2 (PR #354 review): `$`/backtick
-# is generic across ways of producing those two characters, but NOT
-# generic across shell WORD FORMATION -- brace expansion
-# (`{python3,} -c ...`, comma-field removed by word-splitting) and
-# quote-splicing (`pyt''hon3 -c ...`, adjacent quoted/unquoted pieces
-# concatenated at parse time) both produce a resolvable interpreter head
-# with neither `$` nor a backtick present anywhere in the literal text.
-# `head` here is still raw, unsplit-by-shell-rules text (`_resolve_transparent`
-# does a plain `.split()`, no quote removal or brace expansion) -- so the
-# same "head is never argument text" safety argument above extends
-# cleanly to a wider class: a head token built from brace syntax or
-# containing a quote character was NOT typed as a single plain word, so
-# this gate cannot vouch for what it resolves to, regardless of whether
-# a `$`/backtick is also present. Widened from "expansion" to "word
-# formation": `{`/`}` (brace expansion/removal) and `'`/`"` (quote
-# splicing/concatenation) added to the character class alongside
-# `` ` ``/`$`. False-refusal cost: a head token that is quoted or
-# brace-decorated for no functional reason (e.g. `"python3" -c ...`,
-# `{python3} -c ...` with a single brace-group and no comma) now also
-# denies where it previously allowed via literal `head in
-# INTERPRETER_HEADS` matching only the bare name -- but such a head was
-# never actually reaching INTERPRETER_HEADS's literal-string membership
-# check either (the quote/brace characters are part of the token, so it
+# issue-233 independent verification, round 2 (PR #354 CHANGES review):
+# `$`/backtick is generic across ways of producing those two characters,
+# but NOT generic across shell WORD FORMATION. Two rounds of adversarial
+# hunting after the first fix each found one more mechanism that spells a
+# resolvable interpreter head with NEITHER `$` nor a backtick anywhere in
+# the literal text: brace expansion with null-field removal
+# (`{python3,} -c ...`), quote-splicing (`pyt''hon3 -c ...`), a mid-word
+# backslash escape (`p\y\t\h\o\n3 -c ...` -- bash strips a `\` before an
+# ordinary character outside quotes, so this is lexically `python3`), and
+# a backslash-newline line continuation splicing two half-words with zero
+# residue (`pyth\<newline>on3 -c ...`). Enumerating a FIFTH character to a
+# denylist class after this many rounds would repeat the exact closed-set
+# mistake issue-233 exists to retire (issue-2600/issue-2670/issue-349, on
+# a different axis) -- so this flips the check from a denylist of known-
+# suspicious characters to an ALLOWLIST of known-safe ones: a plain
+# program name or relative/absolute path never needs anything outside
+# `[A-Za-z0-9_./+=@:-]` (letters, digits, underscore, dot, slash, plus,
+# equals, at, colon, hyphen -- covering every literal `INTERPRETER_HEADS`/
+# `WRITE_UNSAFE_HEADS`/`TRANSPARENT` member, versioned names like
+# `python3.11`, and paths like `./bin/tool` or `/usr/bin/env`). `head` is
+# never argument text (it is exactly the one token
+# gate_head_of/_resolve_transparent decided is this segment's head), so
+# ANY character outside that safe set appearing in it means the token was
+# not typed as a single plain word -- built via some quoting, expansion,
+# or escaping mechanism this gate cannot see through, regardless of which
+# specific mechanism or which character it happens to use. This is
+# provably terminal against the whole class (unlike another
+# enumeration): a plain word literally cannot contain a character outside
+# its own alphabet, so no future adversarial hunt round can find a FIFTH
+# spelling of "a metacharacter this denylist doesn't name" the way rounds
+# 1 and 2 each did. False-refusal cost: a head token that is quoted,
+# braced, escaped, or otherwise decorated for no functional reason (e.g.
+# `"python3" -c ...`) now also denies where it previously allowed via
+# literal `head in INTERPRETER_HEADS` matching only the bare name -- but
+# such a head was never actually reaching that literal-string membership
+# check either (the decorating characters are part of the token, so it
 # never equalled the bare interpreter name), so this is not a new
 # over-block on any PREVIOUSLY-ALLOWED interpreter -c/-e invocation, only
-# on ones that were already falling through unrecognized. Pure reads are
-# unaffected: this branch only ever fires when combined with a separate
+# on ones that were already falling through unrecognized. A head using a
+# character this repo's own conventions do use but this safe set omits
+# (e.g. a literal `~` for a manually-typed home-relative path, or a `,`/
+# `[`/`]` in an unusual filename) would now also be refused when combined
+# with `-c`/`-e` -- judged an acceptable, narrow cost: none of
+# `INTERPRETER_HEADS`/`WRITE_UNSAFE_HEADS`/`TRANSPARENT` nor any test
+# fixture in this suite uses such a name, and the issue's own fix
+# direction explicitly prioritizes refusing to (mis)analyze an
+# unresolvable head over guessing it is safe. Pure reads are unaffected:
+# this branch only ever fires when combined with a separate
 # INLINE_FLAG_WORDS (`-c`/`-e`) trailing word, so a head merely typed with
-# quotes/braces and no code flag (e.g. `"cat" reports/x.md`) still falls
-# through untouched.
-EXPANDED_HEAD_RE = re.compile(r"[`$'\x22{}]")
-# The same hunt round found a SECOND spelling: an expansion FUSED into an
-# otherwise-literal name (`python3${X}-c` where `X` holds a space --
-# generalizing issue-227's `$IFS` fix to ANY variable holding whitespace,
-# not one enumerated name) puts the `-c`/`-e` flag INSIDE the same fused
-# head token, not as a separate word `gate_trailing_words` would ever
-# see -- so EXPANDED_HEAD_RE.search(head) correctly flags the head as
-# expansion-tainted, but the INLINE_FLAG_WORDS check right below it never
-# fires because there is no separate "-c" word to find. Checked directly
-# against the raw, unsplit segment text instead: a run of non-space
-# characters starting the segment, containing `$`/a backtick, ending in a
-# fused `-c`/`-e`-shaped flag -- anchored to the START of the segment (not
+# any of these characters and no code flag (e.g. `"cat" reports/x.md`)
+# still falls through untouched.
+EXPANDED_HEAD_RE = re.compile(r"[^A-Za-z0-9_./+=@:-]")
+# The same class of gap applies to a FUSED flag: an expansion/escape/quote
+# glued directly onto an otherwise-literal name (`python3${X}-c` where
+# `X` holds a space -- generalizing issue-227's `$IFS` fix to ANY
+# variable holding whitespace, not one enumerated name) puts the `-c`/
+# `-e` flag INSIDE the same fused head token, not as a separate word
+# `gate_trailing_words` would ever see -- so EXPANDED_HEAD_RE.search(head)
+# correctly flags the head as tainted, but the INLINE_FLAG_WORDS check
+# right below it never fires because there is no separate "-c" word to
+# find. Checked directly against the raw, unsplit segment text instead: a
+# run of non-space characters starting the segment, containing a
+# character outside the same safe allowlist above, ending in a fused
+# `-c`/`-e`-shaped flag -- anchored to the START of the segment (not
 # `re.search` over the whole thing), so this can only ever match the head
-# token itself, never a later argument. Widened the same way as
-# EXPANDED_HEAD_RE above, for a brace/quote-fused flag
-# (`{python3,}-c`/`pyt''hon3-c` with no space before the flag).
-EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[`$'\x22{}]\S*-[A-Za-z]*[ce]\b")
+# token itself, never a later argument.
+EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z]*[ce]\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):

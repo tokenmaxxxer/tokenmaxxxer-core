@@ -271,36 +271,88 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # legitimate read-only `-e`), consume one whitespace-delimited word
     # that contains `$`/a backtick somewhere in it.
     #
-    # issue-233 independent verification round 2 (PR #354 review): `$`/
-    # backtick is generic across ways of producing those two characters,
-    # but not against shell WORD FORMATION -- brace expansion
-    # (`{python3,} -c ...`) and quote-splicing (`pyt''hon3 -c ...`) both
-    # produce a resolvable interpreter head with neither character
-    # present anywhere in the raw text this gate scans. Widened the head-
-    # word character class from `` [`$] `` to `` [`$'\x22{}] `` (backtick,
-    # `$`, both quote characters, both brace characters) -- a head word
-    # built from brace or quote syntax was not typed as a single plain
-    # program name, so it is equally unanalyzable regardless of whether a
-    # `$`/backtick also appears. Same false-refusal cost as board-gate.sh:
-    # a head quoted or brace-decorated for no functional reason (e.g.
-    # `"python3" -c ...`) now denies where it previously fell through
-    # unrecognized -- it was never reaching the literal `python3\b`
-    # alternative above either, so this is not a new over-block on any
-    # previously-allowed plain interpreter invocation, only on ones
-    # already falling through unrecognized. Still requires a real `-c`/
-    # `-e` flag later on the same head word's boundary-delimited run, so
-    # a merely quoted/braced head with no code flag stays unaffected.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$'\x22{}]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    # issue-233 independent verification, round 2 (PR #354 CHANGES review):
+    # `$`/backtick is generic across ways of producing those two
+    # characters, but NOT generic across shell WORD FORMATION. Two rounds
+    # of adversarial hunting each found one more mechanism producing a
+    # resolvable interpreter head with NEITHER `$` nor a backtick
+    # anywhere in the literal text: brace expansion with null-field
+    # removal (`{python3,} -c ...`), quote-splicing (`pyt''hon3 -c ...`),
+    # a mid-word backslash escape (`p\y\t\h\o\n3 -c ...` -- bash strips a
+    # `\` before an ordinary character outside quotes), and a backslash-
+    # newline line continuation splicing two half-words with zero residue.
+    # Enumerating a fifth character after this many rounds repeats the
+    # exact closed-set mistake issue-233 exists to retire on a different
+    # axis (issue-2600/issue-2670/issue-349) -- so this flips from a
+    # denylist of known-suspicious characters to an ALLOWLIST of known-
+    # safe ones: a plain program name or path never needs anything
+    # outside `[A-Za-z0-9_./+=@:-]`, so any OTHER character in the head
+    # word means it was not typed as a single plain word. Expressed as
+    # the complement of that safe set, still explicitly excluding
+    # whitespace and the four boundary-delimiter characters (`;`, `&`,
+    # `|`, and implicitly newline via `\s`) this gate's own boundary
+    # anchor already uses -- without that exclusion, the single "unsafe
+    # character" slot below could itself match a separator or a space and
+    # let the match silently cross into a LATER, unrelated word (this
+    # gate has no real tokenizer, unlike board-gate.sh's `gate_head_of`,
+    # so word boundaries here are entirely what `\S*`/this exclusion say
+    # they are). Same false-refusal cost as board-gate.sh: a head quoted,
+    # braced, or escaped for no functional reason (e.g. `"python3" -c
+    # ...`) now denies where it previously fell through unrecognized --
+    # it was never reaching the literal `python3\b` alternative above
+    # either, so this is not a new over-block on any previously-allowed
+    # plain interpreter invocation, only on ones already falling through
+    # unrecognized. Still requires a real `-c`/`-e` flag later on the same
+    # head word's boundary-delimited run, so a merely decorated head with
+    # no code flag stays unaffected.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     # The fusion example above (`python3${X}-c`) puts the `-c`/`-e` flag
     # FUSED onto the same head word, with no literal space before it at
     # all -- the `\s-[A-Za-z]*[ce]` tail above requires that space and
     # never fires for it. A second, narrower alternative for the fused
     # case: same head-token boundary, but the flag ends the SAME
     # whitespace-delimited word the expansion sits in, not a later one.
-    # Widened the same way as the spaced alternative above (issue-233
-    # round 2): brace/quote characters added alongside backtick/`$`.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$'\x22{}]\S*-[A-Za-z]*[ce]\b"
+    # Same allowlist-complement widening as the spaced alternative above.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*-[A-Za-z]*[ce]\b"
 )
+
+_BACKSLASH_NEWLINE_RUN_RE = re.compile(r"\\+\n")
+
+
+def _splice_line_continuations(text):
+    """Delete a bash backslash-newline line continuation before this
+    module's own regexes ever see it, exactly as the real shell does.
+
+    issue-233 independent verification round 3 (background adversarial
+    hunt agent): `pyth\`-newline-`on3 -c ...` runs, in real bash, as
+    `python3 -c ...` -- the backslash-newline pair is deleted entirely,
+    splicing the two half-words with zero residue. This gate has no
+    tokenizer at all (unlike board-gate.sh's segment splitter, fixed for
+    the same finding): `UNANALYZABLE_WRITE_SHAPE.search()` runs directly
+    against the raw command text, and every one of its boundary anchors
+    treats a bare `\n` as a hard command separator, so the resolved
+    "head word" and the `-c` flag after the continuation were never in
+    the same boundary-delimited run for any alternative to connect them.
+    Splicing first makes the spliced text read exactly like the plain
+    `python3 -c ...` shape the ORIGINAL (pre-issue-233) alternative
+    already names, needing no new pattern at all.
+
+    A run of N backslashes immediately before a newline reduces, in real
+    bash, to N // 2 literal backslash characters; if N is odd, the
+    trailing single backslash also consumes (deletes) the newline
+    itself (continuation) -- if N is even, the newline survives as a
+    genuine, unescaped separator. Applied only ahead of the
+    unanalyzable-write-shape check, not the SHELL_CHAIN/readonly-only
+    path: an over-conservative "not read-only" verdict on a literal
+    multi-line read command is an accepted, pre-existing false-refusal
+    cost (issue forbids fail-closing OUT of parsing, not INTO it), not a
+    bypass, so it is left alone rather than widening this fix's surface.
+    """
+    def repl(match):
+        backslashes = match.group()[:-1]
+        literal = "\\" * (len(backslashes) // 2)
+        return literal if len(backslashes) % 2 == 1 else literal + "\n"
+    return _BACKSLASH_NEWLINE_RUN_RE.sub(repl, text)
 
 
 def _segment_readonly(segment):
@@ -441,7 +493,7 @@ if tool == "Bash":
     # otherwise match WITHHELD's own tee/dd entries first and merely
     # decline to vouch (same as e.g. `git push`), which is the wrong
     # posture for a shape whose write target this gate cannot read at all.
-    if UNANALYZABLE_WRITE_SHAPE.search(command):
+    if UNANALYZABLE_WRITE_SHAPE.search(_splice_line_continuations(command)):
         print(
             "warrant: refused — this Bash call carries an un-analyzable "
             "write-capable shape (a heredoc body, an interpreter -c/-e "
