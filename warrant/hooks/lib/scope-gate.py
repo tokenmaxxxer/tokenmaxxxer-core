@@ -278,12 +278,36 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"|(?:^|;|&&|\|\||\||\n)\s*\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*-[A-Za-z]*[ce]\b"
 )
 
-_BACKSLASH_NEWLINE_RUN_RE = re.compile(r"\\+\n")
+# Inside SINGLE quotes, bash performs NO escape processing at all --
+# checked live, `echo 'foo t\<newline>ee bar'` prints the backslash and
+# the newline both untouched, two literal characters, never a splice.
+# Inside DOUBLE quotes, bash actually DOES still splice a backslash-
+# newline pair (checked live too: `echo "foo t\<newline>ee bar"` prints
+# `foo tee bar`, identical to the unquoted case) -- a backslash keeps its
+# special meaning there for `$`/`` ` ``/`"`/`\`/newline specifically.
+# This function deliberately treats BOTH quote kinds as one opaque,
+# never-spliced span rather than replicating that single/double
+# asymmetry: none of the confirmed word-formation bypasses this issue
+# closes rely on a backslash-newline splice happening INSIDE a
+# double-quoted argument to construct a head (a head that is itself
+# quoted, e.g. `"pyth\<newline>on3" -c ...`, is already flagged unsafe by
+# the quote character alone, splice or no splice), so not splicing
+# double-quoted spans costs nothing against this class -- at worst an
+# obscure, legitimate double-quoted backslash-newline idiom in an
+# ARGUMENT is treated a little more conservatively than real bash, the
+# accepted over-refusal direction (issue forbids fail-closing OUT of
+# parsing, not INTO it), never an under-detection. Same quote-span shape
+# as `gate_lib.GATE_QUOTE_SPAN` (board-gate.sh's sibling primitive this
+# splice was modeled on), duplicated here rather than imported because
+# this module has no dependency on core/hooks/lib/gate-lib.py today.
+_QUOTE_SPAN_RE = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"")
+_SPLICE_SCAN_RE = re.compile(_QUOTE_SPAN_RE.pattern + r"|\\+\n")
 
 
 def _splice_line_continuations(text):
     """Delete a bash backslash-newline line continuation before this
-    module's own regexes ever see it, exactly as the real shell does.
+    module's own regexes ever see it, exactly as the real shell does --
+    but never INSIDE a quoted span, where no such continuation exists.
 
     issue-233 independent verification round 3 (background adversarial
     hunt agent): `pyth\`-newline-`on3 -c ...` runs, in real bash, as
@@ -309,12 +333,40 @@ def _splice_line_continuations(text):
     multi-line read command is an accepted, pre-existing false-refusal
     cost (issue forbids fail-closing OUT of parsing, not INTO it), not a
     bypass, so it is left alone rather than widening this fix's surface.
+
+    issue-233 round 4 (before-landing `warrant-hunter` dispatch,
+    background, blind to this session's own reasoning): the FIRST version
+    of this function ran `_BACKSLASH_NEWLINE_RUN_RE.sub()` unconditionally
+    over the whole raw text with no notion of quoting at all, so a
+    perfectly ordinary single-quoted read like
+    `grep 'foo t`-newline-`ee bar' file` (the backslash-newline pair here
+    is two ordinary literal characters INSIDE single quotes to real bash,
+    never a continuation) got welded into containing the literal word
+    `tee`, tripping the pre-existing, unrelated `(?:^|\s)tee\b`
+    alternative and turning a real, harmless `origin/main` ALLOW into a
+    hard DENY -- confirmed live by the hunt agent, independently
+    reproduced by this session. Rewritten as a token walk mirroring
+    board-gate.sh's own `_split_segments` (its quote-span alternative is
+    checked FIRST in the same combined regex, so a quoted span is always
+    consumed as one atomic, unmodified token before the backslash-run
+    scan ever gets a chance to look inside it): every quoted span passes
+    through completely untouched, and only a `\+\n` run found OUTSIDE any
+    quoted span is spliced.
     """
-    def repl(match):
-        backslashes = match.group()[:-1]
-        literal = "\\" * (len(backslashes) // 2)
-        return literal if len(backslashes) % 2 == 1 else literal + "\n"
-    return _BACKSLASH_NEWLINE_RUN_RE.sub(repl, text)
+    out = []
+    pos = 0
+    for match in _SPLICE_SCAN_RE.finditer(text):
+        out.append(text[pos:match.start()])
+        token = match.group()
+        if token[:1] in ("'", '"'):
+            out.append(token)
+        else:
+            backslashes = token[:-1]
+            literal = "\\" * (len(backslashes) // 2)
+            out.append(literal if len(backslashes) % 2 == 1 else literal + "\n")
+        pos = match.end()
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def _segment_readonly(segment):

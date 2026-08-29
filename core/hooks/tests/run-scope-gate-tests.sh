@@ -362,6 +362,15 @@ run allow backslash-escaped-head-no-flag-not-overblocked Bash \
 # ahead of the regex scan rather than a new pattern.
 run deny  backslash-newline-splice       Bash \
   '{"command":"pyth\\\non3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# issue-233 round 4 (before-landing warrant-hunter): the FIRST splice
+# implementation was quote-blind and welded a literal backslash-newline
+# pair INSIDE a single-quoted grep pattern into the bare word `tee`,
+# turning an ordinary read into a false deny. Inside single quotes real
+# bash performs NO escape processing at all -- this backslash and this
+# newline are two untouched literal characters, never a continuation --
+# so this must stay allow.
+run allow backslash-newline-inside-single-quotes-not-overblocked Bash \
+  '{"command":"grep '"'"'foo t\\\nee bar'"'"' src/other.py"}'
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
