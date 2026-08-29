@@ -284,7 +284,7 @@ budgexc not-exceeded 1000 bad 1200 "gate_budget_exceeded: malformed cap -> fail-
 mark record-fields-gate-e2e
 rf() { # <want> <name> <role> <file_path> <content-json>
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$4" "$5")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$3" CLAUDE_PROJECT_DIR="/tmp" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$3" CLAUDE_PROJECT_DIR="/tmp" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })
@@ -293,7 +293,7 @@ rf() { # <want> <name> <role> <file_path> <content-json>
 rf deny "record-fields-gate.sh: missing §20 fields still denied post-migration" \
   coding "docs/issue-3/reports/coding.md" '"# empty\n"'
 payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "docs/issue-3/reports/coding.md" '"# empty\n"')"
-out="$(printf '%s' "$payload" | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" RECORD_FIELDS_GATE_OFF=banana \
+out="$(printf '%s' "$payload" | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="/tmp" RECORD_FIELDS_GATE_OFF=banana \
     /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"; rc=$?
 got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })
 report deny "$got" "record-fields-gate.sh: RECORD_FIELDS_GATE_OFF=banana stays active (issue-72 fix)"
@@ -305,7 +305,7 @@ rfedit() { # <want> <name> <role> <file_path-on-disk-relative-content> <tool_nam
   mkdir -p "$(dirname "$fp")"
   printf '%s' "$content" > "$fp"
   payload="$(printf '{"tool_name":"%s","tool_input":%s}' "$tool" "$(printf '%s' "$ti" | sed "s#__FP__#$fp#")")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$td" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   got=$([ $rc = 0 ] && echo allow || { [ $rc = 2 ] && echo deny || echo "exit-$rc"; })
@@ -359,7 +359,7 @@ rm -rf "$td"
 mark missing-core
 mktd
 out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"x"}}' \
-    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
+    | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td" \
       CLAUDE_PLUGIN_ROOT_CORE="$td/no-such-core" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 rc=$?

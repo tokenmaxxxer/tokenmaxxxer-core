@@ -4,7 +4,7 @@
 # Five deny-only rules of the issue/PR interaction model (contract v3):
 #   R1  docs/ layout: README.md, the six buckets, or issue-<n>/<bucket>
 #   R2  a board write requires the repo contract to hash-match the canonical
-#   R3  a write under docs/issue-<n>/ requires CLAUDE_ROLE
+#   R3  a write under docs/issue-<n>/ requires CLAUDE_SKILL
 #   R4  a board write happens only on branch issue-<n>/<role>
 #   R5  within issue-<n>/reports/, a role writes only its own record area
 #
@@ -39,7 +39,7 @@ run() {
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   payload="$(printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$td")"
   printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa "$@" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa "$@" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -57,7 +57,7 @@ runb() {
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE="$brole" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL="$brole" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -91,7 +91,7 @@ runs() {
   esac
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE="$brole" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL="$brole" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -126,11 +126,11 @@ drifted() {  # same harness, but approvers.md present/absent varies
   esac
   if [ -n "$roleenv" ]; then
     printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
-      | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_ROLE="$roleenv" \
+      | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_SKILL="$roleenv" \
         /bin/bash "$GATE" >/dev/null 2>&1
   else
     printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
-      | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+      | env -u CLAUDE_SKILL CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
         /bin/bash "$GATE" >/dev/null 2>&1
   fi
   rc=$?
@@ -157,7 +157,7 @@ noRole() {
   mkdir -p "$td/docs/specs"
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$1" "$td" \
-    | env -u CLAUDE_ROLE CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    | env -u CLAUDE_SKILL CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -181,7 +181,7 @@ noremote() {
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$BOARD/reports/qa.md" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -210,7 +210,7 @@ fastpath() {
   mktd
   git init -q "$td"
   printf '{"tool_name":"Read","tool_input":{"file_path":"src/app.py"},"cwd":"%s"}' "$td" \
-    | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    | env CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
       /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   rm -rf "$td"
@@ -462,7 +462,7 @@ absTargetTest() { # <want> <name> <template> -- {ROOT} -> repo root, {FOREIGN} -
   cmd="${cmd//\{FOREIGN\}/$foreign}"
   payload="$(printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' "$cmd" "$td")"
   printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -502,7 +502,7 @@ garbage() {
   want="$1"; name="$2"; raw="$3"
   mktd; git init -q "$td"
   printf '%s' "$raw" | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -517,7 +517,7 @@ garbage allow garbage-unrelated       'not json at all'
 empty_payload() {
   mktd; git init -q "$td"
   printf '' | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -535,7 +535,7 @@ internal_error() {
   chmod +x "$stubdir/python3"
   printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/qa.md","content":"x"},"cwd":"%s"}' "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=qa PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=qa PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   rm -rf "$td" "$stubdir"
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -555,7 +555,7 @@ SCRIPT
   chmod +x "$1/gh"
 }
 
-# maint_run <want> <name> <branch> <file_path> <issue-body> — always CLAUDE_ROLE=implementation
+# maint_run <want> <name> <branch> <file_path> <issue-body> — always CLAUDE_SKILL=implementation
 maint_run() {
   want="$1"; name="$2"; branch="$3"; fp="$4"; body="$5"
   mktd
@@ -568,7 +568,7 @@ maint_run() {
   stub_gh_maint "$stubdir" "$body"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=implementation CORE_GH="$stubdir/gh" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=implementation CORE_GH="$stubdir/gh" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td" "$stubdir"
@@ -590,7 +590,7 @@ maint_own_issue_no_gh_call() {
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-9/reports/implementation.md","content":"x"},"cwd":"%s"}' "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=implementation CORE_GH="/nonexistent/gh-should-not-be-called" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL=implementation CORE_GH="/nonexistent/gh-should-not-be-called" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -608,7 +608,7 @@ run deny  heredoc-python-mask-bypass      Bash '{"command":"python3 - <<'"'"'EOF
 run deny  heredoc-bash-mask-bypass        Bash '{"command":"bash <<'"'"'EOF'"'"'\necho pwn > '$BOARD'/reports/review.md\nEOF"}'
 run deny  inline-c-flag-mask-bypass       Bash '{"command":"cd '$BOARD' && python3 -c \"import sys; sys.stdout.write(1)\""}'
 # an unrestricted session (no board contract at all -- no
-# docs/specs/approvers.md, no CLAUDE_ROLE) is unaffected: same heredoc
+# docs/specs/approvers.md, no CLAUDE_SKILL) is unaffected: same heredoc
 # shape, but no write-set is being enforced for anyone to bypass.
 runUnrestrictedHeredoc() {
   mktd

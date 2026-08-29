@@ -58,18 +58,18 @@ run_pair() {
 
 # approval-gate.sh: role session, execution-surface write, no
 # docs/specs/approvers.md -> deny; empty CLAUDE_PROJECT_DIR (kill switch
-# check + no CLAUDE_ROLE) -> allow.
+# check + no CLAUDE_SKILL) -> allow.
 mktd
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"src/foo.py","content":"x"}}'
-CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
+CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td" \
   bash -c 'run_pair_wrap() { :; }'  # no-op, keep shellcheck quiet
-export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td"
 run_pair approval-gate.sh 2 "approval-gate: execution write, no approvers.md -> deny" "docs/specs/approvers.md"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"src/foo.py","content":"x"}}'
-run_pair approval-gate.sh 0 "approval-gate: no CLAUDE_ROLE, no TOKENMAXXXER_SPAWNED -> allow (not a role session)"
+run_pair approval-gate.sh 0 "approval-gate: no CLAUDE_SKILL, no TOKENMAXXXER_SPAWNED -> allow (not a role session)"
 
 # board-gate.sh: docs write with no resolvable project root -> deny;
 # non-docs write -> allow (fast path).
@@ -80,26 +80,26 @@ git -C "$td" checkout -q -b issue-3/qa
 mkdir -p "$td/docs/specs" "$td/docs/issue-3/reports"
 printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
 PAYLOAD="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/notes.md","content":"x"},"cwd":"%s"}' "$td")"
-export CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="$td"
 run_pair board-gate.sh 2 "board-gate: docs/notes.md violates the R1 bucket layout -> deny" "neither docs/README.md"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"src/foo.py","content":"x"}}'
 run_pair board-gate.sh 0 "board-gate: non-docs write -> allow (fast path)"
 
-# gh-guard.sh: role session running `gh pr merge` -> deny; no CLAUDE_ROLE
+# gh-guard.sh: role session running `gh pr merge` -> deny; no CLAUDE_SKILL
 # -> allow.
 mktd
 git init -q "$td"
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"gh pr merge 5"}}'
-export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td"
 run_pair gh-guard.sh 2 "gh-guard: role session gh pr merge -> deny" "two-account model"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR TOKENMAXXXER_SPAWNED
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"gh pr merge 5"}}'
-run_pair gh-guard.sh 0 "gh-guard: no CLAUDE_ROLE, no TOKENMAXXXER_SPAWNED -> allow"
+run_pair gh-guard.sh 0 "gh-guard: no CLAUDE_SKILL, no TOKENMAXXXER_SPAWNED -> allow"
 
 # ordering-gate.sh: architecture proposal written before its survey exists
 # -> deny; unmatched role -> allow (falls through ROLES table).
@@ -110,9 +110,9 @@ echo "- @approver1" > "$td/docs/specs/approvers.md"
 git -C "$td" add -A && git -C "$td" -c user.email=t@t -c user.name=t commit -q -m init
 git -C "$td" checkout -q -b issue-5/architecture
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-5/proposals/architecture-plan.md","content":"x"}}'
-export CLAUDE_ROLE=architecture CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=architecture CLAUDE_PROJECT_DIR="$td"
 run_pair ordering-gate.sh 2 "ordering-gate: architecture proposal before survey -> deny" "survey.md does not exist"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Read","tool_input":{"file_path":"README.md"}}'
@@ -127,17 +127,17 @@ echo "- @approver1" > "$td/docs/specs/approvers.md"
 git -C "$td" add -A && git -C "$td" -c user.email=t@t -c user.name=t commit -q -m init
 git -C "$td" checkout -q -b issue-9/implementation
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-9/reports/implementation.md","content":"loop_state: in-progress\n"}}'
-export CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td"
 run_pair record-shape-gate.sh 2 "record-shape-gate: implementation record missing fields -> deny" "missing required element"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 mktd
 git init -q "$td"
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-9/reports/unrelated-role.md","content":"x"}}'
-export CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td"
 run_pair record-shape-gate.sh 0 "record-shape-gate: unmatched role/path -> allow"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 # -------------------------------------------------------------- DEMOTE ---
@@ -155,27 +155,27 @@ mkdir -p "$td/docs/issue-3/reports"
 echo x > "$td/docs/issue-3/reports/x.md"
 git -C "$td" add -A
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}'
-export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td"
 run_pair trailer-gate.sh 0 "trailer-gate: no trailer -> advisory, not blocking" "lacks the required"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
 run_pair trailer-gate.sh 0 "trailer-gate: non-commit command -> allow"
 
-# record-fields-gate.sh: no CLAUDE_ROLE -> advisory (was unconditional
+# record-fields-gate.sh: no CLAUDE_SKILL -> advisory (was unconditional
 # deny); own record missing §20 fields -> advisory.
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/x.md","content":"x"}}'
-run_pair record-fields-gate.sh 0 "record-fields-gate: no CLAUDE_ROLE -> advisory, not blocking" "no CLAUDE_ROLE"
+run_pair record-fields-gate.sh 0 "record-fields-gate: no CLAUDE_SKILL -> advisory, not blocking" "no CLAUDE_SKILL"
 
 mktd
 git init -q "$td"
 mkdir -p "$td/docs/issue-3/reports"
 git -C "$td" add -A 2>/dev/null || true
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"loop_state: in-progress\n"}}'
-export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td"
 run_pair record-fields-gate.sh 0 "record-fields-gate: own record missing §20 fields -> advisory" "unmet requirement"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 # handbook-trigger-gate.sh: commit staging package.json with no handbook
@@ -185,9 +185,9 @@ git init -q "$td"
 echo '{}' > "$td/package.json"
 git -C "$td" add -A
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}'
-export CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td"
 run_pair handbook-trigger-gate.sh 0 "handbook-trigger-gate: package.json w/o handbook -> advisory" "operational surface"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
@@ -216,9 +216,9 @@ rm -rf "$td"
 mktd
 git init -q "$td"
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-6/proposals/plan.md","content":"# Plan\n"}}'
-export CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td"
 run_pair survey-order-gate.sh 0 "survey-order-gate: proposal before survey -> advisory" "survey file"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 mktd
@@ -226,9 +226,9 @@ git init -q "$td"
 mkdir -p "$td/docs/issue-6/reports/implementation"
 echo "survey" > "$td/docs/issue-6/reports/implementation/survey.md"
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-6/proposals/plan.md","content":"# Plan\n"}}'
-export CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td"
 run_pair survey-order-gate.sh 0 "survey-order-gate: proposal after survey exists -> allow"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 # facet-keyword-gate.sh: content-design tone-axis record missing the
@@ -237,9 +237,9 @@ rm -rf "$td"
 mktd
 git init -q "$td"
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-7/reports/content-design.md","content":"loop_state: in-progress\n\nno axis words here at all\n"}}'
-export CLAUDE_ROLE=content-design CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=content-design CLAUDE_PROJECT_DIR="$td"
 run_pair facet-keyword-gate.sh 0 "facet-keyword-gate: tone-axis record missing axis word -> advisory or allow"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"src/foo.py","content":"x"}}'
@@ -253,9 +253,9 @@ run_pair citation-gate.sh 0 "citation-gate: unmatched role -> allow (no config r
 mktd
 git init -q "$td"
 PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"docs/issue-8/proposals/api-plan.md","content":"# API plan\n\nno sources cited anywhere\n"}}'
-export CLAUDE_ROLE=api-design CLAUDE_PROJECT_DIR="$td"
+export CLAUDE_SKILL=api-design CLAUDE_PROJECT_DIR="$td"
 run_pair citation-gate.sh 0 "citation-gate: api-design proposal, no source -> advisory or allow"
-unset CLAUDE_ROLE CLAUDE_PROJECT_DIR
+unset CLAUDE_SKILL CLAUDE_PROJECT_DIR
 rm -rf "$td"
 
 echo

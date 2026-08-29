@@ -45,7 +45,7 @@ EOF
 run_directive() { # <bindir> <tmpdir-for-cache>
   local bindir="$1" cachehome="$2"
   PATH="$bindir:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cachehome" \
-    CLAUDE_ROLE=implementation ${4:-} \
+    CLAUDE_SKILL=implementation ${4:-} \
     bash "$HOOKS/directive.sh" >/dev/null 2>&1
 }
 
@@ -57,9 +57,9 @@ count_lines() { # <file>
 bin1="$work/bin1"; counter1="$work/counter1"; cache1="$work/cache1"
 mkdir -p "$cache1"
 setup_fake_gh "$bin1" "$counter1" 0
-PATH="$bin1:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache1" CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin1:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache1" CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
 first_count="$(count_lines "$counter1")"
-PATH="$bin1:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache1" CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin1:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache1" CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
 second_count="$(count_lines "$counter1")"
 report 1 "$first_count" "cache-miss run: exactly one gh invocation"
 report "$first_count" "$second_count" "cache-hit run (within TTL): zero additional gh invocations"
@@ -68,8 +68,8 @@ report "$first_count" "$second_count" "cache-hit run (within TTL): zero addition
 bin2="$work/bin2"; counter2="$work/counter2"; cache2="$work/cache2"
 mkdir -p "$cache2"
 setup_fake_gh "$bin2" "$counter2" 0
-PATH="$bin2:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache2" CORE_AUTH_PROBE_TTL=0 CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
-PATH="$bin2:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache2" CORE_AUTH_PROBE_TTL=0 CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin2:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache2" CORE_AUTH_PROBE_TTL=0 CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin2:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache2" CORE_AUTH_PROBE_TTL=0 CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
 ttl0_count="$(count_lines "$counter2")"
 report 2 "$ttl0_count" "CORE_AUTH_PROBE_TTL=0: two runs make two gh invocations (cache disabled)"
 
@@ -77,8 +77,8 @@ report 2 "$ttl0_count" "CORE_AUTH_PROBE_TTL=0: two runs make two gh invocations 
 bin3="$work/bin3"; counter3="$work/counter3"; cache3="$work/cache3"
 mkdir -p "$cache3"
 setup_fake_gh "$bin3" "$counter3" 1
-PATH="$bin3:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache3" CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
-PATH="$bin3:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache3" CLAUDE_ROLE=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin3:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache3" CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
+PATH="$bin3:$PATH" CLAUDE_PROJECT_DIR="$repo" TMPDIR="$cache3" CLAUDE_SKILL=implementation bash "$HOOKS/directive.sh" >/dev/null 2>&1
 fail_count="$(count_lines "$counter3")"
 report 2 "$fail_count" "failed probe: second run re-probes instead of serving a cached failure"
 

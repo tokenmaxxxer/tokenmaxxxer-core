@@ -76,7 +76,7 @@ forgery_probe() {
   for g in $gates; do
     printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" \
         CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)" \
-        CLAUDE_ROLE=probe /bin/bash "$g" >/dev/null 2>&1
+        CLAUDE_SKILL=probe /bin/bash "$g" >/dev/null 2>&1
     [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the forged board write"; }
   done
   rm -rf "$td"
@@ -116,7 +116,7 @@ reject_forgery_probe() {
   for g in $gates; do
     printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" \
         CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)" \
-        CLAUDE_ROLE=probe /bin/bash "$g" >/dev/null 2>&1
+        CLAUDE_SKILL=probe /bin/bash "$g" >/dev/null 2>&1
     [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the forged rejected-state board write"; }
   done
   rm -rf "$td"
@@ -154,7 +154,7 @@ withdraw_forgery_probe() {
   for g in $gates; do
     printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$td" \
         CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)" \
-        CLAUDE_ROLE=probe /bin/bash "$g" >/dev/null 2>&1
+        CLAUDE_SKILL=probe /bin/bash "$g" >/dev/null 2>&1
     [ "$?" = 2 ] && { refused=1; echo "deny-only-check: ok — $(basename "$g") refuses the forged withdrawn-state board write"; }
   done
   rm -rf "$td"

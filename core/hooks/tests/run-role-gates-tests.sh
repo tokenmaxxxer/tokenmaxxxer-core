@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # trailer-gate.sh, record-fields-gate.sh, handbook-trigger-gate.sh and
 # stub-check.sh, exercised as real subprocesses — asserting that two
-# different CLAUDE_ROLE values produce correctly-labeled output and
+# different CLAUDE_SKILL values produce correctly-labeled output and
 # correctly-namespaced kill switches from the SAME canon file (issue-66).
 set -uo pipefail
 
@@ -29,7 +29,7 @@ run_trailer() { # <want> <name> <role> <commit-args-json> <extra-env...>
   echo x > "$td/docs/issue-3/reports/x.md"
   git -C "$td" add -A
   payload="$(printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$args")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
       /bin/bash "$HOOKS/trailer-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -60,7 +60,7 @@ run_trailer allow  "coding: heredoc -m with embedded quotes, no trailer, still d
 run_rf() { # <want> <name> <role> <file_path> <content-json> <extra-env...>
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"; shift 5
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="/tmp" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="/tmp" "$@" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -81,7 +81,7 @@ RF_REPO_ROOT="$(cd "$HOOKS/../.." && pwd -P)"
 run_rf_root() { # <want> <name> <role> <file_path> <content-json>
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$RF_REPO_ROOT" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$RF_REPO_ROOT" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -191,7 +191,7 @@ kind_spoof_out="$(printf '%s' "$(printf '{"tool_name":"Write","tool_input":{"fil
   "docs/issue-3/reports/qa.md" \
   "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "kind: coding-record
 $(rf_body landed)")")" \
-  | env CLAUDE_ROLE=qa CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+  | env CLAUDE_SKILL=qa CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 report "" "$kind_spoof_out" "issue-341: qa record CAN now borrow coding-record's terminal state via self-declared kind: (capability dropped)"
 
 run_rf allow  "implementation record code_under_review bare sha denied (issue-100)" implementation \
@@ -253,7 +253,7 @@ run_rf allow "F2 red->green: value-less line followed by another entry allowed (
   '"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha:\n  - path: other\n    sha: same-commit\n---\n"'
 
 f2_msg_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/proposals/2026-08-04-x.md","content":"---\nupstream:\n  - path: docs/issue-3/reports/implementation/survey.md\n    sha: HEAD\n  - path: other\n    sha: same-commit\n---\n"}}' \
-    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+    | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 case "$f2_msg_out" in
   *"sha: HEAD is not"*) f2_msg_ok=1 ;;
   *) f2_msg_ok=0 ;;
@@ -311,7 +311,7 @@ run_rf allow "F1 hunt regression: leading blank line before a real fence still a
 # #154 already fixed the underlying behavior; only the test was
 # non-discriminating.
 f2b_msg_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/proposals/2026-08-04-x.md","content":"---\nupstream:\n  - path: a\n    sha:\n  - path: other\n    sha: HEAD\n---\n"}}' \
-    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+    | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 case "$f2b_msg_out" in
   *"sha: HEAD is not"*) f2b_msg_ok=1 ;;
   *) f2b_msg_ok=0 ;;
@@ -322,7 +322,7 @@ report 1 "$f2b_msg_ok" "F2 discriminator: empty entry + bad second entry names H
 run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>
   want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="/tmp" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="/tmp" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   got=0
@@ -377,7 +377,7 @@ run_rf allow "loop_state 'in_progress' allowed once next-steps present (PR #143)
   '"loop_state: in_progress\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n\n## next steps\nz\n\n## open finding resolution path\nnone\n"'
 
 out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-3/reports/coding.md","content":"loop_state: landed\n"}}' \
-    | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+    | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="/tmp" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
 case "$out" in
   *'"what was done"'*'"why"'*) msg_ok=1 ;;
   *) msg_ok=0 ;;
@@ -399,7 +399,7 @@ run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   done
   [ "${#files[@]}" -gt 0 ] && git -C "$td" add -A
   payload="$(printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$args")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE="$role" CLAUDE_PROJECT_DIR="$td" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" \
       /bin/bash "$HOOKS/handbook-trigger-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -442,7 +442,7 @@ out="$(/bin/bash "$HERE/stub-check.sh" "$td" 2>&1)"; rc=$?
 report allow "$([ $rc = 0 ] && echo allow || echo deny)" "stub-check: real stub directive.sh passes"
 cat >> "$td/hooks/directive.sh" <<'EOF'
 case "${SOME_CYCLE_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
-[ "${CLAUDE_ROLE:-}" = "x" ] || exit 0
+[ "${CLAUDE_SKILL:-}" = "x" ] || exit 0
 echo one; echo two; echo three; echo four; echo five; echo six; echo seven
 echo eight; echo nine; echo ten; echo eleven; echo twelve; echo thirteen
 EOF

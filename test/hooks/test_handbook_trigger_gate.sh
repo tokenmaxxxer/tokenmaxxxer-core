@@ -37,7 +37,7 @@ run() {
   mkdir -p "$td/docs/handbooks"
   printf 'hb update\n' > "$td/docs/handbooks/foo.md"
   payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","tool_input":{"command":sys.argv[1]}}))' "$cmdstr")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   last_out="$out"
@@ -80,7 +80,7 @@ git -C "$td" config user.name t
 mkdir -p "$td/-mydir"
 printf 'flask\n' > "$td/-mydir/requirements.txt"
 payload="$(python3 -c 'import json; print(json.dumps({"tool_name":"Bash","tool_input":{"command":"git add -- -mydir/requirements.txt && git commit -m \"chore: add dash-prefixed-pathspec dependency manifest, no handbook\""}}))')"
-out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
+out="$(printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
 rc=$?
 rm -rf "$td"
 case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -96,7 +96,7 @@ capture() { # <command-string>
   printf 'flask\n' > "$td/requirements.txt"
   git -C "$td" add requirements.txt
   payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","tool_input":{"command":sys.argv[1]}}))' "$1")"
-  printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" >>"$DENY_LOG" 2>&1
+  printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" >>"$DENY_LOG" 2>&1
   rm -rf "$td"
 }
 capture 'git commit -m "chore: add requirements.txt, no handbook"'

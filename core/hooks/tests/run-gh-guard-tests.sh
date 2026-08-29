@@ -8,7 +8,7 @@ pass=0; fail=0
 run() { # want name role cmd
   printf '{"tool_name":"Bash","tool_input":{"command":%s}}' \
     "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$4")" \
-    | { if [ -n "$3" ]; then env CLAUDE_ROLE="$3" /bin/bash "$GATE"; else env -u CLAUDE_ROLE -u TOKENMAXXXER_SPAWNED /bin/bash "$GATE"; fi; } >/dev/null 2>&1
+    | { if [ -n "$3" ]; then env CLAUDE_SKILL="$3" /bin/bash "$GATE"; else env -u CLAUDE_SKILL -u TOKENMAXXXER_SPAWNED /bin/bash "$GATE"; fi; } >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   if [ "$got" = "$1" ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "$2" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=%s got=%s\n' "$2" "$1" "$got"; fi
 }
@@ -65,7 +65,7 @@ run allow gap-c-file-indirect  coding 'bash /tmp/whatever.sh'
 # construction. run() always sets tool_name=Bash, so this case is probed
 # directly rather than through the helper.
 GD_PAYLOAD='{"tool_name":"Write","tool_input":{"file_path":"/tmp/x.sh","content":"curl -X PUT https://api.github.com/repos/o/r/pulls/7/merge"}}'
-printf '%s' "$GD_PAYLOAD" | env CLAUDE_ROLE=coding /bin/bash "$GATE" >/dev/null 2>&1
+printf '%s' "$GD_PAYLOAD" | env CLAUDE_SKILL=coding /bin/bash "$GATE" >/dev/null 2>&1
 gd_rc=$?; case "$gd_rc" in 0) gd_got=allow ;; 2) gd_got=deny ;; *) gd_got="exit-$gd_rc" ;; esac
 if [ "$gd_got" = allow ]; then
   pass=$((pass+1)); printf 'ok     %-34s %s\n' gap-d-write-tool "$gd_got"
@@ -132,7 +132,7 @@ run deny  wrapper-bash-c-plain-grep coding 'bash -c "grep -n '"'"'gh pr merge'"'
 # empty stdin (delivery failure) must deny, not silently fall through the
 # fast path and exit 0.
 empty_payload() {
-  printf '' | env CLAUDE_ROLE=coding /bin/bash "$GATE" >/dev/null 2>&1
+  printf '' | env CLAUDE_SKILL=coding /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   if [ "$got" = deny ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "empty-payload" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=deny got=%s\n' "empty-payload" "$got"; fi
 }
@@ -149,7 +149,7 @@ exit 1
 SH
   chmod +x "$stubdir/python3"
   printf '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 7"}}' \
-    | env CLAUDE_ROLE=coding PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
+    | env CLAUDE_SKILL=coding PATH="$stubdir:$PATH" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?; rm -rf "$stubdir"
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   if [ "$got" = deny ]; then pass=$((pass+1)); printf 'ok     %-34s %s\n' "python3-internal-error" "$got"; else fail=$((fail+1)); printf 'FAIL   %-34s want=deny got=%s\n' "python3-internal-error" "$got"; fi

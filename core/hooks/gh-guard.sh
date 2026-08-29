@@ -10,7 +10,7 @@
 # rejects self-approval — this gate just refuses the attempt at the
 # session layer, with a message that says where the act belongs.
 #
-# Denied in role sessions (CLAUDE_ROLE set):
+# Denied in role sessions (CLAUDE_SKILL set):
 #   gh pr review --approve / --request-changes   (verdicts are human acts)
 #   gh pr merge / gh pr close / gh pr reopen     (acceptance/refusal)
 #   gh issue create / close / reopen / edit      (user-only backlog)
@@ -21,7 +21,7 @@
 # pass through untouched. Fail closed on non-0/2. Kill switch: CORE_OFF=1.
 #
 # Presence test (issue #327, per on-the-record #2538): a role session is
-# one where TOKENMAXXXER_SPAWNED or CLAUDE_ROLE is set — OR, not just the
+# one where TOKENMAXXXER_SPAWNED or CLAUDE_SKILL is set — OR, not just the
 # new var alone, so a session that unsets only one of the two spawner-set
 # vars cannot flip this guard into the pass-through branch and dodge the
 # deny below. core has no SessionStart snapshot (unlike on-the-record's
@@ -37,7 +37,7 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 # writer see SIGPIPE.
 payload="$(cat 2>/dev/null || true)"
 
-[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
+[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_SKILL:-}" ] || { trap - EXIT; exit 0; }
 
 [ -n "$payload" ] || { echo "gh-guard.sh: refused — empty tool-use payload on stdin; cannot evaluate the gh guard." >&2; exit 2; }
 
@@ -88,7 +88,7 @@ cmd = ti.get("command") if isinstance(ti, dict) else None
 if not isinstance(cmd, str):
     deny("Bash payload carries no command string")
 
-role = os.environ["CLAUDE_ROLE"].strip()
+role = os.environ["CLAUDE_SKILL"].strip()
 
 RULES = [
     (r"\bgh\s+pr\s+review\b.*(--approve|-a\b|--request-changes)",

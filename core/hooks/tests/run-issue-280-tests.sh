@@ -59,7 +59,7 @@ run_rf() { # <want> <name> <content-json-string>; sets $out
   want="$1"; name="$2"; content="$3"
   mk_workspace
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/docs/issue-9/reports/coding.md","content":%s}}' "$td" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE=coding CLAUDE_PROJECT_DIR="$td" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL=coding CLAUDE_PROJECT_DIR="$td" \
       CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
@@ -101,10 +101,10 @@ replay_step() { # <name> <tool> <tool-input-json>
   name="$1"; tool="$2"; tinput="$3"
   payload="$(printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$tool" "$tinput" "$fx")"
   bg_out="$(printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$fx" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=coding CORE_GH="$fx/bin/gh" /bin/bash "$HOOKS/board-gate.sh" 2>&1)"
+      CLAUDE_SKILL=coding CORE_GH="$fx/bin/gh" /bin/bash "$HOOKS/board-gate.sh" 2>&1)"
   bg_rc=$?
   rf_out="$(printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$fx" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_ROLE=coding /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
+      CLAUDE_SKILL=coding /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rf_rc=$?
   if [ "$bg_rc" = 0 ] && [ "$rf_rc" = 0 ]; then
     got=allow

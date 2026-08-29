@@ -16,17 +16,17 @@ trap __fc EXIT
 # Promoted to core canon (issue-66): every rulebook vendored a byte-diverged
 # copy of this file whose only real difference was the role token baked into
 # env-var names and the message prefix (issue-66 survey, 38/40 unique
-# hashes). This copy reads role identity from CLAUDE_ROLE at runtime instead
+# hashes). This copy reads role identity from CLAUDE_SKILL at runtime instead
 # — same convention core's own board-gate.sh/approval-gate.sh already use —
 # so one file is now correct for every role by construction.
 #
-# Kill switch: export TRAILER_GATE_OFF=1 (role-blind on purpose: CLAUDE_ROLE
+# Kill switch: export TRAILER_GATE_OFF=1 (role-blind on purpose: CLAUDE_SKILL
 # already scopes the session, so the switch needs no per-role namespace).
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "trailer-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
-role="${CLAUDE_ROLE:-}"
+role="${CLAUDE_SKILL:-}"
 deny() { echo "${role:-trailer-gate}: refused — $1 (gate: $self_path)" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${TRAILER_GATE_OFF:-}" || exit 0

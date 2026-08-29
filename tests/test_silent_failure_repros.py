@@ -156,7 +156,7 @@ def test_A5_trailer_gate_quote_split_commit_is_detected(tmp_path):
     scratch.write_text("scratch\n")
     subprocess.run(["git", "add", str(scratch)], cwd=str(REPO), check=True)
     try:
-        env = {"CLAUDE_ROLE": "defect-verification", "CLAUDE_PROJECT_DIR": str(REPO)}
+        env = {"CLAUDE_SKILL": "defect-verification", "CLAUDE_PROJECT_DIR": str(REPO)}
 
         control = run_hook("core/hooks/trailer-gate.sh",
                             {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, env=env)

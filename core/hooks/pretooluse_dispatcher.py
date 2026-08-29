@@ -232,7 +232,7 @@ def _run_body(code, raw_stderr):
 #   ("deny", message)         -- fail-closed bash-level deny (unchanged
 #                                 for both KEEP and DEMOTE gates: an
 #                                 infra failure like "no project root" or
-#                                 "no CLAUDE_ROLE" is not the substantive
+#                                 "no CLAUDE_SKILL" is not the substantive
 #                                 judgment call the audit evaluated)
 #   ("ok", {env updates})     -- proceed; apply these env vars, then run
 #                                 the gate's python body/bodies
@@ -241,11 +241,11 @@ def _run_body(code, raw_stderr):
 def _setup_approval_gate(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("CORE_OFF", "")):
         return "skip", None
-    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, mirroring
+    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_SKILL, mirroring
     # approval-gate.sh's own presence test — unsetting only one of the
     # two spawner-set vars must not flip this setup into "skip".
     if not (os.environ.get("TOKENMAXXXER_SPAWNED", "")
-            or os.environ.get("CLAUDE_ROLE", "")):
+            or os.environ.get("CLAUDE_SKILL", "")):
         return "skip", None
     if not payload:
         return "deny", ("approval-gate.sh: refused -- empty tool-use payload "
@@ -270,11 +270,11 @@ def _setup_board_gate(payload, obj, cwd):
 def _setup_gh_guard(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("CORE_OFF", "")):
         return "skip", None
-    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, mirroring
+    # issue #327: OR of TOKENMAXXXER_SPAWNED and CLAUDE_SKILL, mirroring
     # gh-guard.sh's own presence test — unsetting only one of the two
     # spawner-set vars must not flip this setup into "skip".
     if not (os.environ.get("TOKENMAXXXER_SPAWNED", "")
-            or os.environ.get("CLAUDE_ROLE", "")):
+            or os.environ.get("CLAUDE_SKILL", "")):
         return "skip", None
     if not payload:
         return "deny", ("gh-guard.sh: refused -- empty tool-use payload on "
@@ -357,7 +357,7 @@ def _setup_handbook_trigger_gate(payload, obj, cwd):
     self_path = os.path.join(HOOKS_DIR, "handbook-trigger-gate.sh")
     return "ok", {
         "HT_PAYLOAD": payload, "HT_ROOT": root,
-        "HT_SKILL": os.environ.get("CLAUDE_ROLE", ""), "HT_SELF": self_path,
+        "HT_SKILL": os.environ.get("CLAUDE_SKILL", ""), "HT_SELF": self_path,
     }
 
 
@@ -379,9 +379,9 @@ def _setup_proposal_shape_gate(payload, obj, cwd):
 def _setup_record_fields_gate(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("RECORD_FIELDS_GATE_OFF", "")):
         return "skip", None
-    role = os.environ.get("CLAUDE_ROLE", "")
+    role = os.environ.get("CLAUDE_SKILL", "")
     if not role:
-        return "deny", ("record-fields-gate: refused -- no CLAUDE_ROLE in "
+        return "deny", ("record-fields-gate: refused -- no CLAUDE_SKILL in "
                          "the environment; the gate cannot resolve which "
                          "record is this role's own.")
     if not payload:
@@ -412,7 +412,7 @@ def _setup_survey_order_gate(payload, obj, cwd):
                          "determined; failing closed (write order cannot "
                          "be judged).")
     return "ok", {"PG_PAYLOAD": payload, "PG_ROOT": root,
-                  "PG_SKILL": os.environ.get("CLAUDE_ROLE", "")}
+                  "PG_SKILL": os.environ.get("CLAUDE_SKILL", "")}
 
 
 def _setup_trailer_gate(payload, obj, cwd):
@@ -424,7 +424,7 @@ def _setup_trailer_gate(payload, obj, cwd):
     self_path = os.path.join(HOOKS_DIR, "trailer-gate.sh")
     return "ok", {
         "TRAILER_GATE_PAYLOAD": payload,
-        "TRAILER_GATE_SKILL": os.environ.get("CLAUDE_ROLE", ""),
+        "TRAILER_GATE_SKILL": os.environ.get("CLAUDE_SKILL", ""),
         "TRAILER_GATE_CPD": os.environ.get("CLAUDE_PROJECT_DIR", ""),
         "TRAILER_GATE_CWD": cwd, "TRAILER_GATE_SELF": self_path,
     }
@@ -469,7 +469,7 @@ def _run_gate(script, setup_fn, disposition, payload, obj, cwd, raw_stderr):
         if disposition == "keep":
             return 2, ""
         # DEMOTE (issue #282 Part 2): this bash-preamble-level deny path
-        # (e.g. "no project root", "no CLAUDE_ROLE") is the same
+        # (e.g. "no project root", "no CLAUDE_SKILL") is the same
         # gate's own blocking judgment as its python-body deny() calls,
         # which were already edited to be non-blocking -- treat it the
         # same way here rather than leaving a back door that still

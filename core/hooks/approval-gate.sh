@@ -44,7 +44,7 @@
 #
 # Build-now bypass (contract v3 s19a, issue-212): when the spawn task
 # itself sets CORE_BUILD_NOW=1 (an env var the spawner controls, same as
-# CLAUDE_ROLE), the proposal round is explicitly waived and execution-
+# CLAUDE_SKILL), the proposal round is explicitly waived and execution-
 # surface writes are allowed without an Approve signal. Unset by default,
 # so ordinary tasks keep the two-phase gate unchanged.
 #
@@ -57,7 +57,7 @@
 # verdict machinery as anyone else: nothing here is bypassed.
 #
 # DETECTION CONTRACT (issue-275): checkpoint mode is detected via the env
-# stamp CORE_CHECKPOINT=1, set by the SPAWNER alongside CLAUDE_ROLE —
+# stamp CORE_CHECKPOINT=1, set by the SPAWNER alongside CLAUDE_SKILL —
 # never by the session itself. This was chosen over reading the
 # workspace's .waiting-on.json because that file is (a) deleted by
 # await-approval on both of its exits, so it is absent exactly when the
@@ -79,10 +79,10 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 # orchestrator's own sessions write src/ freely.
 #
 # Presence test (issue #327, per on-the-record #2538): OR of
-# TOKENMAXXXER_SPAWNED and CLAUDE_ROLE, not the new var alone — core has
+# TOKENMAXXXER_SPAWNED and CLAUDE_SKILL, not the new var alone — core has
 # no SessionStart snapshot to fall back to, so unsetting only one of the
 # two spawner-set vars must not flip this guard open. See gh-guard.sh.
-[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_ROLE:-}" ] || { trap - EXIT; exit 0; }
+[ -n "${TOKENMAXXXER_SPAWNED:-}${CLAUDE_SKILL:-}" ] || { trap - EXIT; exit 0; }
 
 payload="$(cat 2>/dev/null || true)"
 [ -n "$payload" ] || { echo "approval-gate.sh: refused — empty tool-use payload on stdin; cannot evaluate the approval gate." >&2; exit 2; }
@@ -139,7 +139,7 @@ READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
 CODE_RE = re.compile(r"(^|/)(src|test)/")
 ISSUE_RE = re.compile(r"(^|/)docs/(issue-[0-9]+)/(.*)$")
 
-role = os.environ["CLAUDE_ROLE"].strip()
+role = os.environ["CLAUDE_SKILL"].strip()
 
 def norm(p):
     return posixpath.normpath(p.replace("\\", "/"))
@@ -183,7 +183,7 @@ if not hits:
 
 # --- build-now bypass (contract v3 s19a) ---------------------------------
 # The spawn task, not the role itself, sets CORE_BUILD_NOW=1 — the same
-# way it sets CLAUDE_ROLE — to explicitly authorize delivery-only work.
+# way it sets CLAUDE_SKILL — to explicitly authorize delivery-only work.
 # When present, the proposal round is skipped and execution-surface
 # writes are allowed without an Approve signal. Absent (the default),
 # behavior is unchanged: the two-phase gate below still applies.
@@ -211,7 +211,7 @@ if not root:
 
 if not os.path.isfile(os.path.join(root, "docs", "specs", "approvers.md")):
     deny("this repository has no docs/specs/approvers.md, but the session "
-         "carries CLAUDE_ROLE=%s. A role session works only on a board, and "
+         "carries CLAUDE_SKILL=%s. A role session works only on a board, and "
          "that file is both the board opt-in and the approver allowlist — "
          "ask the human to add it" % role)
 

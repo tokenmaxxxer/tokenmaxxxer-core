@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sourceable library: the boilerplate every rulebook's own SessionStart
 # `directive.sh` repeated byte-for-byte except for role-token substitution
-# (issue-66 survey: preamble, kill-switch case, CLAUDE_ROLE guard, opening
+# (issue-66 survey: preamble, kill-switch case, CLAUDE_SKILL guard, opening
 # and closing lines were identical in shape across all 43 copies). A
 # rulebook's directive.sh now sources this file and calls
 # core_role_directive with its four genuinely role-unique values; every
@@ -19,9 +19,9 @@
 #
 # core_role_directive <you_decide> <use_when> <produces> <hand_off>
 #
-# Presence gated on TOKENMAXXXER_SPAWNED or CLAUDE_ROLE (issue #327; no
+# Presence gated on TOKENMAXXXER_SPAWNED or CLAUDE_SKILL (issue #327; no
 # spawned session -> silent no-op, same as core's own directive.sh); the
-# role NAME itself still comes from CLAUDE_ROLE. Kill switch, per role, via
+# role NAME itself still comes from CLAUDE_SKILL. Kill switch, per role, via
 # <ROLE>_CYCLE_OFF=1 (role name uppercased with `tr`, not bash 4's
 # `${var^^}`, to stay inside parse-check.sh's bash-3.2 compatibility
 # floor), tested via gate-lib.sh's shared gate_kill_switch_active so this
@@ -30,11 +30,11 @@
 
 core_role_directive() {
   local you_decide="$1" use_when="$2" produces="$3" hand_off="$4"
-  local role="${CLAUDE_ROLE:-}"
+  local role="${CLAUDE_SKILL:-}"
   # Presence test (issue #327, per on-the-record #2538): OR of
   # TOKENMAXXXER_SPAWNED and role, not the new var alone — same rationale
   # as core's own directive.sh. The role NAME rendered below still comes
-  # only from CLAUDE_ROLE (value-dependent).
+  # only from CLAUDE_SKILL (value-dependent).
   [ -n "${TOKENMAXXXER_SPAWNED:-}${role}" ] || return 0
 
   local role_upper

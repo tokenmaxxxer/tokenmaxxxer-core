@@ -52,7 +52,7 @@ def render_directive(tmp_path, plugin_root_core):
         "CLAUDE_PROJECT_DIR": str(repo),
         "TMPDIR": str(tmp_path),
         "CLAUDE_PLUGIN_ROOT_CORE": str(plugin_root_core),
-        "CLAUDE_ROLE": "implementation",
+        "CLAUDE_SKILL": "implementation",
     }
     proc = subprocess.run(
         ["bash", str(CORE / "hooks" / "directive.sh")],
@@ -107,7 +107,7 @@ def test_missing_session_protocol_degrades_to_clear_message(tmp_path):
         "CLAUDE_PROJECT_DIR": str(repo),
         "TMPDIR": str(tmp_path),
         "CLAUDE_PLUGIN_ROOT": str(fake_core),
-        "CLAUDE_ROLE": "implementation",
+        "CLAUDE_SKILL": "implementation",
     }
     proc = subprocess.run(
         ["bash", str(fake_core / "hooks" / "directive.sh")],
@@ -124,7 +124,7 @@ def test_session_protocol_md_uses_generic_role_placeholder_not_dollar_role(tmp_p
     """Caching constraint: session-protocol.md carries no per-session
     substitution (role appears only as the inert placeholder <role>, same
     convention as issue-<n>), so directive.sh's inline delivery renders
-    byte-identical regardless of CLAUDE_ROLE."""
+    byte-identical regardless of CLAUDE_SKILL."""
     text = SESSION_PROTOCOL.read_text()
     assert "${role}" not in text
     assert "<role>" in text

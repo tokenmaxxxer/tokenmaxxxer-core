@@ -9,7 +9,7 @@ trap __fc EXIT
 # issue-341 (operator ruling, 2026-08-27): this file used to also carry a
 # config-driven CHECKERS dispatch (issue-263, phase-4b-4) that folded 145
 # `record-section-shape`-family hooks across 43 rulebooks into one
-# per-rulebook-JSON-config lookup keyed by CLAUDE_ROLE -- a config object
+# per-rulebook-JSON-config lookup keyed by CLAUDE_SKILL -- a config object
 # indexed by the acting role's name, against a ~40-entry role-keyed dict,
 # a closed-set identity validation the role-axis removal (issue-331) left
 # live by accident (documented then as a deliberate deferral,
@@ -63,7 +63,7 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-shape-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-role="${CLAUDE_ROLE:-record-shape}"
+role="${CLAUDE_SKILL:-record-shape}"
 deny() { echo "${role}: refused — $1" >&2; exit 2; }
 
 gate_kill_switch_active "${RECORD_SHAPE_GATE_OFF:-}" || exit 0

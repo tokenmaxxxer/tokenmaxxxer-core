@@ -5,7 +5,7 @@
 #
 # issue-341 (operator ruling, 2026-08-27): the issue-263 config-driven
 # CHECKERS dispatch this file used to cover (43 roles x 4 check_types,
-# looked up via `config.get(CLAUDE_ROLE)` against record-shape-config.json)
+# looked up via `config.get(CLAUDE_SKILL)` against record-shape-config.json)
 # was removed as a closed-set identity validation the role-axis removal
 # (issue-331) left live by accident. What remains here covers only the
 # still-live hardcoded `implementation`-role phase-2 record check
@@ -45,7 +45,7 @@ printf 'content with no fail key and no configured checklist markers\n' \
   > "$td/docs/issue-10/proposals/gate-remediation.md"
 payload="$(python3 -c 'import json,sys; print(json.dumps({"tool_name":"Write","tool_input":{"file_path":sys.argv[1],"content":open(sys.argv[2]).read()}}))' \
   "docs/issue-10/proposals/gate-remediation.md" "$td/docs/issue-10/proposals/gate-remediation.md")"
-out="$(printf '%s' "$payload" | env CLAUDE_ROLE=accessibility CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
+out="$(printf '%s' "$payload" | env CLAUDE_SKILL=accessibility CLAUDE_PROJECT_DIR="$td" /bin/bash "$GATE" 2>&1)"
 rc=$?
 case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
 report allow "$got" "issue-341: removed config dispatch no longer governs a formerly-configured role/path"
@@ -67,7 +67,7 @@ run_git() { # <want> <name> <content-file>
   want="$1"; name="$2"; content_file="$3"
   content_json="$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$content_file")"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"docs/issue-1/reports/implementation.md","content":%s}}' "$content_json")"
-  out="$(printf '%s' "$payload" | env CLAUDE_ROLE=implementation CLAUDE_PROJECT_DIR="$gtd" /bin/bash "$GATE" 2>&1)"
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL=implementation CLAUDE_PROJECT_DIR="$gtd" /bin/bash "$GATE" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   report "$want" "$got" "$name"

@@ -176,7 +176,7 @@ case "${WCAG_EM_DIRECTIVE_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
 
 # This plugin's directive text is WCAG-EM/accessibility-specific: no-op
 # silently for any other role.
-[ "${CLAUDE_ROLE:-}" = "accessibility" ] || exit 0
+[ "${CLAUDE_SKILL:-}" = "accessibility" ] || exit 0
 
 cat <<'EOF'
 [wcag-em-directive] WCAG-EM methodology directive (layered on accessibility's own SessionStart directive):
@@ -286,7 +286,7 @@ case "${LOCALIZATION_MQM_TAGGING_DIRECTIVE_OFF:-}" in
   *) exit 0 ;;
 esac
 
-[ "${CLAUDE_ROLE:-}" = "localization" ] || exit 0
+[ "${CLAUDE_SKILL:-}" = "localization" ] || exit 0
 
 cat <<'EOF'
 [localization-mqm-tagging] issue-1 (b)-2 MQM 8-dimension 축소 채용 분류:

@@ -7,7 +7,7 @@
 # frozen spec) into the MECHANISMS table inside this script's Python
 # payload (issue-331: renamed from ROLES — the table is a static dispatch
 # list matched by each mechanism's own file_path/command, never a
-# validated identity axis; no CLAUDE_ROLE or other external value is read
+# validated identity axis; no CLAUDE_SKILL or other external value is read
 # anywhere in this file). Dispatch is first-match-wins over MECHANISMS in
 # the order below.
 #
@@ -571,7 +571,7 @@ try:
     # dispatch table: (kill-switch env var name, mechanism function) for
     # the 7 filename-scoped ordering mechanisms below. This is a static
     # routing table over this file's OWN mech_* functions, never a
-    # validated identity axis -- no CLAUDE_ROLE (or any external value) is
+    # validated identity axis -- no CLAUDE_SKILL (or any external value) is
     # read or matched against it anywhere in this file; each mech_*
     # decides applicability purely from the write's own file_path/command
     # (issue-331: renamed from ROLES to drop the closed-role-vocabulary

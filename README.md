@@ -122,7 +122,7 @@ half. They describe the same five rules:
   canonical contract lives ONLY in this plugin — per-repo copies are
   gone; they carried zero information (the old hash check forced them
   identical) and made every contract revision an N-repo re-sync.
-- **R3 role** — a write under `docs/issue-<n>/` requires `CLAUDE_ROLE`.
+- **R3 role** — a write under `docs/issue-<n>/` requires `CLAUDE_SKILL`.
   The orchestrator's own session has no business writing the board.
 - **R4 branch** — writing `docs/issue-<n>/...` requires being on branch
   `issue-<n>/<role>`, exactly. Board writes from `main` are refused: output
