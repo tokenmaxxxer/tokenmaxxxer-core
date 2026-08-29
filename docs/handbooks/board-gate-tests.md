@@ -745,3 +745,42 @@ out-of-scope negative controls: `absolute-path-interpreter-c-flag-not-caught-pre
 (this gate has no FLAG-word tokenizer either — the same already-disclosed
 "quoted `-c`/`-e` flag" residual PR #354 named, now confirmed to also
 cover `$'...'` quoting).
+
+## issue-233 round 4 CHANGES-review re-delivery: unresolved substitution in a trailing word is unanalyzable
+
+The round-3 review found `_shell_split`'s `_WORD_TOKEN_RE` has a dedicated
+token form for all four quote styles but none for a `$(...)`/backtick
+command-substitution span, so a substitution is split at internal
+whitespace like plain text. This does not defeat interpreter-*head*
+detection (`EXPANDED_HEAD_RE`'s unsafe-character complement already
+denies a `$`/backtick-bearing head regardless of what it evaluates to),
+but it does defeat the exact-string `INLINE_FLAG_WORDS` check on a
+trailing word: a substitution that PRODUCES the `-c`/`-e` flag word
+itself (`python3 $(echo -c) "..."`, `` perl `printf %s -e` "..." ``,
+confirmed live for both syntaxes and both flags) never reassembles into a
+fragment that literal-equals the flag, so the flag-word check never
+fires while the identical mechanism producing the HEAD is already denied.
+
+Fixed by mirroring `EXPANDED_HEAD_RE`'s own structural rule onto the
+trailing-word side instead of adding a new tokenizer form (which would
+still require guessing what the substitution evaluates to at runtime, a
+guess this gate does not make anywhere else): `UNRESOLVED_SUBSTITUTION_WORD_RE`
+treats a trailing word containing an unresolved `$(`/backtick as itself
+unanalyzable, and combined with an interpreter head, unsafe — the same
+conservative "unanalyzable + interpreter head is unsafe" posture the
+literal `INLINE_FLAG_WORDS` membership check right next to it already
+uses. False-refusal cost, same shape as `EXPANDED_HEAD_RE`'s own
+documented cost: an interpreter invocation carrying a command-substitution
+argument for a reason unrelated to `-c`/`-e` (e.g. `python3 file.py
+$(date)`) now also denies, because this gate cannot distinguish that case
+from one where the substitution resolves to the flag.
+
+`run-board-gate-tests.sh` pins 4 new deny cases
+(`cmdsub-dollarparen-produces-flag-python`,
+`cmdsub-backtick-produces-flag-python`,
+`cmdsub-dollarparen-produces-flag-perl-e`,
+`cmdsub-backtick-produces-flag-perl-e`), 2 negative controls confirming
+the acceptance criteria's pure-read forms stay allowed
+(`param-expansion-path-read-not-overblocked-r4`,
+`awk-pure-read-not-overblocked-r4`), and one case pinning the documented
+false-refusal cost itself (`cmdsub-unrelated-trailing-word-still-denied-r4`).
