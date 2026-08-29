@@ -785,6 +785,25 @@ run allow braced-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && {
 # widened check only ever inspects `head`, never argument text.
 run allow awk-braces-in-program-not-overblocked Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
 
+# --- issue-233 independent verification round 3 (background adversarial
+# hunt agent, blind to this fix's rationale): a THIRD and FOURTH shell
+# word-formation mechanism, neither carrying `$`/backtick/quote/brace,
+# each confirmed live to actually run `python3 -c` and write a file
+# pre-fix. This is why the character-denylist approach above was
+# abandoned for an allowlist-of-safe-characters instead of a sixth
+# enumerated character.
+# (3) a mid-word backslash escape: bash strips a `\` before an ordinary
+# character outside quotes, so `p\y\t\h\o\n3` is lexically `python3`.
+run deny  backslash-escape-spelling      Bash '{"command":"cd '$BOARD' && p\\y\\t\\h\\o\\n3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# (4) a backslash-newline line continuation: `\` immediately before a
+# literal newline is a lexical splice with zero residue, joining two
+# half-words into one.
+run deny  backslash-newline-splice       Bash '{"command":"cd '$BOARD' && pyth\\\non3 -c open(\"reports/qa/pwn.md\", \"w\").write(\"1\")"}'
+# negative control: a head using a backslash for no functional reason
+# (escaping a character that needed no escaping) with NO -c/-e flag must
+# not be over-blocked.
+run allow backslash-escaped-head-no-flag-not-overblocked Bash '{"command":"cd '$BOARD' && \\cat reports/review.md"}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment
