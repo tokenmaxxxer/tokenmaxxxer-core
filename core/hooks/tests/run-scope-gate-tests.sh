@@ -263,5 +263,69 @@ run deny  awk-system-call-write           Bash \
 run allow awk-pure-read-not-overblocked   Bash \
   '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
 
+# --- issue-233: a third adversarial review found the interpreter-head
+# masking class still leaking through spellings the two patterns above do
+# not name: parameter-default expansion (`${x:-python3}`, `${x:=bash}`)
+# and a command substitution that PRODUCES the head outright
+# (`$(echo python3)`). None of these carry a literal interpreter name at
+# the head position the two existing patterns anchor on, so a further
+# alternative naming a fourth/fifth spelling is the same closed-set trap
+# this program has already spent a month escaping elsewhere. The new
+# alternative keys off structure instead: a head token that itself begins
+# with `${`, `$(`, or a backtick is never a literal program name this
+# gate can read, regardless of which interpreter (or non-interpreter) the
+# expansion produces.
+run deny  expanded-head-param-default-dash   Bash \
+  '{"command":"${x:-python3} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  expanded-head-param-default-equals Bash \
+  '{"command":"${x:=bash} -c echo hi > src/other.py"}'
+run deny  expanded-head-cmdsub-produces-head Bash \
+  '{"command":"$(echo python3) -c open(\"src/other.py\", \"w\")"}'
+run deny  expanded-head-backtick-produces-head Bash \
+  '{"command":"`echo python3` -c open(\"src/other.py\", \"w\")"}'
+# `eval STRING` runs STRING as freshly-typed shell text with no `-c`/`-e`
+# flag at all -- the same "confirmed live" residual the issue names,
+# unconditional (like ed/ex), not gated on a flag check.
+run deny  eval-hides-interpreter-head        Bash \
+  '{"command":"eval '"'"'python3 -c \"open(1)\"'"'"'"}'
+# negative control: an expansion-headed segment with NO -c/-e flag at all
+# must NOT be over-blocked.
+run allow expanded-head-no-flag-not-overblocked Bash \
+  '{"command":"${x:-cat} src/other.py"}'
+# pure-read forms named in the issue's acceptance stay allowed.
+run allow param-expansion-path-read-allowed  Bash \
+  '{"command":"cat \"${HOME}/x\""}'
+# an interpreter given a script FILE argument (no `-c`/`-e`) is a
+# DIFFERENT, already-known-open residual (issue-227 amendment 2
+# explicitly left it out of scope) -- named here as a standing
+# negative-space marker, not claimed fixed by this issue.
+run allow script-file-arg-not-this-issue-scope Bash \
+  '{"command":"sh -x file.sh"}'
+# an unrestricted session (no docs/proposals directory at all) is
+# unaffected by the same expanded-head shape.
+run_unrestricted allow expanded-head-unrestricted-session-unaffected \
+  '{"command":"${x:-python3} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+
+# --- issue-233 hunt round: two spellings the first pass missed (an
+# independent adversarial hunt agent, blind to this fix's rationale,
+# found both by reading the code and reasoning like an attacker) --
+# (1) a QUOTED expansion head slips past a boundary-then-`$` check
+# anchored at the token's first character.
+run deny  quoted-expansion-head-double   Bash \
+  '{"command":"\"$SHELL\" -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quoted-expansion-head-backtick Bash \
+  '{"command":"\"`which python3`\" -c open(\"src/other.py\", \"w\")"}'
+run deny  quoted-positional-param-head   Bash \
+  '{"command":"\"$0\" -c open(\"src/other.py\", \"w\")"}'
+# (2) a whitespace-fusion variable that is NOT `$IFS` by name, with the
+# `-c` flag FUSED onto the head token itself (no literal space before it
+# for the spaced alternative to anchor on).
+run deny  generic-var-whitespace-fusion  Bash \
+  '{"command":"X=A; python3${X}-c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# calibration: a legitimate grep -e read must not be over-blocked merely
+# because an EARLIER argument on the same line happens to contain `$`.
+run allow grep-dollar-arg-dash-e-not-overblocked Bash \
+  '{"command":"grep \"$PATTERN\" src/other.py -e extra"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
