@@ -66,7 +66,7 @@ def test_arch_sequence_gate_empty_state_passes_through(tmp_path):
     assert proc.returncode == 0, proc.stderr
 
 
-def test_arch_sequence_gate_allows_foreign_role_proposal_without_survey(tmp_path):
+def test_arch_sequence_gate_allows_foreign_skill_proposal_without_survey(tmp_path):
     # issue-242 regression: a plain (non-architecture) proposal write must
     # not be gated by architecture's own survey requirement.
     root = _init_project(tmp_path)
@@ -134,7 +134,7 @@ def test_devrel_phase_order_gate_empty_state_passes_through(tmp_path):
     assert proc.returncode == 0, proc.stderr
 
 
-def test_devrel_phase_order_gate_allows_foreign_role_proposal_without_survey(tmp_path):
+def test_devrel_phase_order_gate_allows_foreign_skill_proposal_without_survey(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
     payload = write_payload("docs/issue-1/proposals/consolidation.md", "content")
@@ -202,7 +202,7 @@ def test_interaction_design_stage_order_gate_empty_state_passes_through(tmp_path
     assert proc.returncode == 0, proc.stderr
 
 
-def test_interaction_design_stage_order_gate_allows_foreign_role_proposal_without_artifacts(tmp_path):
+def test_interaction_design_stage_order_gate_allows_foreign_skill_proposal_without_artifacts(tmp_path):
     root = _init_project(tmp_path)
     (root / "docs" / "issue-1" / "proposals").mkdir(parents=True)
     payload = write_payload("docs/issue-1/proposals/consolidation.md", "content")

@@ -379,8 +379,8 @@ def _setup_proposal_shape_gate(payload, obj, cwd):
 def _setup_record_fields_gate(payload, obj, cwd):
     if not _kill_switch_active(os.environ.get("RECORD_FIELDS_GATE_OFF", "")):
         return "skip", None
-    role = os.environ.get("CLAUDE_SKILL", "")
-    if not role:
+    skill = os.environ.get("CLAUDE_SKILL", "")
+    if not skill:
         return "deny", ("record-fields-gate: refused -- no CLAUDE_SKILL in "
                          "the environment; the gate cannot resolve which "
                          "record is this role's own.")
@@ -396,7 +396,7 @@ def _setup_record_fields_gate(payload, obj, cwd):
     terminal = os.environ.get(
         "RECORD_FIELDS_TERMINAL_STATES",
         "landed complete closed done delivered phase-2-complete")
-    return "ok", {"RF_PAYLOAD": payload, "RF_ROOT": root, "RF_SKILL": role,
+    return "ok", {"RF_PAYLOAD": payload, "RF_ROOT": root, "RF_SKILL": skill,
                   "RF_TERMINAL": terminal}
 
 

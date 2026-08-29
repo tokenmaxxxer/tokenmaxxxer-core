@@ -139,7 +139,7 @@ READ_ONLY_HEADS = ("ls", "cat", "head", "tail", "grep", "rg", "find", "wc",
 CODE_RE = re.compile(r"(^|/)(src|test)/")
 ISSUE_RE = re.compile(r"(^|/)docs/(issue-[0-9]+)/(.*)$")
 
-role = os.environ["CLAUDE_SKILL"].strip()
+skill = os.environ["CLAUDE_SKILL"].strip()
 
 def norm(p):
     return posixpath.normpath(p.replace("\\", "/"))
@@ -154,7 +154,7 @@ def execution_surface(path):
         # research/current-state subtree (NOT the record file itself)
         if tail.startswith("proposals/") or tail == "proposals":
             return False
-        if tail.startswith("reports/%s/" % role):
+        if tail.startswith("reports/%s/" % skill):
             return False
         return True
     return bool(CODE_RE.search(n))
@@ -213,7 +213,7 @@ if not os.path.isfile(os.path.join(root, "docs", "specs", "approvers.md")):
     deny("this repository has no docs/specs/approvers.md, but the session "
          "carries CLAUDE_SKILL=%s. A role session works only on a board, and "
          "that file is both the board opt-in and the approver allowlist — "
-         "ask the human to add it" % role)
+         "ask the human to add it" % skill)
 
 # --- precondition: approvals live on GitHub -----------------------------
 try:
@@ -237,11 +237,11 @@ try:
 except Exception:
     branch = ""
 m = re.match(r"^issue-([0-9]+)/(.+)$", branch)
-if not m or m.group(2) != role:
+if not m or m.group(2) != skill:
     deny("execution-surface writes happen only on this role's own issue "
          "branch (issue-<n>/%s; current: %s). Check out the branch, submit "
          "phase 1, and get the Approve first. (contract v3 s19)"
-         % (role, branch or "<none>"))
+         % (skill, branch or "<none>"))
 issue_num = m.group(1)
 
 # --- the human allowlist ------------------------------------------------
@@ -366,12 +366,12 @@ if issue_state != "OPEN":
 #       never prose interpretation: the measured lesson from the retired
 #       mint design. The orchestrator posts it after the human said so in
 #       conversation; gh-guard denies role sessions the comment spelling.
-challenge = "APPROVE issue-%s/%s" % (issue_num, role)
+challenge = "APPROVE issue-%s/%s" % (issue_num, skill)
 # design decision 2: REJECT mirrors APPROVE exactly — same exact-match/
 # approvers.md-gated/isMinimized-skip machinery, parameterized challenge
 # string, no new trust boundary. Read-only: recognizing it never writes
 # or auto-denies anything on its own (design's explicit deferred item).
-reject_challenge = "REJECT issue-%s/%s" % (issue_num, role)
+reject_challenge = "REJECT issue-%s/%s" % (issue_num, skill)
 # issue-189 decision 2: WITHDRAW/DEFER complete the REJECT/APPROVE-
 # symmetric token family — same exact-match/approvers.md-gated/
 # isMinimized-skip machinery, two more challenge strings, no new
@@ -379,8 +379,8 @@ reject_challenge = "REJECT issue-%s/%s" % (issue_num, role)
 # author-side voluntary stop (posted by the human on the role's
 # behalf); DEFER is a postponement either side may post. Neither
 # asserts a defect the way REJECT does.
-withdraw_challenge = "WITHDRAW issue-%s/%s" % (issue_num, role)
-defer_challenge = "DEFER issue-%s/%s" % (issue_num, role)
+withdraw_challenge = "WITHDRAW issue-%s/%s" % (issue_num, skill)
+defer_challenge = "DEFER issue-%s/%s" % (issue_num, skill)
 
 def comment_matches(challenge_str):
     for c in issue_comments:
@@ -432,11 +432,11 @@ if pr_out.returncode == 0:
     for login, state in last.items():
         if login in approvers and state == "CHANGES_REQUESTED":
             rejection_finding = {
-                "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+                "requirement": "issue-%s/%s phase-2 approval" % (issue_num, skill),
                 "verdict": "contradicts",
                 "evidence": "PR review by @%s: CHANGES_REQUESTED" % login,
                 "rationale": last_body.get(login) or "(no review body)",
-                "addressed_to": role,
+                "addressed_to": skill,
                 "severity": "blocking",
             }
             break
@@ -452,11 +452,11 @@ comment_withdrawn = comment_matches(withdraw_challenge)
 comment_deferred = comment_matches(defer_challenge)
 if comment_rejected and rejection_finding is None:
     rejection_finding = {
-        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, skill),
         "verdict": "contradicts",
         "evidence": "issue comment exactly '%s' from a listed approver" % reject_challenge,
         "rationale": "issue-level REJECT token",
-        "addressed_to": role,
+        "addressed_to": skill,
         "severity": "blocking",
     }
 
@@ -470,19 +470,19 @@ if comment_rejected and rejection_finding is None:
 withdraw_finding = None
 if comment_withdrawn:
     withdraw_finding = {
-        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, skill),
         "evidence": "issue comment exactly '%s' from a listed approver" % withdraw_challenge,
         "rationale": "issue-level WITHDRAW token — voluntary stop, no defect asserted",
-        "addressed_to": role,
+        "addressed_to": skill,
         "severity": "advisory",
     }
 defer_finding = None
 if comment_deferred:
     defer_finding = {
-        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, role),
+        "requirement": "issue-%s/%s phase-2 approval" % (issue_num, skill),
         "evidence": "issue comment exactly '%s' from a listed approver" % defer_challenge,
         "rationale": "issue-level DEFER token — postponed, resumable later",
-        "addressed_to": role,
+        "addressed_to": skill,
         "severity": "advisory",
     }
 
@@ -494,7 +494,7 @@ if not approved:
              "{requirement: %s, verdict: %s, evidence: %s, rationale: %s, "
              "addressed_to: %s, severity: %s}. (contract v3 s19, design "
              "decision 2)"
-             % (issue_num, role, rejection_finding["requirement"],
+             % (issue_num, skill, rejection_finding["requirement"],
                 rejection_finding["verdict"], rejection_finding["evidence"],
                 rejection_finding["rationale"], rejection_finding["addressed_to"],
                 rejection_finding["severity"]))
@@ -503,7 +503,7 @@ if not approved:
              "{requirement: %s, evidence: %s, rationale: %s, addressed_to: "
              "%s, severity: %s}. loop_state: withdrawn. (contract v3 s19, "
              "issue-189 decision 2)"
-             % (issue_num, role, withdraw_finding["requirement"],
+             % (issue_num, skill, withdraw_finding["requirement"],
                 withdraw_finding["evidence"], withdraw_finding["rationale"],
                 withdraw_finding["addressed_to"], withdraw_finding["severity"]))
     if defer_finding is not None:
@@ -511,7 +511,7 @@ if not approved:
              "{requirement: %s, evidence: %s, rationale: %s, addressed_to: "
              "%s, severity: %s}. loop_state: deferred. (contract v3 s19, "
              "issue-189 decision 2)"
-             % (issue_num, role, defer_finding["requirement"],
+             % (issue_num, skill, defer_finding["requirement"],
                 defer_finding["evidence"], defer_finding["rationale"],
                 defer_finding["addressed_to"], defer_finding["severity"]))
     # Checkpoint-aware refusal (issue-275; detection contract in the

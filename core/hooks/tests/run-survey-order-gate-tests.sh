@@ -27,11 +27,11 @@ report() { # <want> <got> <name>
   fi
 }
 
-run() { # <want> <name> <role> <file_path> <content> [extra env NAME=VAL ...]
-  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"; shift 5
+run() { # <want> <name> <skill> <file_path> <content> [extra env NAME=VAL ...]
+  want="$1"; name="$2"; skill="$3"; fp="$4"; content="$5"; shift 5
   content_json="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$content")"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content_json")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="$td" "$@" \
       /bin/bash "$GATE" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac

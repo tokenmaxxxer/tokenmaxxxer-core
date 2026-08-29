@@ -732,7 +732,7 @@ for c in candidates:
             continue      # resolves outside the repo: not a board write
     hits.append(tail)
 
-role = os.environ.get("CLAUDE_SKILL", "").strip()
+skill = os.environ.get("CLAUDE_SKILL", "").strip()
 is_board = bool(root) and os.path.isfile(
     os.path.join(root, "docs", "specs", "approvers.md"))
 
@@ -742,7 +742,7 @@ is_board = bool(root) and os.path.isfile(
 # fail-closed, but ONLY where a write-set is actually being enforced (a
 # role session against a board repo). No role, or no board marker, and
 # this command is unaffected -- same posture R3 already takes.
-if unanalyzable and role and is_board:
+if unanalyzable and skill and is_board:
     deny("a Bash call carries an un-analyzable write-capable shape (%s) "
          "while this gate enforces role %r's write-set. A heredoc body, "
          "an interpreter -c/-e inline script, or a dd invocation does not "
@@ -751,7 +751,7 @@ if unanalyzable and role and is_board:
          "the on-the-record PR #1627 bypass). Use a provably read-only "
          "invocation (e.g. python3 -m pytest), or write through "
          "Write/Edit or a plain redirect this gate can read the target of."
-         % ("; ".join(unanalyzable), role))
+         % ("; ".join(unanalyzable), skill))
 
 if not hits:
     allow()                  # nothing under docs/: not this gate's business
@@ -763,7 +763,7 @@ if not hits:
 if not root:
     deny("cannot resolve the project root for a docs/ write")
 
-if not is_board and not role:
+if not is_board and not skill:
     allow()
 
 # --- R1: docs/ layout ---------------------------------------------------
@@ -801,7 +801,7 @@ for tail in hits:
 if not issue_hits:
     # standing-doc bucket write: layout holds, board preconditions don't
     # apply. R2 still guards it when a role session writes a board repo.
-    if not role:
+    if not skill:
         allow()
 
 # --- R2: the board requires the user's approvers.md ----------------------
@@ -815,7 +815,7 @@ if not issue_hits:
     allow()                      # standing-doc write by a role: layout + contract suffice
 
 # --- R3: no role, no board writes ---------------------------------------
-if not role:
+if not skill:
     deny("a write under docs/issue-<n>/ from a session with no CLAUDE_SKILL. "
          "The board belongs to role sessions; this one carries no rulebook "
          "gates. (contract v3 s8/s10)")
@@ -857,7 +857,7 @@ if not branch:
 # fail-closed refuse naming both values; an absent/unreadable/malformed
 # sidecar falls through to today's exact-branch-string check, unchanged.
 _sidecar_issue = None
-_sidecar_role = None
+_sidecar_skill = None
 try:
     with open(os.path.join(root, ".on-the-record", "role.json"),
               encoding="utf-8") as _f:
@@ -865,7 +865,7 @@ try:
     if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("role"), str)
             and isinstance(_sidecar.get("issue"), int)):
         _sidecar_issue = _sidecar["issue"]
-        _sidecar_role = _sidecar["role"]
+        _sidecar_skill = _sidecar["role"]
 except (OSError, ValueError):
     pass
 
@@ -873,14 +873,14 @@ if _sidecar_issue is not None:
     _cross_bm = re.match(r"^issue-([0-9]+)/([\w-]+)$", branch)
     if _cross_bm:
         _cross_issue = int(_cross_bm.group(1))
-        _cross_role = _cross_bm.group(2)
-        if _cross_issue != _sidecar_issue or _cross_role != _sidecar_role:
+        _cross_skill = _cross_bm.group(2)
+        if _cross_issue != _sidecar_issue or _cross_skill != _sidecar_skill:
             deny("sidecar role/issue (issue-%d/%s) disagrees with the "
                  "branch-parsed role/issue (issue-%d/%s) — workspace "
                  "state is inconsistent. Make .on-the-record/role.json "
                  "and the current branch name agree, or remove the stale "
                  "sidecar. (contract v3 s10)"
-                 % (_sidecar_issue, _sidecar_role, _cross_issue, _cross_role))
+                 % (_sidecar_issue, _sidecar_skill, _cross_issue, _cross_skill))
 
 # R4 maintenance-targets exception (issue-222): a role's own issue may
 # declare, in its GitHub issue BODY (not writable by the role's own
@@ -890,7 +890,7 @@ if _sidecar_issue is not None:
 # on mismatch only, never cached to a repo file (a repo file would be
 # exactly the self-expandable surface the exception must not open).
 _bm = re.match(r"^issue-([0-9]+)/(.+)$", branch)
-_own_issue = _bm.group(1) if _bm and _bm.group(2) == role else None
+_own_issue = _bm.group(1) if _bm and _bm.group(2) == skill else None
 _maint_targets = None  # lazily resolved set of "issue-<n>" strings; None = not fetched yet
 
 def _resolve_maintenance_targets():
@@ -920,10 +920,10 @@ def _resolve_maintenance_targets():
 
 for parts in issue_hits:
     issue_dir = parts[0]
-    expected = "%s/%s" % (issue_dir, role)
+    expected = "%s/%s" % (issue_dir, skill)
     if _sidecar_issue is not None:
         _hit_issue_num = int(issue_dir.split("-", 1)[1])
-        if _hit_issue_num == _sidecar_issue and _sidecar_role == role:
+        if _hit_issue_num == _sidecar_issue and _sidecar_skill == skill:
             continue
     else:
         if branch == expected:
@@ -1038,13 +1038,13 @@ for parts in issue_hits:
     if len(parts) < 3 or parts[1] != "reports":
         continue
     tail = parts[2:]
-    owner_file = role + ".md"
-    extra = EXTRA_SUBTREE.get(role)
+    owner_file = skill + ".md"
+    extra = EXTRA_SUBTREE.get(skill)
     record_path = os.path.join(root, "docs", parts[0], "reports", *tail)
     existing_text = _record_text(record_path)
     author = _record_author(existing_text)
     if author is not None:
-        if author == role:
+        if author == skill:
             continue
         if _write_is_append_only(existing_text, "/".join(parts)):
             continue
@@ -1052,16 +1052,16 @@ for parts in issue_hits:
              "append new content to a foreign-authored record but never "
              "alter another author's existing lines. (contract v3 s11, "
              "issue-2241 stage 3)"
-             % (parts[0], "/".join(tail), author, role))
+             % (parts[0], "/".join(tail), author, skill))
     if tail[0] == owner_file and len(tail) == 1:
         continue
-    if tail[0] == role:
+    if tail[0] == skill:
         continue
     if extra and tail[0] == extra:
         continue
     deny("docs/%s/reports/%s belongs to another role. %s writes only "
          "%s, %s/** %s— never a foreign record. (contract v3 s11)"
-         % (parts[0], "/".join(tail), role, owner_file, role,
+         % (parts[0], "/".join(tail), skill, owner_file, skill,
             ("and %s/** " % extra) if extra else ""))
 
 allow()

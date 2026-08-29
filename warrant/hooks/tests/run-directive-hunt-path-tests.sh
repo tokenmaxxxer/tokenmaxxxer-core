@@ -37,11 +37,11 @@ SECTION="$(cd "$HERE/../.." && pwd -P)/directive/warrant-protocol.md"
 rendered="$(CLAUDE_PLUGIN_ROOT_CORE="$CORE_ROOT" /bin/bash "$DIRECTIVE" 2>&1; cat "$SECTION")"
 
 # --- role-session context: names the board-gate-in-scope role-subtree path ---
-role_scope_hits="$(printf '%s' "$rendered" | grep -c 'docs/issue-<n>/reports/<role>/<date>-hunt-<proposal-slug>\.md' || true)"
-report 1 "$role_scope_hits" role-scoped-hunt-path-present
+skill_scope_hits="$(printf '%s' "$rendered" | grep -c 'docs/issue-<n>/reports/<role>/<date>-hunt-<proposal-slug>\.md' || true)"
+report 1 "$skill_scope_hits" role-scoped-hunt-path-present
 
-role_check_hits="$(printf '%s' "$rendered" | grep -c 'CLAUDE_SKILL.*is set AND this session.*own current branch resolves as exactly `issue-<n>/<CLAUDE_SKILL>`' || true)"
-report 1 "$role_check_hits" role-scope-condition-matches-R4-check
+skill_check_hits="$(printf '%s' "$rendered" | grep -c 'CLAUDE_SKILL.*is set AND this session.*own current branch resolves as exactly `issue-<n>/<CLAUDE_SKILL>`' || true)"
+report 1 "$skill_check_hits" role-scope-condition-matches-R4-check
 
 # --- empty state: standalone (no CLAUDE_SKILL) still names the unchanged fallback ---
 standalone_hits="$(printf '%s' "$rendered" | grep -c 'docs/reports/<date>-hunt-<proposal-slug>\.md' || true)"

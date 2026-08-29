@@ -88,7 +88,7 @@ cmd = ti.get("command") if isinstance(ti, dict) else None
 if not isinstance(cmd, str):
     deny("Bash payload carries no command string")
 
-role = os.environ["CLAUDE_SKILL"].strip()
+skill = os.environ["CLAUDE_SKILL"].strip()
 
 RULES = [
     (r"\bgh\s+pr\s+review\b.*(--approve|-a\b|--request-changes)",
@@ -146,7 +146,7 @@ RULES = [
 
 def _deny_for(why):
     deny("refused for role session '%s': %s. (two-account model, "
-         "contract v3 s8)" % (role, why))
+         "contract v3 s8)" % (skill, why))
 
 dq = gate_lib.gate_dequote(cmd)
 for pat, why, dequote in RULES:

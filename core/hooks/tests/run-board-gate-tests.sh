@@ -46,9 +46,9 @@ run() {
   report "$want" "$got" "$name"
 }
 
-# runb <want> <name> <branch> <role> <file_path> — branch/role matrix
+# runb <want> <name> <branch> <skill> <file_path> — branch/role matrix
 runb() {
-  want="$1"; name="$2"; branch="$3"; brole="$4"; fp="$5"
+  want="$1"; name="$2"; branch="$3"; bskill="$4"; fp="$5"
   mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
@@ -57,20 +57,20 @@ runb() {
   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md"
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_SKILL="$brole" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL="$bskill" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
   report "$want" "$got" "$name"
 }
 
-# runs <want> <name> <branch> <brole> <fp> <sidecar> — R4 sidecar dual-read
+# runs <want> <name> <branch> <bskill> <fp> <sidecar> — R4 sidecar dual-read
 # matrix (issue-1827). sidecar is one of:
 #   none               — no .on-the-record/role.json written
 #   corrupt             — role.json written but not valid JSON
 #   <issue>:<role>       — role.json written with that issue/role pair
 runs() {
-  want="$1"; name="$2"; branch="$3"; brole="$4"; fp="$5"; sidecar="$6"
+  want="$1"; name="$2"; branch="$3"; bskill="$4"; fp="$5"; sidecar="$6"
   mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
@@ -84,14 +84,14 @@ runs() {
       printf '{not valid json' > "$td/.on-the-record/role.json"
       ;;
     *)
-      sc_issue="${sidecar%%:*}"; sc_role="${sidecar#*:}"
+      sc_issue="${sidecar%%:*}"; sc_skill="${sidecar#*:}"
       mkdir -p "$td/.on-the-record"
-      printf '{"role":"%s","issue":%s}' "$sc_role" "$sc_issue" > "$td/.on-the-record/role.json"
+      printf '{"role":"%s","issue":%s}' "$sc_skill" "$sc_issue" > "$td/.on-the-record/role.json"
       ;;
   esac
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
     | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
-      CLAUDE_SKILL="$brole" /bin/bash "$GATE" >/dev/null 2>&1
+      CLAUDE_SKILL="$bskill" /bin/bash "$GATE" >/dev/null 2>&1
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   rm -rf "$td"
@@ -114,7 +114,7 @@ run allow write-own-record       Write '{"file_path":"'$BOARD'/reports/qa.md","c
 run allow bash-append-record     Bash  '{"command":"echo note >> '$BOARD'/reports/qa.md"}'
 
 drifted() {  # same harness, but approvers.md present/absent varies
-  want="$1"; name="$2"; fp="$3"; mode="$4"; roleenv="$5"
+  want="$1"; name="$2"; fp="$3"; mode="$4"; skillenv="$5"
   mktd
   git init -q "$td"
   git -C "$td" remote add origin git@github.com:tokenmaxxxer/probe.git
@@ -124,9 +124,9 @@ drifted() {  # same harness, but approvers.md present/absent varies
     drift)   printf -- '- jw-human\n' > "$td/docs/specs/approvers.md" ;;
     missing) : ;;
   esac
-  if [ -n "$roleenv" ]; then
+  if [ -n "$skillenv" ]; then
     printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
-      | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_SKILL="$roleenv" \
+      | env CLAUDE_PROJECT_DIR="$td" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_SKILL="$skillenv" \
         /bin/bash "$GATE" >/dev/null 2>&1
   else
     printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \
@@ -151,7 +151,7 @@ drifted allow bystander-issue-path    "$BOARD/notes.md"      missing ""
 
 # --- R3: no role, no board writes -----------------------------------------
 drifted() { :; } # not reused below
-noRole() {
+noSkill() {
   mktd
   git init -q "$td"; git -C "$td" checkout -q -b issue-3/qa
   mkdir -p "$td/docs/specs"
@@ -164,7 +164,7 @@ noRole() {
   rm -rf "$td"
   report deny "$got" "board-write-no-role"
 }
-noRole "$BOARD/reports/qa.md"
+noSkill "$BOARD/reports/qa.md"
 
 # --- R4: the role's own issue branch --------------------------------------
 runb deny  board-from-main       main       qa "$BOARD/reports/qa.md"

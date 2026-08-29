@@ -11,8 +11,8 @@ trap __fc EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "proposal-shape-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
-role="${CLAUDE_SKILL:-proposal-shape}"
-deny() { echo "${role}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
+skill="${CLAUDE_SKILL:-proposal-shape}"
+deny() { echo "${skill}: refused — $1" >&2; exit 0; }  # issue-282 DEMOTE: advisory, not blocking
 
 gate_kill_switch_active "${PROPOSAL_SHAPE_GATE_OFF:-}" || exit 0
 

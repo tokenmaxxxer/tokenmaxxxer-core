@@ -30,9 +30,9 @@ canon_source="$HERE/../../../warrant/hooks/scope-gate.sh"
 # manifest filename, genuinely different content — a role-specific gate,
 # not a vendored core copy.
 mktd
-role_specific_td="$td"
-mkdir -p "$role_specific_td/hooks"
-cat > "$role_specific_td/hooks/scope-gate.sh" <<'ROLE_GATE'
+skill_specific_td="$td"
+mkdir -p "$skill_specific_td/hooks"
+cat > "$skill_specific_td/hooks/scope-gate.sh" <<'SKILL_GATE'
 #!/usr/bin/env bash
 # pricing-rulebook's own scope gate — not core canon's scope-gate.sh.
 set -uo pipefail
@@ -41,8 +41,8 @@ case "${PRICING_SCOPE_OFF:-}" in
 esac
 echo "pricing scope check"
 exit 0
-ROLE_GATE
-out="$(bash "$HERE/compliance-check.sh" --canon-duplication "$role_specific_td" 2>&1)"
+SKILL_GATE
+out="$(bash "$HERE/compliance-check.sh" --canon-duplication "$skill_specific_td" 2>&1)"
 rc=$?
 case "$out" in
   *"FAIL"*"scope-gate.sh"*) got=flagged ;;
@@ -50,7 +50,7 @@ case "$out" in
 esac
 report clean "$got" "role-specific scope-gate.sh (different content) scans clean"
 report 0 "$rc" "role-specific scope-gate.sh: overall exit stays 0"
-rm -rf "$role_specific_td"
+rm -rf "$skill_specific_td"
 
 # A byte-identical vendored copy of the real canon scope-gate.sh must
 # still flag.

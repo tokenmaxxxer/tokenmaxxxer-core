@@ -20,8 +20,8 @@ report() { # <want> <got> <name>
 }
 
 # --- trailer-gate.sh: role-labeled refusal, no trailer -> deny -------------
-run_trailer() { # <want> <name> <role> <commit-args-json> <extra-env...>
-  want="$1"; name="$2"; role="$3"; args="$4"; shift 4
+run_trailer() { # <want> <name> <skill> <commit-args-json> <extra-env...>
+  want="$1"; name="$2"; skill="$3"; args="$4"; shift 4
   mktd
   git init -q "$td"
   echo x > "$td/x.txt"
@@ -29,15 +29,15 @@ run_trailer() { # <want> <name> <role> <commit-args-json> <extra-env...>
   echo x > "$td/docs/issue-3/reports/x.md"
   git -C "$td" add -A
   payload="$(printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$args")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="$td" "$@" \
       /bin/bash "$HOOKS/trailer-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   msg_ok=1
-  case "$got" in deny) case "$out" in "${role}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
+  case "$got" in deny) case "$out" in "${skill}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
   rm -rf "$td"
   report "$want" "$got" "$name"
-  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
+  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$skill': $out"; }
 }
 
 run_trailer allow  "coding: commit w/o trailer denied"    coding '"git commit -m x"'
@@ -57,17 +57,17 @@ run_trailer allow  "coding: heredoc -m with embedded quotes, no trailer, still d
   coding "$heredoc_args_without_trailer"
 
 # --- record-fields-gate.sh: role-scoped record path, role-labeled refusal --
-run_rf() { # <want> <name> <role> <file_path> <content-json> <extra-env...>
-  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"; shift 5
+run_rf() { # <want> <name> <skill> <file_path> <content-json> <extra-env...>
+  want="$1"; name="$2"; skill="$3"; fp="$4"; content="$5"; shift 5
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="/tmp" "$@" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="/tmp" "$@" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   msg_ok=1
-  case "$got" in deny) case "$out" in "${role}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
+  case "$got" in deny) case "$out" in "${skill}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
   report "$want" "$got" "$name"
-  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
+  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$skill': $out"; }
 }
 
 # Variant of run_rf that resolves root to this actual repo checkout instead
@@ -78,17 +78,17 @@ run_rf() { # <want> <name> <role> <file_path> <content-json> <extra-env...>
 # probes may resolve /tmp itself as root when a stray .git happens to live
 # there).
 RF_REPO_ROOT="$(cd "$HOOKS/../.." && pwd -P)"
-run_rf_root() { # <want> <name> <role> <file_path> <content-json>
-  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
+run_rf_root() { # <want> <name> <skill> <file_path> <content-json>
+  want="$1"; name="$2"; skill="$3"; fp="$4"; content="$5"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$RF_REPO_ROOT" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="$RF_REPO_ROOT" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   msg_ok=1
-  case "$got" in deny) case "$out" in "${role}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
+  case "$got" in deny) case "$out" in "${skill}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
   report "$want" "$got" "$name"
-  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
+  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$skill': $out"; }
 }
 
 run_rf allow  "coding record missing fields denied" coding \
@@ -130,12 +130,12 @@ rm -f "$RF_OVERRIDE_FILE"
 # contract §2 pinned (issue-147 C2 acceptance) ---
 rf_body() { printf 'loop_state: %s\n\n## what was done\nx\n\n## why\ny\n\nupstream: abc1234\n\n## open findings\nnone\n' "$1"; }
 rf_json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$(rf_body "$1")"; }
-run_kind() { # <role> <terminal-state> <non-terminal-state>
-  local role="$1" terminal="$2" nonterm="$3"
-  run_rf allow "C2: $role record's own terminal state '$terminal' allowed" "$role" \
-    "docs/issue-3/reports/$role.md" "$(rf_json "$terminal")"
-  run_rf allow "C2: $role record's non-terminal state '$nonterm' denied w/o next-steps" "$role" \
-    "docs/issue-3/reports/$role.md" "$(rf_json "$nonterm")"
+run_kind() { # <skill> <terminal-state> <non-terminal-state>
+  local skill="$1" terminal="$2" nonterm="$3"
+  run_rf allow "C2: $skill record's own terminal state '$terminal' allowed" "$skill" \
+    "docs/issue-3/reports/$skill.md" "$(rf_json "$terminal")"
+  run_rf allow "C2: $skill record's non-terminal state '$nonterm' denied w/o next-steps" "$skill" \
+    "docs/issue-3/reports/$skill.md" "$(rf_json "$nonterm")"
 }
 run_kind product      decided        scope-proposed
 run_kind coding        landed         approved
@@ -319,10 +319,10 @@ esac
 report 1 "$f2b_msg_ok" "F2 discriminator: empty entry + bad second entry names HEAD, not swallowed text (issue-157)"
 
 # --- record-fields-gate.sh: single deny lists every violation (issue-140) --
-run_rf_count() { # <want-count> <name> <role> <file_path> <content-json>
-  want="$1"; name="$2"; role="$3"; fp="$4"; content="$5"
+run_rf_count() { # <want-count> <name> <skill> <file_path> <content-json>
+  want="$1"; name="$2"; skill="$3"; fp="$4"; content="$5"
   payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":%s}}' "$fp" "$content")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="/tmp" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="/tmp" \
       /bin/bash "$HOOKS/record-fields-gate.sh" 2>&1)"
   rc=$?
   got=0
@@ -385,8 +385,8 @@ esac
 report 1 "$msg_ok" "deny message names the accepted literal strings (issue-140)"
 
 # --- handbook-trigger-gate.sh: role-labeled refusal ------------------------
-run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
-  want="$1"; name="$2"; role="$3"; shift 3
+run_ht() { # <want> <name> <skill> <staged-files...> -- <commit-args-json>
+  want="$1"; name="$2"; skill="$3"; shift 3
   files=()
   while [ "$1" != "--" ]; do files+=("$1"); shift; done
   shift
@@ -399,15 +399,15 @@ run_ht() { # <want> <name> <role> <staged-files...> -- <commit-args-json>
   done
   [ "${#files[@]}" -gt 0 ] && git -C "$td" add -A
   payload="$(printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$args")"
-  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$role" CLAUDE_PROJECT_DIR="$td" \
+  out="$(printf '%s' "$payload" | env CLAUDE_SKILL="$skill" CLAUDE_PROJECT_DIR="$td" \
       /bin/bash "$HOOKS/handbook-trigger-gate.sh" 2>&1)"
   rc=$?
   case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
   msg_ok=1
-  case "$got" in deny) case "$out" in "${role}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
+  case "$got" in deny) case "$out" in "${skill}: refused"*) ;; *) msg_ok=0 ;; esac ;; esac
   rm -rf "$td"
   report "$want" "$got" "$name"
-  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$role': $out"; }
+  [ "$msg_ok" = 1 ] || { fail=$((fail + 1)); echo "FAIL   $name: message not labeled with role '$skill': $out"; }
 }
 
 run_ht allow  "coding: package.json w/o handbook denied" coding package.json -- '"git commit -m x"'
