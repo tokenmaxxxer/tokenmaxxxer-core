@@ -669,7 +669,7 @@ elif tool == "Bash":
                 # skill names with `+`) always contains one. A path tail
                 # that stops at the first `+` truncates the session's own
                 # record path to a PREFIX, which then fails the exact
-                # `tail[0] == role` owner comparison below even though the
+                # `tail[0] == skill` owner comparison below even though the
                 # write is the session's own. `+` is added here, not
                 # special-cased around: it is simply one more character a
                 # `--skills`-composed slug can legitimately produce

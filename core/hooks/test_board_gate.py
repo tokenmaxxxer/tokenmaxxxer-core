@@ -207,7 +207,7 @@ def test_extra_subtree_keys_match_current_skill_names():
 # defense-<hex>"), so every current role/slug can carry one. The
 # own_hits regex's trailing character class used to stop at the first
 # `+`, truncating the session's own record path to a prefix and making
-# the R5 owner check (`tail[0] == role`, unchanged and correct) compare
+# the R5 owner check (`tail[0] == skill`, unchanged and correct) compare
 # a truncated tail against the full role -- denying the session's own
 # record as foreign.
 
@@ -271,7 +271,7 @@ def test_multiskill_git_add_own_record_dir_allowed(multiskill_board):
 def test_multiskill_foreign_record_still_denied(multiskill_board):
     """A genuinely foreign record is still refused with today's message --
     widening the character class must not smuggle a foreign write past
-    the unchanged `tail[0] == role` comparison."""
+    the unchanged `tail[0] == skill` comparison."""
     other_skill = "a-different-skill-combo+another-skill-bbbbbbbb"
     record_dir = multiskill_board / "docs" / "issue-336" / "reports" / other_skill
     record_dir.mkdir(parents=True)

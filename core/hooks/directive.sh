@@ -20,9 +20,9 @@ gate_kill_switch_active "${CORE_OFF:-}" || { trap - EXIT; exit 0; }
 
 skill="${CLAUDE_SKILL:-}"
 # Presence test (issue #327, per on-the-record #2538): OR of
-# TOKENMAXXXER_SPAWNED and role, not the new var alone — no SessionStart
+# TOKENMAXXXER_SPAWNED and skill, not the new var alone — no SessionStart
 # snapshot exists in core to fall back to, so unsetting only one of the
-# two spawner-set vars must not silently skip the directive. The role
+# two spawner-set vars must not silently skip the directive. The skill
 # NAME (used below to render the invariants block) still comes only from
 # CLAUDE_SKILL — that part is value-dependent, not presence.
 [ -n "${TOKENMAXXXER_SPAWNED:-}${skill}" ] || { trap - EXIT; exit 0; }

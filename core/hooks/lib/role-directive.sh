@@ -32,8 +32,8 @@ core_role_directive() {
   local you_decide="$1" use_when="$2" produces="$3" hand_off="$4"
   local skill="${CLAUDE_SKILL:-}"
   # Presence test (issue #327, per on-the-record #2538): OR of
-  # TOKENMAXXXER_SPAWNED and role, not the new var alone — same rationale
-  # as core's own directive.sh. The role NAME rendered below still comes
+  # TOKENMAXXXER_SPAWNED and skill, not the new var alone — same rationale
+  # as core's own directive.sh. The skill NAME rendered below still comes
   # only from CLAUDE_SKILL (value-dependent).
   [ -n "${TOKENMAXXXER_SPAWNED:-}${skill}" ] || return 0
 
