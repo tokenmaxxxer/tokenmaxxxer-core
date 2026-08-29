@@ -705,3 +705,43 @@ pinning the three observed refusals as `allow` (`mkdir`, `git add` of a
 file, `git add` of the directory), a genuine-foreign-record `deny`
 control, and one path shape outside the fixture set above (a plain
 redirect to the slug's own `.md` record file, not a directory member).
+
+## issue-233 CHANGES-review re-delivery: word-formation-aware head tokenizer
+
+`core/hooks/lib/gate-lib.py`'s `_resolve_transparent` (backing
+`gate_head_of`/`gate_trailing_words`) used a plain `segment.split()`,
+which splits at every whitespace character regardless of shell escaping
+or quoting. A real, ordinary interpreter path containing a space —
+`/opt/My\ Python/python3` (backslash-escaped) or `"/opt/My Python/python3"`
+(quoted) — fragmented at that space: the escaped form denied for the
+wrong reason (a stray backslash tripping `EXPANDED_HEAD_RE`'s
+unsafe-character class rather than a correctly-resolved interpreter
+name), and the quoted form was a genuine, undetected bypass (resolved to
+head `"My"`, sailing an ordinary `-c` invocation through ALLOWED).
+
+Fixed with a new `_shell_split` tokenizer aware of backslash-escapes
+(including a literal space), single/double-quoted spans (including their
+`$'...'`/`$"..."` ANSI-C/locale-string forms), and backslash-newline
+line-continuation splicing. A before-landing hunt found the first version
+missed the `$'...'` form specifically (its leading `$` fused onto the
+quoted span instead of being consumed as part of the quote syntax,
+turning `$'-c'` into the word `$-c` rather than `-c`) — fixed in the same
+delivery.
+
+`run-board-gate-tests.sh` pins 6 new cases (each direction — DENY with a
+trailing `-c`/`-e`, ALLOW with none): `escaped-space-interpreter-path-c-flag`,
+`quoted-path-with-spaces-c-flag`, `safe-set-unusual-char-path-c-flag`
+(a path containing a character that IS in the safe set but unusual in an
+executable name, e.g. `+` — recorded as regression coverage since no
+escaping/quoting is involved), and `ansi-c-quoted-flag-word` (the
+before-landing hunt's finding), each with its `-not-overblocked` negative
+control. `run-scope-gate-tests.sh` pins the same escaped-space/quoted-path
+pair (already correct with no code change there — `scope-gate.py`'s
+boundary-anchored "any unsafe char in the run" scan does not need a
+precise tokenizer the way `board-gate.sh` does) plus two disclosed,
+out-of-scope negative controls: `absolute-path-interpreter-c-flag-not-caught-preexisting-gap`
+(this gate has no basename/path resolver at all, unlike `board-gate.sh`'s
+`gate_head_of`) and `ansi-c-quoted-flag-word-not-caught-preexisting-gap`
+(this gate has no FLAG-word tokenizer either — the same already-disclosed
+"quoted `-c`/`-e` flag" residual PR #354 named, now confirmed to also
+cover `$'...'` quoting).
