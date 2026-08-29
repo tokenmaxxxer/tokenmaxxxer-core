@@ -350,5 +350,18 @@ run allow braced-head-no-flag-not-overblocked Bash \
 run allow awk-braces-in-program-not-overblocked Bash \
   '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
 
+# --- issue-233 independent verification round 3 (background adversarial
+# hunt agent): a mid-word backslash escape, confirmed live.
+run deny  backslash-escape-spelling      Bash \
+  '{"command":"p\\y\\t\\h\\o\\n3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run allow backslash-escaped-head-no-flag-not-overblocked Bash \
+  '{"command":"\\cat src/other.py"}'
+# a backslash-newline line continuation splices two half-words with zero
+# residue; UNANALYZABLE_WRITE_SHAPE has no tokenizer at all (unlike
+# board-gate.sh's segment splitter), so this needs `command` spliced
+# ahead of the regex scan rather than a new pattern.
+run deny  backslash-newline-splice       Bash \
+  '{"command":"pyth\\\non3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
