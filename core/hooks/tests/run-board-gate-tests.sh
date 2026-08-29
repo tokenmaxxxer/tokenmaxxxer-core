@@ -86,7 +86,7 @@ runs() {
     *)
       sc_issue="${sidecar%%:*}"; sc_skill="${sidecar#*:}"
       mkdir -p "$td/.on-the-record"
-      printf '{"role":"%s","issue":%s}' "$sc_skill" "$sc_issue" > "$td/.on-the-record/role.json"
+      printf '{"skill":"%s","issue":%s}' "$sc_skill" "$sc_issue" > "$td/.on-the-record/role.json"
       ;;
   esac
   printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"cwd":"%s"}' "$fp" "$td" \

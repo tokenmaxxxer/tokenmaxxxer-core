@@ -862,10 +862,10 @@ try:
     with open(os.path.join(root, ".on-the-record", "role.json"),
               encoding="utf-8") as _f:
         _sidecar = json.load(_f)
-    if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("role"), str)
+    if (isinstance(_sidecar, dict) and isinstance(_sidecar.get("skill"), str)
             and isinstance(_sidecar.get("issue"), int)):
         _sidecar_issue = _sidecar["issue"]
-        _sidecar_skill = _sidecar["role"]
+        _sidecar_skill = _sidecar["skill"]
 except (OSError, ValueError):
     pass
 
