@@ -139,6 +139,23 @@ by adding a second, independent regex checked directly against the raw
 segment text (`EXPANDED_HEAD_FUSED_FLAG_RE`, anchored to the segment
 start so it can only match the head token, never a later argument).
 
+The landing commit (`a18a530`) triggered two non-blocking gate
+advisories, neither of which changed the commit's outcome (it landed,
+exit 0) — recorded here for transparency rather than silently ignored:
+handbook-trigger-gate.sh noted that `core/hooks/tests/run-board-gate-
+tests.sh` is an operational-surface change with no matching
+`docs/handbooks/*.md` update in the same commit (contract §21) —
+deliberately not addressed: the task's own explicit instruction for
+this session was "never touch docs/" outside the one mandated record
+path, which takes precedence over the generic per-commit handbook
+convention here. trailer-gate.sh separately noted it could not
+statically verify the `Subject: issue-233` trailer because the commit
+message's own prose contains `$(...)`/backtick example text (quoting
+the exact bypass shapes this fix closes) that confused its parser —
+`git log -1 --format="%B"` confirms the trailer is present, correctly
+formatted, as the message's last line; this was the gate's own parse
+false-positive on the message content, not a real defect.
+
 The first `scope-gate.py` alternative for the parameter-default/cmdsub
 class anchored on a balanced `${...}`/`$(...)`/`` `...` `` span
 (`\$\{[^{}]*\}|\$\([^()]*\)|` `[^`]*` ``) — expected: covers every
