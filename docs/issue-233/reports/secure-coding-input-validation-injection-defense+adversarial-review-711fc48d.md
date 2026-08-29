@@ -90,12 +90,16 @@ adversarial hunt round before moving to the next:
    gate: 2 DENY reproductions (backslash-escape, backslash-newline), 1-2
    negative controls (a functionless backslash-escaped head, no `-c`).
 
-A fourth round (background `warrant:warrant-hunter` agent, dispatched
-before landing per the warrant protocol, prompted specifically to hunt
-for a silent failure or composition regression at this exact
-work-unit transition rather than a full re-hunt of the security class)
-was in flight at record-assembly time; see Next steps / Open findings
-for its outcome if it lands after this record's initial write.
+4. `10941bd` — a fourth round (background `warrant:warrant-hunter`
+   agent, dispatched before landing per the warrant protocol, prompted
+   specifically to hunt for a silent failure or composition regression
+   at this exact work-unit transition rather than a full re-hunt of the
+   security class) found that commit 3's `_splice_line_continuations()`
+   was quote-blind, welding a backslash-newline pair inside a
+   single-quoted `grep` argument into the bare word `tee` and turning a
+   real `origin/main` ALLOW into a false DENY. Fixed by rewriting the
+   splice as a quote-aware token walk (see Open findings for the full
+   trace); 1 new ALLOW regression test.
 
 ## Why
 
@@ -258,14 +262,51 @@ write set, not merely deferred.
   independently re-verified as out of this issue's scope by the
   verification record (Findings 4-5); untouched by this session's three
   commits, consistent with that agreement.
-- A fourth adversarial hunt round (`warrant:warrant-hunter`, dispatched
-  before landing) was in flight when this record was assembled,
-  targeting silent-failure/composition-regression risk from this exact
-  round of edits (rather than re-hunting the security class a fifth
-  time) — its result, if it lands after this initial commit, will be
-  folded into a follow-up commit/comment on the PR rather than blocking
-  this delivery indefinitely, per the headless single-turn session
-  constraint on this role (background work not yet returned by the time
+- **RESOLVED — scope-gate's line-continuation splice was quote-blind**
+  (found by the before-landing `warrant:warrant-hunter` round, dispatched
+  before landing, targeting silent-failure/composition-regression risk
+  at this exact work-unit transition rather than re-hunting the security
+  class a fifth time): `_splice_line_continuations()` (added in
+  `736b957`) ran its backslash-run-before-newline splice unconditionally
+  over the whole raw command text, including inside single-quoted
+  arguments — where real bash performs NO escape processing at all, so a
+  backslash-newline pair there is two untouched literal characters, never
+  a continuation. Live-confirmed: `grep 'foo t`-newline-`ee bar'
+  src/other.py` (an ordinary read, `origin/main` ALLOW) got welded into
+  containing the bare word `tee`, tripping the pre-existing
+  `(?:^|\s)tee\b` alternative and returning a false DENY. Fixed in
+  `10941bd`: rewrote the splice as a token walk mirroring board-gate.sh's
+  own `_split_segments` (a quote-span alternative checked first in the
+  same combined regex, so a quoted span — single OR double — passes
+  through as one opaque, unmodified token; only a backslash-newline run
+  found OUTSIDE any quoted span is spliced). Deliberately does not
+  replicate bash's own single/double-quote asymmetry (double quotes DO
+  still splice a backslash-newline pair in real bash, verified live) —
+  treating both quote kinds as equally opaque costs nothing against this
+  issue's class (a head that is itself quoted is already flagged unsafe
+  by the quote character alone) and only makes an obscure double-quoted
+  continuation idiom in an ARGUMENT slightly more conservative, the
+  accepted over-refusal direction. New regression test
+  (`backslash-newline-inside-single-quotes-not-overblocked`, ALLOW)
+  added to `run-scope-gate-tests.sh`; full suite re-run clean (70 passed,
+  0 failed) and the original `backslash-newline-splice` DENY
+  reproduction re-confirmed still correct after the fix.
+- **Backslash-escaped `;`/`|` composing with segment mis-splitting** —
+  tested (see What did not work), confirmed the escape itself is real
+  (bash treats it as a literal argument character) but did NOT find a
+  live reproduction that turns this into a working `-c`/`-e` bypass in
+  the time available. Not fixed, not claimed closed either way. A future
+  adversarial round should specifically try to compose it with a
+  different flag-ordering or a wrapper (`env`, `timeout`) before ruling
+  it out definitively.
+- **Backslash-escaped `;`/`|` composing with segment mis-splitting** —
+  tested (see What did not work), confirmed the escape itself is real
+  (bash treats it as a literal argument character) but did NOT find a
+  live reproduction that turns this into a working `-c`/`-e` bypass in
+  the time available. Not fixed, not claimed closed either way. A future
+  adversarial round should specifically try to compose it with a
+  different flag-ordering or a wrapper (`env`, `timeout`) before ruling
+  it out definitively.
   a turn must close cannot be waited on indefinitely).
 
 ## Test evidence
@@ -295,7 +336,7 @@ backslash-escape-worked
 ```
 
 derived: `bash core/hooks/tests/run-board-gate-tests.sh` (fresh
-`git worktree add` of this branch's HEAD, `736b957`):
+`git worktree add` of this branch's final HEAD, `10941bd`):
 ```
 == 166 passed, 2 failed ==
 ```
@@ -303,9 +344,10 @@ The 2 failures (`feasibility-spikes`, `ops-postmortems`) are
 pre-existing — checked: identical failing-test-NAME set against a fresh
 `git worktree add origin/main` (`b4c5683`).
 
-derived: `bash core/hooks/tests/run-scope-gate-tests.sh`:
+derived: `bash core/hooks/tests/run-scope-gate-tests.sh` (same fresh
+worktree, includes the round-4 regression test):
 ```
-== 69 passed, 0 failed ==
+== 70 passed, 0 failed ==
 ```
 
 derived: `python3 -m pytest -q`:
@@ -394,12 +436,12 @@ any reshaped form.
 ## Next steps
 
 None blocking — this record is terminal (`loop_state: landed`); all
-three code commits are pushed as part of this PR. The `warrant-hunter`
-round dispatched before landing may surface a follow-up if it returns
-after this record's initial assembly (see Open findings); if it does,
-this session will fold the result into an additional commit/PR comment
-rather than leaving it unrecorded, but does not block delivery on it
-indefinitely per the headless single-turn constraint on this role.
+four code commits (`0c60a55`, `68181aa`, `736b957`, `10941bd`) are
+pushed as part of PR #358. The before-landing `warrant-hunter` round
+returned with one real finding (scope-gate's line-continuation splice
+was quote-blind) after this record's initial assembly; it has been
+fixed, tested, and folded into this same record and PR rather than left
+unrecorded (see Open findings and What was done).
 
 skill-verdict: secure-coding-input-validation-injection-defense —
 applied: invoked; rule 2 (a denylist proposed as sole defense should not
