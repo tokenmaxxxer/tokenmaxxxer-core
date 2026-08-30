@@ -127,6 +127,15 @@ READONLY_ALLOW = [
 FIND_EXEC_FLAGS = re.compile(
     r"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)\b")
 
+# Jurisdiction limit (issue-233 round 5): this gate enforces write-set
+# discipline for the one approved proposal, not a security sandbox. It
+# reads the command TEXT before the shell runs it and refuses only when
+# that text does not tell it the write target, never because a command is
+# inherently dangerous. A shape built to deliberately hide its write
+# target from this pre-expansion text read is outside what this gate
+# claims to bound; that needs a different seam (the shell's own
+# post-expansion argv), not a longer denylist of spellings here.
+#
 # issue-225: an interpreter invocation carrying an inline body -- a heredoc,
 # or a '-c'/'-e' string -- or a tee/dd invocation is not provably read-only
 # (SHELL_CHAIN's `<` already disqualifies the heredoc form from
@@ -141,9 +150,32 @@ FIND_EXEC_FLAGS = re.compile(
 # is actually being enforced (exactly one proposal approved, the branch
 # this whole block already runs in) -- an unrestricted session with no
 # approved proposal never reaches here (stand_down() above).
+# issue-233 round 5/6: -c and -e do not mean "execute this string as code"
+# for every name in this list, and applying both letters to all of them
+# denied ordinary, analyzable invocations for no write-set benefit. Round
+# 5 derived this live against the real gate subprocess but trusted `-c`'s
+# documented meaning for perl/ruby/node instead of executing it; round 6
+# re-derived every entry by running a script that writes a file if the
+# flag executes anything, because round 5's perl entry turned out wrong
+# on execution: bash/sh/zsh's `-e` is the unrelated errexit option, not
+# an inline-code flag (confirmed: a script writes identically with and
+# without `-e`); ruby/node's `-c` is confirmed syntax-check-only by
+# execution (a staged write did not run under `-c` for either); python
+# has no `-e` flag at all (confirmed: it errors before running anything).
+# perl's `-c` is NOT syntax-check-only — confirmed by execution that it
+# still runs `BEGIN`/`UNITCHECK`/`CHECK` blocks before the syntax check
+# completes, so a `BEGIN { ... }` write staged in the script ran under
+# `-c` exactly as it would unflagged. perl therefore keeps BOTH `-c` and
+# `-e` denied; every other interpreter here keeps only the flag spelling
+# it actually uses to mean "execute this string": `-c` for
+# python/python2/python3/bash/sh/zsh, `-e` for ruby/node/nodejs. This
+# narrows false denials without loosening perl; it adds no new spelling
+# to catch.
 UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"<<-?\s*['\"]?\w"
-    r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    r"|(?:^|\s)(?:python3?|bash|sh|zsh)\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
+    r"|(?:^|\s)perl\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
+    r"|(?:^|\s)(?:perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*e(?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
     # issue-227: `ed`/`ex` write via script commands (`w file`) that this
@@ -175,8 +207,10 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # interpreter name earlier in the same command text. issue-227
     # re-review B1: the brace form (`${P}`) also indirects and was missed
     # by `\$\1\b`, which never matches `${P}`.
-    r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
-    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b"
+    r"|\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
+    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
     # defeating the literal-`\s`-before-`-c`/`-e` requirement in the
@@ -336,7 +370,12 @@ if tool == "Bash":
             "so this refuses rather than risk a masked out-of-set write "
             "(issue-225). Use a provably read-only invocation (e.g. "
             "python3 -m pytest), or write through Write/Edit or a plain "
-            "redirect the write-set check can read the target of."
+            "redirect the write-set check can read the target of. This "
+            "is a write-set discipline check, not a security boundary "
+            "(issue-233 round 5): it denies only shapes it cannot read "
+            "the write target of, and does not claim to catch a shape "
+            "deliberately built to hide that target from this text-level "
+            "read."
             % proposal_path,
             file=sys.stderr,
         )

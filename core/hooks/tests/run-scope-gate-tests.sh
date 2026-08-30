@@ -263,5 +263,52 @@ run deny  awk-system-call-write           Bash \
 run allow awk-pure-read-not-overblocked   Bash \
   '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
 
+# --- issue-233 round 5: the gate's job (inline -c/-e, unanalyzable write
+# set) stays denied; the flag letter is no longer applied to interpreters
+# that don't give it that meaning ------------------------------------------
+run deny  round5-bash-c-still-denied      Bash \
+  '{"command":"bash -c \"echo hi > src/other.py\""}'
+run deny  round5-perl-e-still-denied      Bash \
+  '{"command":"perl -e \"open(1)\""}'
+run deny  round5-ruby-e-still-denied      Bash \
+  '{"command":"ruby -e \"open(1)\""}'
+run deny  round5-node-e-still-denied      Bash \
+  '{"command":"node -e \"open(1)\""}'
+# given back -- no evasion, no unanalyzable write shape of their own.
+run allow round5-bash-e-errexit-allowed   Bash \
+  '{"command":"bash -e some/script.sh"}'
+run allow round5-sh-e-errexit-allowed     Bash \
+  '{"command":"sh -e some/script.sh"}'
+# issue-233 round 6: perl -c is NOT syntax-check-only -- it still runs
+# BEGIN/UNITCHECK/CHECK blocks, confirmed by execution (a BEGIN-block
+# write staged in the script ran under -c exactly as it would unflagged).
+# perl is dropped from the give-back entirely; -c rejoins -e as denied.
+run deny  round6-perl-c-denied            Bash \
+  '{"command":"perl -c some/script.pl"}'
+run allow round5-ruby-c-checkonly-allowed Bash \
+  '{"command":"ruby -c some/script.rb"}'
+run allow round5-node-c-checkonly-allowed Bash \
+  '{"command":"node -c some/script.js"}'
+run allow round5-python-e-not-a-flag      Bash \
+  '{"command":"python3 -e some/foo.py"}'
+run allow round5-pytest-computed-arg      Bash \
+  '{"command":"python3 -m pytest -k \"$(echo foo)\""}'
+run allow round5-script-computed-input    Bash \
+  '{"command":"python3 script.py --input \"$(pwd)/data.csv\""}'
+# var-indirected form: same flag-per-interpreter split applies. Note this
+# indirected match (VAR_INTERP_RE) is the round 1-4 substitution/expansion
+# bypass class, untouched this round -- it only ever caught -e for the
+# perl/ruby/node/nodejs group, so `P=perl; $P -c ...` still allows here
+# even though the direct `perl -c ...` form above is now denied (round 6
+# only re-derived the give-back list's direct-flag entries, per scope).
+run deny  round5-var-indirected-bash-c-denied Bash \
+  '{"command":"P=bash; $P -c '"'"'echo hi > src/other.py'"'"'"}'
+run deny  round5-var-indirected-perl-e-denied Bash \
+  '{"command":"P=perl; $P -e '"'"'open(1)'"'"'"}'
+run allow round5-var-indirected-bash-e-allowed Bash \
+  '{"command":"P=bash; $P -e some/script.sh"}'
+run allow round5-var-indirected-perl-c-allowed Bash \
+  '{"command":"P=perl; $P -c some/script.pl"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

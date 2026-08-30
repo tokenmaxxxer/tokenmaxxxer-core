@@ -705,3 +705,93 @@ pinning the three observed refusals as `allow` (`mkdir`, `git add` of a
 file, `git add` of the directory), a genuine-foreign-record `deny`
 control, and one path shape outside the fixture set above (a plain
 redirect to the slug's own `.md` record file, not a directory member).
+
+## issue-233 round 5: jurisdiction limit stated explicitly; `-c`/`-e` narrowed to a per-interpreter allowlist
+
+Rounds 1-4 of issue-233 treated `_is_unanalyzable_write_shape`'s
+`INLINE_FLAG_WORDS = ("-c", "-e")` (board-gate) and the equivalent
+`-[A-Za-z]*[ce]` regex alternative (scope-gate) as universally
+"inline-code" flags across every name in `INTERPRETER_HEADS`
+(`python3, python, python2, bash, sh, zsh, perl, ruby, node, nodejs`).
+The operator's ruling on issue #233 reframed the gate's job (write-set
+discipline for R1/R4/R5, not a security sandbox) and, against that
+framing, this uniform treatment was wrong per interpreter, not just
+broad: bash/sh/zsh's `-e` is the unrelated errexit option; perl/ruby/
+node's `-c` means "check syntax, do not run" (the opposite of inline
+execution); python has no `-e` flag at all. Each of those combinations
+denied an ordinary, analyzable invocation (`bash -e script.sh`, `perl -c
+script.pl`, ...) for no R1/R4/R5 benefit — confirmed live against the
+real gate subprocess before the fix.
+
+Fixed by replacing the uniform flag set with a per-head allowlist of the
+one flag spelling each interpreter actually uses to mean "execute this
+string as code": `-c` for python/python2/python3/bash/sh/zsh, `-e` for
+perl/ruby/node/nodejs (`INLINE_FLAG_HEADS` dict in board-gate.sh; two
+flag-scoped regex alternatives in scope-gate.py). The var-indirected
+form (`P=bash; $P -c/-e ...`) got the identical split in both files'
+indirection regex. No new flag spelling was added on either side, and
+the single-token-expansion bypass class rounds 1-4 tracked (bare
+parameter expansion, default-value expansion, ANSI-C escape decoding)
+is untouched — round 5 is explicitly scoped to the flag-per-interpreter
+mismatch, not to that axis.
+
+Both gates' header/comment block and their unanalyzable-write-shape deny
+message now also state the jurisdiction limit directly: this is a
+write-set discipline check, not a security boundary, and a shape
+deliberately built to hide its write target from a pre-expansion text
+read is out of jurisdiction rather than silently claimed to be caught.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin: 4
+still-denied cases for the real inline-exec flag per interpreter family
+(`round5-bash-c-still-denied`, `round5-perl-e-still-denied`,
+`round5-ruby-e-still-denied`, `round5-node-e-still-denied`); 6
+given-back `allow` cases (`round5-bash-e-errexit-allowed`,
+`round5-sh-e-errexit-allowed`, `round5-perl-c-checkonly-allowed`,
+`round5-ruby-c-checkonly-allowed`, `round5-node-c-checkonly-allowed`,
+`round5-python-e-not-a-flag`); the two named computed-argument shapes
+from the ruling as an allow regression guard
+(`round5-pytest-computed-arg`, `round5-script-computed-input`);
+scope-gate additionally pins the var-indirected split 4 ways
+(`round5-var-indirected-bash-c-denied`,
+`round5-var-indirected-perl-e-denied`,
+`round5-var-indirected-bash-e-allowed`,
+`round5-var-indirected-perl-c-allowed`).
+
+## issue-233 round 6: `perl -c` dropped from the give-back — it is not syntax-check-only
+
+Round 5 gave `perl -c` back on its documented meaning ("check syntax, do
+not run") without executing it. An adversarial review of PR #367 proved
+by live execution that perl's `-c` still runs `BEGIN`, `UNITCHECK`, and
+`CHECK` blocks before the syntax check completes, so a script with a
+`BEGIN { open(...) }` block writes its file under `perl -c` exactly as
+it would unflagged — reopening the write vector round 5 exists to close.
+`ruby -c`/`node -c` do not have this problem (confirmed by the same
+execution method: a staged write did not run under `-c` for either),
+and `bash -e`/`python3 -e` were also re-confirmed safe by execution, so
+only perl moved.
+
+Fixed by dropping perl from the per-head give-back: board-gate.sh's
+`INLINE_FLAG_HEADS["perl"]` is now `("-e", "-c")` (both flags denied,
+matching pre-round-5 behavior for perl only); scope-gate.py gained a
+perl-specific `-c` alternative in `UNANALYZABLE_WRITE_SHAPE` alongside
+the existing perl `-e` alternative. No other head's mapping changed.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each renamed
+`round5-perl-c-checkonly-allowed` to `round6-perl-c-denied` (now
+asserting `deny`, was `allow`); the pre-existing
+`round5-var-indirected-perl-c-allowed` case is unchanged and still
+`allow` (round 1-4's substitution/indirection class was not touched this
+round, so `P=perl; $P -c ...` still bypasses via that separate,
+out-of-scope axis — noted inline in the test file).
+
+An adversarial hunt round (before-landing, tier `full`) found that
+combined short flags (`perl -wc`, `perl -cw`, `bash -xc`, `python3 -Wc`,
+...) bypass the `-c`/`-e` check on both gates regardless of interpreter,
+because the check is exact-token membership (board-gate.sh) or an
+end-anchored regex (scope-gate.py), neither of which scans a bundled
+flag token letter-by-letter. This was confirmed identical on
+`origin/main` before round 5 ever existed, so it is a pre-existing,
+universal gap unrelated to perl specifically or to this round's change
+— disclosed in
+`docs/issue-233/reports/secure-coding-input-validation-injection-defense-bcd7fd6a/hunt-round6-perl-c-give-back.md`
+and left for a separate follow-up issue rather than fixed here.
