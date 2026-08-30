@@ -132,9 +132,13 @@ FIND_EXEC_FLAGS = re.compile(
 # reads the command TEXT before the shell runs it and refuses only when
 # that text does not tell it the write target, never because a command is
 # inherently dangerous. A shape built to deliberately hide its write
-# target from this pre-expansion text read is outside what this gate
-# claims to bound; that needs a different seam (the shell's own
-# post-expansion argv), not a longer denylist of spellings here.
+# target from this pre-expansion text read is out of this gate's
+# jurisdiction; that needs a different seam (the shell's own
+# post-expansion argv), not a longer denylist of spellings here. The same
+# limit holds on the head side. An interpreter head that bash's own
+# expansion grammar assembles -- brace expansion, ANSI-C quoting, a
+# hex-escaped word, or variable indirection -- is equally out of this
+# gate's jurisdiction.
 #
 # issue-225: an interpreter invocation carrying an inline body -- a heredoc,
 # or a '-c'/'-e' string -- or a tee/dd invocation is not provably read-only
@@ -373,9 +377,13 @@ if tool == "Bash":
             "redirect the write-set check can read the target of. This "
             "is a write-set discipline check, not a security boundary "
             "(issue-233 round 5): it denies only shapes it cannot read "
-            "the write target of, and does not claim to catch a shape "
-            "deliberately built to hide that target from this text-level "
-            "read."
+            "the write target of. A shape deliberately built to hide "
+            "that target from this text-level read is out of this "
+            "gate's jurisdiction. The same limit holds on the head "
+            "side. An interpreter head that bash's own expansion "
+            "grammar assembles -- brace expansion, ANSI-C quoting, a "
+            "hex-escaped word, or variable indirection -- is equally "
+            "out of this gate's jurisdiction."
             % proposal_path,
             file=sys.stderr,
         )
