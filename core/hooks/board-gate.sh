@@ -541,27 +541,40 @@ unanalyzable = []
 
 INTERPRETER_HEADS = ("python3", "python", "python2", "bash", "sh", "zsh",
                       "perl", "ruby", "node", "nodejs")
-# issue-233 round 5: -c and -e are not interchangeable across this list, and
-# treating both as "runs inline code" for every head denied ordinary,
-# analyzable invocations for no R1/R4/R5 benefit (derived live against the
-# real gate subprocess, not guessed): `bash -e script.sh`/`sh -e
-# script.sh` were denied even though bash/sh/zsh's `-e` is the unrelated
-# errexit option, not an inline-code flag, and `bash script.sh` (no `-e`)
-# was already allowed — same write-shape, same unreadable script body,
-# different verdict for no reason tied to this gate's job. `perl -c
-# script.pl`/`ruby -c script.rb`/`node -c script.js` were denied even
-# though `-c` on those three means "check syntax, do not run" (the
-# opposite of inline execution). `python3 -e ...` was denied even though
-# python has no `-e` flag at all. Each interpreter keeps only the flag
-# spelling IT actually uses to mean "execute this string as code": `-c`
-# for python/python2/python3/bash/sh/zsh, `-e` for perl/ruby/node/nodejs.
-# This narrows false denials; it does not add any new spelling to catch
+# issue-233 round 5/6: -c and -e are not interchangeable across this list,
+# and treating both as "runs inline code" for every head denied ordinary,
+# analyzable invocations for no R1/R4/R5 benefit. Round 5 derived this
+# live against the real gate subprocess but trusted `-c`'s documented
+# meaning for perl/ruby/node instead of executing it; round 6 re-derived
+# every entry by running a script that writes a file if the flag executes
+# anything, because round 5's perl entry turned out wrong on execution:
+# - `bash -e script.sh`/`sh -e script.sh`: bash/sh/zsh's `-e` is the
+#   unrelated errexit option, not an inline-code flag, and `bash
+#   script.sh` (no `-e`) was already allowed — confirmed by execution
+#   that a script writes identically with and without `-e` (errexit only
+#   changes whether an earlier failing command aborts it first).
+# - `ruby -c script.rb`/`node -c script.js`: confirmed by execution (a
+#   `BEGIN`-block / top-level write staged in the script did NOT run
+#   under `-c` for either) that `-c` means "check syntax, do not run".
+# - `perl -c script.pl`: round 5 gave this back on the same assumption
+#   applied to ruby/node, without executing it. Round 6 did: perl's `-c`
+#   still runs `BEGIN`, `UNITCHECK`, and `CHECK` blocks before the syntax
+#   check completes, so `BEGIN { open(...) }` writes its file under
+#   `perl -c` exactly as it would unflagged. perl is dropped from this
+#   table's give-back entirely — `-c` rejoins `-e` as denied.
+# - `python3 -e ...`: confirmed by execution — python has no `-e` flag;
+#   it exits on "Unknown option: -e" before running anything.
+# Each interpreter keeps only the flag spelling IT actually uses to mean
+# "execute this string as code": `-c` for python/python2/python3/bash/
+# sh/zsh, `-e` for ruby/node/nodejs, and both `-c` and `-e` for perl (the
+# one head where neither spelling is a safe give-back). This narrows
+# false denials without loosening perl; it adds no new spelling to catch
 # (the flag-word matching itself, and the substitution/expansion bypass
-# class round 1-4 tracked, are both explicitly out of scope this round).
+# class round 1-4 tracked, are both explicitly out of scope).
 INLINE_FLAG_HEADS = {
     "python3": ("-c",), "python": ("-c",), "python2": ("-c",),
     "bash": ("-c",), "sh": ("-c",), "zsh": ("-c",),
-    "perl": ("-e",), "ruby": ("-e",),
+    "perl": ("-e", "-c"), "ruby": ("-e",),
     "node": ("-e",), "nodejs": ("-e",),
 }
 # issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what

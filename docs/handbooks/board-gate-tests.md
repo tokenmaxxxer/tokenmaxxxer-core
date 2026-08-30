@@ -756,3 +756,42 @@ scope-gate additionally pins the var-indirected split 4 ways
 `round5-var-indirected-perl-e-denied`,
 `round5-var-indirected-bash-e-allowed`,
 `round5-var-indirected-perl-c-allowed`).
+
+## issue-233 round 6: `perl -c` dropped from the give-back — it is not syntax-check-only
+
+Round 5 gave `perl -c` back on its documented meaning ("check syntax, do
+not run") without executing it. An adversarial review of PR #367 proved
+by live execution that perl's `-c` still runs `BEGIN`, `UNITCHECK`, and
+`CHECK` blocks before the syntax check completes, so a script with a
+`BEGIN { open(...) }` block writes its file under `perl -c` exactly as
+it would unflagged — reopening the write vector round 5 exists to close.
+`ruby -c`/`node -c` do not have this problem (confirmed by the same
+execution method: a staged write did not run under `-c` for either),
+and `bash -e`/`python3 -e` were also re-confirmed safe by execution, so
+only perl moved.
+
+Fixed by dropping perl from the per-head give-back: board-gate.sh's
+`INLINE_FLAG_HEADS["perl"]` is now `("-e", "-c")` (both flags denied,
+matching pre-round-5 behavior for perl only); scope-gate.py gained a
+perl-specific `-c` alternative in `UNANALYZABLE_WRITE_SHAPE` alongside
+the existing perl `-e` alternative. No other head's mapping changed.
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each renamed
+`round5-perl-c-checkonly-allowed` to `round6-perl-c-denied` (now
+asserting `deny`, was `allow`); the pre-existing
+`round5-var-indirected-perl-c-allowed` case is unchanged and still
+`allow` (round 1-4's substitution/indirection class was not touched this
+round, so `P=perl; $P -c ...` still bypasses via that separate,
+out-of-scope axis — noted inline in the test file).
+
+An adversarial hunt round (before-landing, tier `full`) found that
+combined short flags (`perl -wc`, `perl -cw`, `bash -xc`, `python3 -Wc`,
+...) bypass the `-c`/`-e` check on both gates regardless of interpreter,
+because the check is exact-token membership (board-gate.sh) or an
+end-anchored regex (scope-gate.py), neither of which scans a bundled
+flag token letter-by-letter. This was confirmed identical on
+`origin/main` before round 5 ever existed, so it is a pre-existing,
+universal gap unrelated to perl specifically or to this round's change
+— disclosed in
+`docs/issue-233/reports/secure-coding-input-validation-injection-defense-bcd7fd6a/hunt-round6-perl-c-give-back.md`
+and left for a separate follow-up issue rather than fixed here.

@@ -279,7 +279,11 @@ run allow round5-bash-e-errexit-allowed   Bash \
   '{"command":"bash -e some/script.sh"}'
 run allow round5-sh-e-errexit-allowed     Bash \
   '{"command":"sh -e some/script.sh"}'
-run allow round5-perl-c-checkonly-allowed Bash \
+# issue-233 round 6: perl -c is NOT syntax-check-only -- it still runs
+# BEGIN/UNITCHECK/CHECK blocks, confirmed by execution (a BEGIN-block
+# write staged in the script ran under -c exactly as it would unflagged).
+# perl is dropped from the give-back entirely; -c rejoins -e as denied.
+run deny  round6-perl-c-denied            Bash \
   '{"command":"perl -c some/script.pl"}'
 run allow round5-ruby-c-checkonly-allowed Bash \
   '{"command":"ruby -c some/script.rb"}'
@@ -291,7 +295,12 @@ run allow round5-pytest-computed-arg      Bash \
   '{"command":"python3 -m pytest -k \"$(echo foo)\""}'
 run allow round5-script-computed-input    Bash \
   '{"command":"python3 script.py --input \"$(pwd)/data.csv\""}'
-# var-indirected form: same flag-per-interpreter split applies.
+# var-indirected form: same flag-per-interpreter split applies. Note this
+# indirected match (VAR_INTERP_RE) is the round 1-4 substitution/expansion
+# bypass class, untouched this round -- it only ever caught -e for the
+# perl/ruby/node/nodejs group, so `P=perl; $P -c ...` still allows here
+# even though the direct `perl -c ...` form above is now denied (round 6
+# only re-derived the give-back list's direct-flag entries, per scope).
 run deny  round5-var-indirected-bash-c-denied Bash \
   '{"command":"P=bash; $P -c '"'"'echo hi > src/other.py'"'"'"}'
 run deny  round5-var-indirected-perl-e-denied Bash \

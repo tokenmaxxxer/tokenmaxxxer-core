@@ -749,9 +749,14 @@ run deny  round5-node-e-still-denied      Bash '{"command":"cd '$BOARD' && node 
 # script.sh` (no -e) was already allowed, same unreadable script body.
 run allow round5-bash-e-errexit-allowed   Bash '{"command":"cd '$BOARD' && bash -e reports/script.sh"}'
 run allow round5-sh-e-errexit-allowed     Bash '{"command":"cd '$BOARD' && sh -e reports/script.sh"}'
-# perl/ruby -c and node -c mean "check syntax, do not run" -- the opposite
-# of inline execution.
-run allow round5-perl-c-checkonly-allowed Bash '{"command":"cd '$BOARD' && perl -c reports/script.pl"}'
+# ruby -c and node -c mean "check syntax, do not run" -- the opposite of
+# inline execution -- confirmed by execution (a staged BEGIN-block /
+# top-level write did not run under -c for either).
+# issue-233 round 6: perl -c is NOT syntax-check-only -- it still runs
+# BEGIN/UNITCHECK/CHECK blocks, confirmed by execution (a BEGIN-block
+# write staged in the script ran under -c exactly as it would unflagged).
+# perl is dropped from the give-back entirely; -c rejoins -e as denied.
+run deny  round6-perl-c-denied            Bash '{"command":"cd '$BOARD' && perl -c reports/script.pl"}'
 run allow round5-ruby-c-checkonly-allowed Bash '{"command":"cd '$BOARD' && ruby -c reports/script.rb"}'
 run allow round5-node-c-checkonly-allowed Bash '{"command":"cd '$BOARD' && node -c reports/script.js"}'
 # python has no -e flag at all; it can never introduce inline code.
