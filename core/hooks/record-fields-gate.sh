@@ -479,7 +479,7 @@ try:
 
     if missing:
         deny(
-            "record has %d unmet requirement(s): %s. Per contract §20 every role record must "
+            "record has %d unmet requirement(s): %s. Per contract §20 every skill record must "
             "state what was done, why, the concrete upstream basis, its own loop_state, and "
             "open findings." % (len(missing), "; ".join(missing))
         )
