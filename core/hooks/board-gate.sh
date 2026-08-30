@@ -32,6 +32,19 @@
 #       per-role extra subtree the contract grants (feasibility: spikes/**,
 #       ops: postmortems/**). Foreign-record writes are refused (s11).
 #
+# Jurisdiction limit (issue-233 round 5): this is a write-set discipline
+# check, not a security sandbox. It reads the command TEXT before the
+# shell runs it and denies only when that text does not tell it which
+# file(s) the call will write, so it cannot enforce R1/R4/R5 against it —
+# never because the command is inherently dangerous. A command built to
+# deliberately hide its own write target from this pre-expansion text
+# read (bash's expansion grammar can rewrite a word into anything) is
+# outside what this gate claims to bound; closing that class needs a
+# different seam — the shell's own post-expansion argv — not a longer
+# denylist of spellings here. The threat model this gate holds is a
+# cooperative session drifting out of its lane, not an adversary routing
+# around it.
+#
 # There is no token machinery: human approval is a PR merge, feedback is a
 # PR comment, refusal is an issue/PR close — GitHub acts, not hook state.
 #
@@ -528,7 +541,29 @@ unanalyzable = []
 
 INTERPRETER_HEADS = ("python3", "python", "python2", "bash", "sh", "zsh",
                       "perl", "ruby", "node", "nodejs")
-INLINE_FLAG_WORDS = ("-c", "-e")
+# issue-233 round 5: -c and -e are not interchangeable across this list, and
+# treating both as "runs inline code" for every head denied ordinary,
+# analyzable invocations for no R1/R4/R5 benefit (derived live against the
+# real gate subprocess, not guessed): `bash -e script.sh`/`sh -e
+# script.sh` were denied even though bash/sh/zsh's `-e` is the unrelated
+# errexit option, not an inline-code flag, and `bash script.sh` (no `-e`)
+# was already allowed — same write-shape, same unreadable script body,
+# different verdict for no reason tied to this gate's job. `perl -c
+# script.pl`/`ruby -c script.rb`/`node -c script.js` were denied even
+# though `-c` on those three means "check syntax, do not run" (the
+# opposite of inline execution). `python3 -e ...` was denied even though
+# python has no `-e` flag at all. Each interpreter keeps only the flag
+# spelling IT actually uses to mean "execute this string as code": `-c`
+# for python/python2/python3/bash/sh/zsh, `-e` for perl/ruby/node/nodejs.
+# This narrows false denials; it does not add any new spelling to catch
+# (the flag-word matching itself, and the substitution/expansion bypass
+# class round 1-4 tracked, are both explicitly out of scope this round).
+INLINE_FLAG_HEADS = {
+    "python3": ("-c",), "python": ("-c",), "python2": ("-c",),
+    "bash": ("-c",), "sh": ("-c",), "zsh": ("-c",),
+    "perl": ("-e",), "ruby": ("-e",),
+    "node": ("-e",), "nodejs": ("-e",),
+}
 # issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what
 # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."` reads,
 # to whitespace-splitting code, as ONE word) -- gate_head_of's
@@ -561,8 +596,10 @@ FUSED_INTERP_RE = re.compile(
 # match), so `${P} -c '...'` sailed through denied only by luck of no other
 # clause catching it.
 VAR_INTERP_RE = re.compile(
-    r"\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
-    r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b")
+    r"\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
+    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
+    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -584,8 +621,8 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     """
     if "<<" in stripped:
         return True
-    if head in INTERPRETER_HEADS:
-        if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+    if head in INLINE_FLAG_HEADS:
+        if any(w in INLINE_FLAG_HEADS[head] for w in gate_lib.gate_trailing_words(stripped)):
             return True
     if head in WRITE_UNSAFE_HEADS:
         return True
@@ -750,7 +787,11 @@ if unanalyzable and skill and is_board:
          "refuses rather than risk a masked out-of-set write (issue-225 — "
          "the on-the-record PR #1627 bypass). Use a provably read-only "
          "invocation (e.g. python3 -m pytest), or write through "
-         "Write/Edit or a plain redirect this gate can read the target of."
+         "Write/Edit or a plain redirect this gate can read the target of. "
+         "This is a write-set discipline check, not a security boundary "
+         "(issue-233 round 5): it denies only shapes it cannot read the "
+         "write target of, and does not claim to catch a shape "
+         "deliberately built to hide that target from this text-level read."
          % ("; ".join(unanalyzable), skill))
 
 if not hits:
