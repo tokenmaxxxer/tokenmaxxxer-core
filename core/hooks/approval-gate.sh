@@ -211,7 +211,7 @@ if not root:
 
 if not os.path.isfile(os.path.join(root, "docs", "specs", "approvers.md")):
     deny("this repository has no docs/specs/approvers.md, but the session "
-         "carries CLAUDE_SKILL=%s. A role session works only on a board, and "
+         "carries CLAUDE_SKILL=%s. A skill session works only on a board, and "
          "that file is both the board opt-in and the approver allowlist — "
          "ask the human to add it" % skill)
 
@@ -238,7 +238,7 @@ except Exception:
     branch = ""
 m = re.match(r"^issue-([0-9]+)/(.+)$", branch)
 if not m or m.group(2) != skill:
-    deny("execution-surface writes happen only on this role's own issue "
+    deny("execution-surface writes happen only on this skill's own issue "
          "branch (issue-<n>/%s; current: %s). Check out the branch, submit "
          "phase 1, and get the Approve first. (contract v3 s19)"
          % (skill, branch or "<none>"))
@@ -343,13 +343,13 @@ if issue_state != "OPEN":
     # falls back to the original message verbatim — no new failure mode.
     if issue_state_reason:
         deny("issue #%s is not open (state: %s, reason: %s) — a closed "
-             "issue's board is not live for any role, regardless of any "
+             "issue's board is not live for any skill, regardless of any "
              "standing PR review or APPROVE comment. (contract v3 s19; "
-             "issue-343: no per-role exemption remains)"
+             "issue-343: no per-skill exemption remains)"
              % (issue_num, issue_state or "unknown", issue_state_reason))
     deny("issue #%s is not open (state: %s) — a closed issue's board is "
-         "not live for any role, regardless of any standing PR review or "
-         "APPROVE comment. (contract v3 s19; issue-343: no per-role "
+         "not live for any skill, regardless of any standing PR review or "
+         "APPROVE comment. (contract v3 s19; issue-343: no per-skill "
          "exemption remains)"
          % (issue_num, issue_state or "unknown"))
 

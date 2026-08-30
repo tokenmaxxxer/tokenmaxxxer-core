@@ -68,7 +68,7 @@ deny() { echo "${skill:-record-fields-gate}: refused — $1" >&2; exit 0; }  # i
 
 gate_kill_switch_active "${RECORD_FIELDS_GATE_OFF:-}" || exit 0
 
-[ -n "$skill" ] || deny "record-fields-gate: no CLAUDE_SKILL in the environment; the gate cannot resolve which record is this role's own."
+[ -n "$skill" ] || deny "record-fields-gate: no CLAUDE_SKILL in the environment; the gate cannot resolve which record is this skill's own."
 
 command -v python3 >/dev/null 2>&1 || deny "record-fields-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 
@@ -479,7 +479,7 @@ try:
 
     if missing:
         deny(
-            "record has %d unmet requirement(s): %s. Per contract §20 every role record must "
+            "record has %d unmet requirement(s): %s. Per contract §20 every skill record must "
             "state what was done, why, the concrete upstream basis, its own loop_state, and "
             "open findings." % (len(missing), "; ".join(missing))
         )

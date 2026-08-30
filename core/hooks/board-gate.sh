@@ -843,7 +843,7 @@ is_board = bool(root) and os.path.isfile(
 # this command is unaffected -- same posture R3 already takes.
 if unanalyzable and skill and is_board:
     deny("a Bash call carries an un-analyzable write-capable shape (%s) "
-         "while this gate enforces role %r's write-set. A heredoc body, "
+         "while this gate enforces skill %r's write-set. A heredoc body, "
          "an interpreter -c/-e inline script, or a dd invocation does not "
          "show its real write target in the command text, so this "
          "refuses rather than risk a masked out-of-set write (issue-225 — "
@@ -920,7 +920,7 @@ if not issue_hits:
 # --- R3: no role, no board writes ---------------------------------------
 if not skill:
     deny("a write under docs/issue-<n>/ from a session with no CLAUDE_SKILL. "
-         "The board belongs to role sessions; this one carries no rulebook "
+         "The board belongs to skill sessions; this one carries no rulebook "
          "gates. (contract v3 s8/s10)")
 
 # --- precondition: a board lives on GitHub ------------------------------
@@ -951,8 +951,8 @@ try:
 except Exception:
     branch = ""
 if not branch:
-    deny("cannot resolve the current git branch for a board write; a role "
-         "writes its issue tree only from issue-<n>/<role>")
+    deny("cannot resolve the current git branch for a board write; a skill "
+         "writes its issue tree only from issue-<n>/<skill>")
 
 # R4 sidecar-preferred identity (issue-1827): prefer the workspace role
 # sidecar .on-the-record/role.json (issue-1814) over the branch string
@@ -986,8 +986,8 @@ if _sidecar_issue is not None:
         _cross_issue = int(_cross_bm.group(1))
         _cross_skill = _cross_bm.group(2)
         if _cross_issue != _sidecar_issue or _cross_skill != _sidecar_skill:
-            deny("sidecar role/issue (issue-%d/%s) disagrees with the "
-                 "branch-parsed role/issue (issue-%d/%s) — workspace "
+            deny("sidecar skill/issue (issue-%d/%s) disagrees with the "
+                 "branch-parsed skill/issue (issue-%d/%s) — workspace "
                  "state is inconsistent. Make .on-the-record/role.json "
                  "and the current branch name agree, or remove the stale "
                  "sidecar. (contract v3 s10)"
@@ -1045,7 +1045,7 @@ for parts in issue_hits:
         continue
     deny("writing docs/%s/ requires branch %s (current: %s), and issue "
          "#%s's body declares no matching `maintenance-targets:` entry "
-         "for %s. Every role output reaches main only through a PR the "
+         "for %s. Every skill's output reaches main only through a PR the "
          "human merges — never a direct write from another branch. "
          "(contract v3 s10)"
          % (issue_dir, expected, branch, _own_issue or "?", issue_dir))
@@ -1170,7 +1170,7 @@ for parts in issue_hits:
         continue
     if extra and tail[0] == extra:
         continue
-    deny("docs/%s/reports/%s belongs to another role. %s writes only "
+    deny("docs/%s/reports/%s belongs to another skill. %s writes only "
          "%s, %s/** %s— never a foreign record. (contract v3 s11)"
          % (parts[0], "/".join(tail), skill, owner_file, skill,
             ("and %s/** " % extra) if extra else ""))

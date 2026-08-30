@@ -520,7 +520,7 @@ try:
             if not skip_justified:
                 missing.append("scout-brief.md")
         if missing:
-            deny(label, "docs/%s/reports/architecture.md sets loop_state '%s' (decision-bearing) but required phase-1 artifact(s) are missing: %s. Per this role's phase-1/phase-2 ordering norm, all phase-1 artifacts for %s must exist first (or scout-brief.md may be justified-skipped in the proposal text)." % (issue, loop_state, ", ".join(missing), issue))
+            deny(label, "docs/%s/reports/architecture.md sets loop_state '%s' (decision-bearing) but required phase-1 artifact(s) are missing: %s. Per this skill's phase-1/phase-2 ordering norm, all phase-1 artifacts for %s must exist first (or scout-brief.md may be justified-skipped in the proposal text)." % (issue, loop_state, ", ".join(missing), issue))
         return True
 
     # ---- mechanism: issue-retrospective-proposal-order (cross-file) -------

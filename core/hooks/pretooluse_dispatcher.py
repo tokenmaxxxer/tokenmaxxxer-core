@@ -383,7 +383,7 @@ def _setup_record_fields_gate(payload, obj, cwd):
     if not skill:
         return "deny", ("record-fields-gate: refused -- no CLAUDE_SKILL in "
                          "the environment; the gate cannot resolve which "
-                         "record is this role's own.")
+                         "record is this skill's own.")
     if not payload:
         return "deny", ("record-fields-gate: refused -- empty tool-use "
                          "payload on stdin; cannot evaluate the "
