@@ -134,7 +134,11 @@ FIND_EXEC_FLAGS = re.compile(
 # inherently dangerous. A shape built to deliberately hide its write
 # target from this pre-expansion text read is outside what this gate
 # claims to bound; that needs a different seam (the shell's own
-# post-expansion argv), not a longer denylist of spellings here.
+# post-expansion argv), not a longer denylist of spellings here. The same
+# limit holds on the head side. An interpreter head that bash's own
+# expansion grammar assembles -- brace expansion, ANSI-C quoting, a
+# hex-escaped word, or variable indirection -- is equally outside what
+# this gate claims to catch.
 #
 # issue-225: an interpreter invocation carrying an inline body -- a heredoc,
 # or a '-c'/'-e' string -- or a tee/dd invocation is not provably read-only
@@ -375,7 +379,11 @@ if tool == "Bash":
             "(issue-233 round 5): it denies only shapes it cannot read "
             "the write target of, and does not claim to catch a shape "
             "deliberately built to hide that target from this text-level "
-            "read."
+            "read. The same limit holds on the head side. An interpreter "
+            "head that bash's own expansion grammar assembles -- brace "
+            "expansion, ANSI-C quoting, a hex-escaped word, or variable "
+            "indirection -- is equally outside what this gate claims to "
+            "catch."
             % proposal_path,
             file=sys.stderr,
         )
