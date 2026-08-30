@@ -22,7 +22,7 @@ branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 # issue-scoped session (CLAUDE_SKILL set AND branch resolves to exactly
 # issue-<n>/<CLAUDE_SKILL>, board-gate.sh R4's own pattern:
 # `^issue-([0-9]+)/(.+)$` with group(2) == skill, board-gate.sh:1003):
-# a role session only ever writes its own proposals under
+# a skill session only ever writes its own proposals under
 # docs/issue-<n>/proposals/ (the per-issue layout every --skills spawn
 # uses per on-the-record#2572) and only ever acts inside its own
 # issue's tree — the top-level docs/proposals/ directory holds OTHER

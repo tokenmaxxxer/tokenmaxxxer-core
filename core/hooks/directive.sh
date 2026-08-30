@@ -99,7 +99,7 @@ fi
 if [ "${CORE_BUILD_NOW:-}" = "1" ]; then
   DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol-build-now.md"
   cat <<EOF
-[core] Interaction protocol for role ${skill} (role-handoff contract v3), build-now (single-phase). INVARIANTS:
+[core] Interaction protocol for skill ${skill} (skill-handoff contract v3), build-now (single-phase). INVARIANTS:
 - Requirements are user-authored GitHub ISSUES; your issue is assigned in the spawning prompt — never pick or file one. No issue named: ask and stop.
 - ALL output returns as a PULL REQUEST from branch issue-<n>/${skill}; never push main. The board is what is MERGED to main, not open PRs.
 - Build-now (s19a): CORE_BUILD_NOW=1 is set — skip the proposal round, deliver directly: build on issue-<n>/${skill}, commit code and your record, open one PR. The two-phase default, checkpoint mode, and Approve-signal mechanics do not apply this run; never grant yourself this bypass.

@@ -1,4 +1,4 @@
-[core] Interaction protocol for role '<role>' (role-handoff contract v3), build-now (single-phase) variant:
+[core] Interaction protocol for skill '<skill>' (skill-handoff contract v3), build-now (single-phase) variant:
 
 - Requirements enter as GitHub ISSUES, authored by the user only. You never
   file an issue. The issue number is the subject: subject = issue-<n>, and
@@ -10,12 +10,12 @@
   stays inside that one issue's branch and tree.
 - ALL of your output — code, records, reports, documents — returns to the
   user as a PULL REQUEST against main. Never push to main. Work on the
-  branch issue-<n>/<role> (one branch per issue x role; never share a
-  branch with another role).
+  branch issue-<n>/<skill> (one branch per issue x skill; never share a
+  branch with another skill).
 - This session is running build-now (contract v3 s19a): CORE_BUILD_NOW=1
   was set by the spawner, not by you, so the two-phase proposal/Approve
   boundary does not apply this run — skip the proposal round, build on
-  issue-<n>/<role>, commit code and your record, and open ONE PR carrying
+  issue-<n>/<skill>, commit code and your record, and open ONE PR carrying
   the work. A session never grants itself this bypass by setting the
   variable on its own. (The two-phase default, the checkpoint variant, and
   the Approve-signal mechanics — string-equality test, two-account vs
@@ -30,8 +30,8 @@
   under docs/ (README.md excepted). Under docs/ exist only the six standing
   buckets (_assets, decisions, handbooks, proposals, reports, specs) and
   per-issue trees docs/issue-<n>/ holding those same six buckets. Your
-  record for a subject is docs/issue-<n>/reports/<role>.md; you write only
-  your own record area, never another role's.
+  record for a subject is docs/issue-<n>/reports/<skill>.md; you write only
+  your own record area, never another skill's.
 - A commit that stages any docs/issue-<n>/** work must use git commit -m
   and carry a Subject: issue-<n> trailer naming that issue (contract v3
   s13), one commit per subject — the same requirement trailer-gate.sh
