@@ -688,6 +688,35 @@ run deny  awk-system-call-write           Bash '{"command":"cd '$BOARD' && awk '
 # write-unsafe head the way scope-gate's sibling clause once did.
 run allow awk-pure-read-not-overblocked   Bash '{"command":"cd '$BOARD' && awk '"'"'{print $1}'"'"' reports/review.md"}'
 
+# --- issue-233: single-token-expansion interpreter-head survivors -----------
+# Same enumerate-a-regex gap as scope-gate.py's sibling class: gate_head_of's
+# naive `.split()` returns the whole `${...}`/the pre-space slice of
+# `$(...)` as `head` when a parameter-default/parameter-assign expansion or
+# a command substitution PRODUCES the head, so it never lands in
+# INTERPRETER_HEADS and no literal interpreter name sits anywhere
+# FUSED_INTERP_RE/VAR_INTERP_RE look. Closed generically instead of adding a
+# fourth spelling: any single-token expansion sitting where a command head
+# goes, immediately followed by a `-c`/`-e`-shaped flag, is unanalyzable.
+run deny  param-default-expansion-head-c  Bash '{"command":"cd '$BOARD' && ${x:-python3} -c '"'"'open(\"reports/qa/pwn.md\",\"w\").write(\"1\")'"'"'"}'
+run deny  param-assign-expansion-head-c   Bash '{"command":"cd '$BOARD' && ${x:=bash} -c '"'"'echo hi > pwn.md'"'"'"}'
+run deny  cmdsub-produced-head-c          Bash '{"command":"cd '$BOARD' && $(echo python3) -c '"'"'open(\"reports/qa/pwn.md\",\"w\")'"'"'"}'
+run deny  bare-var-head-c                 Bash '{"command":"cd '$BOARD' && $x -c '"'"'open(\"reports/qa/pwn.md\",\"w\")'"'"'"}'
+# Adversarial hunt round: an expansion head still expands inside double
+# quotes (only single quotes make it literal); `$(...)` routinely nests
+# one substitution inside another in a real invocation; backtick and `-e`
+# (perl/ruby/node's code flag, not just `-c`) are the same class.
+run deny  quoted-expansion-head-c         Bash '{"command":"cd '$BOARD' && \"${x:-python3}\" -c '"'"'open(\"reports/qa/pwn.md\",\"w\")'"'"'"}'
+run deny  nested-cmdsub-produced-head-c   Bash '{"command":"cd '$BOARD' && $(printf %s $(echo python3)) -c '"'"'open(\"reports/qa/pwn.md\",\"w\")'"'"'"}'
+run deny  backtick-produced-head-c        Bash '{"command":"cd '$BOARD' && `echo python3` -c '"'"'open(\"reports/qa/pwn.md\",\"w\")'"'"'"}'
+run deny  expansion-head-e-flag           Bash '{"command":"cd '$BOARD' && ${x:-ruby} -e '"'"'File.write(\"reports/qa/pwn.md\",\"1\")'"'"'"}'
+# Pure reads that merely CONTAIN a `${...}`/`$(...)` token, with no `-c`/
+# `-e` following it, must not be over-blocked by the new generic check --
+# including the quoted spelling of the same expansion.
+run allow param-expansion-pure-read       Bash '{"command":"echo ${HOME}/x"}'
+run allow cmdsub-pure-read                Bash '{"command":"cat $(git rev-parse --show-toplevel)/README.md"}'
+run allow quoted-param-expansion-pure-read Bash '{"command":"cat \"${HOME}/x\""}'
+run allow quoted-cmdsub-pure-read         Bash '{"command":"cat \"$(git rev-parse --show-toplevel)/README.md\""}'
+
 # --- R4 sidecar dual-read (issue-1827) -----------------------------------
 # 1. sidecar present, role-free branch: identity comes from the sidecar,
 #    not from the branch string, so a branch that carries no role segment

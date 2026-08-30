@@ -263,5 +263,45 @@ run deny  awk-system-call-write           Bash \
 run allow awk-pure-read-not-overblocked   Bash \
   '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
 
+# --- issue-233: single-token-expansion interpreter-head survivors -----------
+# The enumerate-a-regex strategy (INTERPRETER_HEADS literal names,
+# FUSED_INTERP_RE, VAR_INTERP_RE) never puts an interpreter name at a
+# position any of those patterns look at when the head is produced by a
+# parameter-default/parameter-assign expansion or a command substitution
+# that PRODUCES the head rather than being fused onto one. Closed
+# generically: any single-token expansion sitting where a command head goes,
+# immediately followed by a `-c`/`-e`-shaped flag, is unanalyzable.
+run deny  param-default-expansion-head-c  Bash \
+  '{"command":"${x:-python3} -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+run deny  param-assign-expansion-head-c   Bash \
+  '{"command":"${x:=bash} -c '"'"'echo hi > src/other.py'"'"'"}'
+run deny  cmdsub-produced-head-c          Bash \
+  '{"command":"$(echo python3) -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+run deny  bare-var-head-c                 Bash \
+  '{"command":"$x -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+# Adversarial hunt round: an expansion head still expands inside double
+# quotes (only single quotes make it literal); `$(...)` routinely nests
+# one substitution inside another in a real invocation; backtick and `-e`
+# (perl/ruby/node's code flag, not just `-c`) are the same class.
+run deny  quoted-expansion-head-c         Bash \
+  '{"command":"\"${x:-python3}\" -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+run deny  nested-cmdsub-produced-head-c   Bash \
+  '{"command":"$(printf %s $(echo python3)) -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+run deny  backtick-produced-head-c        Bash \
+  '{"command":"`echo python3` -c '"'"'open(\"src/other.py\",\"w\")'"'"'"}'
+run deny  expansion-head-e-flag           Bash \
+  '{"command":"${x:-ruby} -e '"'"'File.write(\"src/other.py\",\"1\")'"'"'"}'
+# Pure reads that merely CONTAIN a `${...}`/`$(...)` token, with no `-c`/
+# `-e` following it, must not be over-blocked by the new generic check --
+# including the quoted spelling of the same expansion.
+run allow param-expansion-pure-read       Bash \
+  '{"command":"echo ${HOME}/x"}'
+run allow cmdsub-pure-read                Bash \
+  '{"command":"cat $(git rev-parse --show-toplevel)/README.md"}'
+run allow quoted-param-expansion-pure-read Bash \
+  '{"command":"cat \"${HOME}/x\""}'
+run allow quoted-cmdsub-pure-read         Bash \
+  '{"command":"cat \"$(git rev-parse --show-toplevel)/README.md\""}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

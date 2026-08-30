@@ -177,6 +177,29 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # by `\$\1\b`, which never matches `${P}`.
     r"|\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b"
+    # issue-233: enumerating interpreter spellings inside the expansion
+    # (VAR_INTERP_RE's literal `python3?|bash|...` list, itself only
+    # reachable when the same variable is ALSO assigned that name
+    # earlier in the visible text) misses every other way a single-token
+    # expansion can produce a command head -- a parameter-default/
+    # parameter-assign expansion (`${x:-python3}`, `${x:=bash}`) or a
+    # command substitution that PRODUCES the head (`$(echo python3)`),
+    # none of which name an interpreter as a literal top-level word in
+    # the command text at all. Closing the class generically instead of
+    # adding a fourth spelling: ANY single-token expansion -- `${...}`
+    # (whatever its inner form), `$(...)`, or a backtick span -- sitting
+    # where a command head goes and directly followed by a `-c`/`-e`-
+    # shaped flag cannot be proven to not be an interpreter, so it is
+    # unanalyzable regardless of what text produced it.
+    # A bare unbraced `$VAR` head (no braces at all) is the same
+    # single-token-expansion shape with the lightest possible spelling --
+    # included alongside `${...}` rather than left as a fifth gap. An
+    # optional wrapping `"..."` is stripped at each end (`"${x:-python3}"
+    # -c ...` still expands -- only single quotes make an expansion
+    # literal); `$(...)` allows one level of nested parens (a real
+    # invocation routinely nests a substitution inside another).
+    r"|(?:^|[\s;&|])\"?(?:\$\{[^{}]*\}|\$\((?:[^()]|\([^()]*\))*\)"
+    r"|`[^`]*`|\$[A-Za-z_]\w*)\"?\s+-[A-Za-z]*[ce]\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
     # defeating the literal-`\s`-before-`-c`/`-e` requirement in the

@@ -563,6 +563,32 @@ FUSED_INTERP_RE = re.compile(
 VAR_INTERP_RE = re.compile(
     r"\b(\w+)=(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-[ce]\b")
+# issue-233: INTERPRETER_HEADS/FUSED_INTERP_RE/VAR_INTERP_RE each enumerate
+# one more spelling that lets a literal interpreter name reach `gate_head_of`
+# or a text scan -- and each round of review since #225 has found a new
+# spelling the enumeration doesn't cover: a parameter-default/parameter-
+# assign expansion (`${x:-python3}`, `${x:=bash}`) or a command substitution
+# that PRODUCES the head (`$(echo python3)`) never puts an interpreter name
+# at a position any of the above patterns look at -- `_resolve_transparent`'s
+# naive `.split()` returns the whole `${...}`/the pre-space slice of
+# `$(...)` as `head`, which matches none of INTERPRETER_HEADS, and no
+# interpreter word sits fused against `-c`/`-e` or an earlier assignment for
+# FUSED_INTERP_RE/VAR_INTERP_RE to find. Closing the class generically
+# instead of adding a fourth spelling: a segment whose head is ENTIRELY a
+# single-token expansion -- `${...}` (whatever its inner form), `$(...)`, or
+# a backtick span -- immediately followed by a `-c`/`-e`-shaped flag cannot
+# be proven to not be an interpreter, so it is unanalyzable regardless of
+# what text produced the head. A bare unbraced `$VAR` head (no braces at
+# all) is the same single-token-expansion shape with the lightest possible
+# spelling -- included alongside `${...}` rather than left as a fifth gap
+# for the next round to find. An optional wrapping `"..."` is stripped at
+# each end (`"${x:-python3}" -c ...` still expands -- only single quotes
+# make an expansion literal); `$(...)` allows one level of nested
+# parens (`$(printf %s $(echo python3))`) since a real invocation
+# routinely nests a substitution inside another.
+EXPANSION_HEAD_C_FLAG_RE = re.compile(
+    r'^"?(?:\$\{[^{}]*\}|\$\((?:[^()]|\([^()]*\))*\)|`[^`]*`|\$[A-Za-z_]\w*)"?'
+    r"\s+-[A-Za-z]*[ce]\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -590,6 +616,8 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     if head in WRITE_UNSAFE_HEADS:
         return True
     if FUSED_INTERP_RE.search(stripped):
+        return True
+    if EXPANSION_HEAD_C_FLAG_RE.match(stripped):
         return True
     # `P=python3; $P -c ...` splits into separate `;`-delimited segments
     # (the assignment and the indirected call are never in the same
