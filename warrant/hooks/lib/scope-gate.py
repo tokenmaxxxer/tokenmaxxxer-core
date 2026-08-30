@@ -181,7 +181,13 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # issue-227: `ed`/`ex` write via script commands (`w file`) that this
     # gate cannot parse out of the invocation text -- any invocation is
     # treated as unanalyzable, same as `tee`/`dd`.
-    r"|(?:^|\s)(?:ed|ex)\b"
+    # issue-233: `eval STRING` runs STRING as freshly-typed shell text,
+    # unconditionally, with no `-c`/`-e` flag involved at all -- the same
+    # bucket as `ed`/`ex` (a command text this gate cannot parse out of
+    # the invocation at all), not awk/gawk's conditional lookahead (which
+    # exists only to protect a dominant legitimate plain-read use eval
+    # has no equivalent of).
+    r"|(?:^|\s)(?:ed|ex|eval)\b"
     # issue-227: awk/gawk/nawk/mawk can ALSO write a file straight from
     # their program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`,
     # or gawk's own `-i inplace`) -- but awk/gawk/nawk/mawk are ordinary
@@ -220,6 +226,54 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # merely start with the four letters IFS -- are plain reads, not hits
     # (issue-227 review finding 1: the unanchored form denied both).
     r"|\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])"
+    # issue-233: a third adversarial review round found the interpreter-
+    # head masking class still leaking through spellings the two
+    # patterns above do not name -- parameter-default expansion
+    # (`${x:-python3}`, `${x:=bash}`) and a command substitution that
+    # PRODUCES the head outright (`$(echo python3)`). Naming those two
+    # spellings the same way (a further alternative enumerating one more
+    # way to spell "produce an interpreter name") is the closed-set trap
+    # this program has already spent a month escaping elsewhere
+    # (issue-2600/issue-2670/issue-349) -- every review round finds one
+    # more spelling an enumeration didn't name. This keys off STRUCTURE
+    # instead: a head token that itself begins with `${`, `$(`, or a
+    # backtick is never a literal program name this gate can read -- what
+    # actually runs is decided at expansion time, regardless of which
+    # interpreter (or non-interpreter) the expansion produces. No
+    # enumeration needed: it does not matter whether the hidden head is
+    # python3, bash, or a name this gate has never heard of. Deliberately
+    # NOT anchored to a balanced `${...}`/`$(...)`/`` `...` `` span (a
+    # first attempt at this pattern was): a bare `$0`/`$VAR` head (no
+    # braces or parens at all) and a NESTED expansion (`${x:-${y:-python3}}`)
+    # both defeat bracket-balancing -- the inner `{`/`(` breaks a
+    # `[^{}]*`/`[^()]*` class, and a bare `$VAR` has no closing bracket to
+    # anchor on in the first place.
+    #
+    # A fresh adversarial hunt round found this still misses two spellings
+    # even with that fix: a QUOTED expansion head (`"$SHELL" -c ...`) puts
+    # a literal quote before the `$`, so a boundary-then-`$` check never
+    # fires at position 0 of the token; and an expansion FUSED into an
+    # otherwise-literal name (`python3${X}-c` where `X=' '` -- generalizing
+    # issue-227's `$IFS` fix to ANY variable holding whitespace, not one
+    # enumerated name) puts the `$` in the MIDDLE of the head token, not
+    # its start. Both need "the head token contains `$`/a backtick
+    # anywhere", not "the head token starts with one".
+    #
+    # This gate has no real tokenizer (unlike board-gate.sh's
+    # gate_head_of), so "the head token" has to be expressed as: right
+    # after a genuine command boundary (start-of-command, `;`, `&&`,
+    # `||`, `|`, or newline -- NOT bare whitespace, which would also match
+    # inside a later ARGUMENT, e.g. `grep "$PATTERN" file -e extra`'s
+    # legitimate read-only `-e`), consume one whitespace-delimited word
+    # that contains `$`/a backtick somewhere in it.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    # The fusion example above (`python3${X}-c`) puts the `-c`/`-e` flag
+    # FUSED onto the same head word, with no literal space before it at
+    # all -- the `\s-[A-Za-z]*[ce]` tail above requires that space and
+    # never fires for it. A second, narrower alternative for the fused
+    # case: same head-token boundary, but the flag ends the SAME
+    # whitespace-delimited word the expansion sits in, not a later one.
+    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[`$]\S*-[A-Za-z]*[ce]\b"
 )
 
 
