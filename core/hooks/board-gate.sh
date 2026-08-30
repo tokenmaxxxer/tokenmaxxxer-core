@@ -67,20 +67,30 @@ payload="$(cat 2>/dev/null || true)"
 #
 # issue-361: a Bash write TARGET can be built entirely at interpreter
 # runtime (`python3 -c "...chr()..."`, no literal "docs" in the command
-# text at all -- not even escaped) and the scan above proves nothing
-# about it either way. Unlike a target path, though, the shape that makes
-# such a write unanalyzable in the first place -- an interpreter head
-# (INTERPRETER_HEADS below) paired with an inline -c/-e flag, a
-# write-unsafe head (WRITE_UNSAFE_HEADS), a heredoc, or an $IFS/${IFS
-# fusion -- has to be spelled literally in the command text for the shell
-# to actually run it; the runtime-assembly trick that defeats a path scan
-# does not defeat a shape scan. So this is a second, independent
-# raw-text scan for THAT closed set (the same one the python judge below
-# already treats as unanalyzable, issue-225) -- not a widening of the
-# `docs` path-name scan above, which stays exactly "docs". A false
-# positive here (e.g. some unrelated command that happens to mention both
-# an interpreter name and a bare -c/-e word) only costs one extra python3
-# call, never a missed analysis.
+# text at all -- not even escaped). The scan above proves nothing about
+# it either way. So this is a second, independent raw-text scan for the
+# shape that makes such a write unanalyzable in the first place: an
+# interpreter head (INTERPRETER_HEADS below) paired with an inline
+# -c/-e flag, a write-unsafe head (WRITE_UNSAFE_HEADS), a heredoc, or
+# an $IFS/${IFS fusion.
+#
+# This scan is a proxy, not a soundness guarantee: it catches the
+# shape only when the head and flag are spelled literally in the
+# command text. A head assembled through bash's expansion grammar
+# defeats it the same way runtime assembly defeats the path scan
+# above. A variable holding a printf-octal-decoded interpreter name is
+# one confirmed shape (issue-361 PR #377). Nothing in this gate
+# catches an expansion-built head. Closing that class is out of this
+# gate's jurisdiction, per the limit stated above (issue-233 round 5,
+# PR #367).
+#
+# This is a scan for the literally-spelled subset of THAT closed set
+# (the same one the python judge below already treats as unanalyzable,
+# issue-225). It is not a widening of the `docs` path-name scan above,
+# which stays exactly "docs". A false positive here -- some unrelated
+# command that happens to mention both an interpreter name and a bare
+# -c/-e word -- only costs one extra python3 call. It never costs a
+# missed analysis.
 UNANALYZABLE_HEAD_RE='(^|[^a-zA-Z0-9_])(python3|python2|python|bash|sh|zsh|perl|ruby|node|nodejs)([^a-zA-Z0-9_]|$)'
 UNANALYZABLE_FLAG_RE='(^|[^a-zA-Z0-9_-])(-c|-e)([^a-zA-Z0-9_-]|$)'
 UNANALYZABLE_WRITE_HEAD_RE='(^|[^a-zA-Z0-9_])(dd|awk|gawk|nawk|mawk|ed|ex|tee)([^a-zA-Z0-9_]|$)'
