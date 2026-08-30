@@ -36,7 +36,7 @@ missing=""
 root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 if [ -z "$root" ] || ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
   missing="${missing}
-- Not a git repository. The human must init and publish it before any role can work."
+- Not a git repository. The human must init and publish it before any skill can work."
 else
   if ! git -C "$root" remote get-url origin >/dev/null 2>&1; then
     missing="${missing}
@@ -83,7 +83,7 @@ fi
 
 if [ -n "$missing" ]; then
   cat <<EOF
-[core] PRECONDITIONS NOT MET for role '${skill}' (contract v3 s10):
+[core] PRECONDITIONS NOT MET for skill '${skill}' (contract v3 s10):
 ${missing}
 
 Until every item above is resolved: do NOT start work, do NOT improvise a
@@ -98,10 +98,10 @@ fi
 
 DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol.md"
 cat <<EOF
-[core] Interaction protocol for role ${skill} (role-handoff contract v3). INVARIANTS:
+[core] Interaction protocol for skill ${skill} (role-handoff contract v3). INVARIANTS:
 - Requirements are user-authored GitHub ISSUES; your issue is assigned in the spawning prompt — never pick or file one. No issue named: ask and stop.
 - ALL output returns as a PULL REQUEST from branch issue-<n>/${skill}; never push main. The board is what is MERGED to main, not open PRs.
-- Two phases (s19): phase 1 commits survey + proposal, opens the PR; phase 2 (work + record) opens only on a human Approve — a PR review Approve from a different approvers.md account, or an issue comment whose entire body is exactly APPROVE issue-<n>/<role>. String equality only; never approve or merge yourself. Default (two-session): stop after the phase-1 PR. Checkpoint (single-session): only when the spawning prompt declared it — run the declared await-approval wait, then continue in-session.
+- Two phases (s19): phase 1 commits survey + proposal, opens the PR; phase 2 (work + record) opens only on a human Approve — a PR review Approve from a different approvers.md account, or an issue comment whose entire body is exactly APPROVE issue-<n>/<skill>. String equality only; never approve or merge yourself. Default (two-session): stop after the phase-1 PR. Checkpoint (single-session): only when the spawning prompt declared it — run the declared await-approval wait, then continue in-session.
 - Build-now bypass (s19a): when the environment carries CORE_BUILD_NOW=1, set by the spawner, never by you — skip the proposal round and deliver directly.
 - Layout: code src/, tests test/, docs/ six buckets; your record is docs/issue-<n>/reports/${skill}.md, and you write only your own record area. docs/issue-<n> commits use git commit -m with a Subject: issue-<n> trailer; git add new files explicitly first.
 - A session that stages a change to any docs/specs/* file also regenerates docs/specs/reconciled-index.md (python3 gates/spec_index.py --update) in the same commit, where the repo ships that generator.
