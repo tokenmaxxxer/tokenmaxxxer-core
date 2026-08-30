@@ -893,10 +893,10 @@ the existing perl `-e` alternative. No other head's mapping changed.
 `run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each renamed
 `round5-perl-c-checkonly-allowed` to `round6-perl-c-denied` (now
 asserting `deny`, was `allow`); the pre-existing
-`round5-var-indirected-perl-c-allowed` case is unchanged and still
-`allow` (round 1-4's substitution/indirection class was not touched this
-round, so `P=perl; $P -c ...` still bypasses via that separate,
-out-of-scope axis — noted inline in the test file).
+`round5-var-indirected-perl-c-allowed` case was left unchanged, still
+`allow`, at the time (round 1-4's substitution/indirection class was not
+touched this round, so `P=perl; $P -c ...` still bypassed via that
+separate, out-of-scope axis) — closed later, see issue-370 round 2 below.
 
 An adversarial hunt round (before-landing, tier `full`) found that
 combined short flags (`perl -wc`, `perl -cw`, `bash -xc`, `python3 -Wc`,
@@ -949,3 +949,44 @@ out-of-scope negative controls: `absolute-path-interpreter-c-flag-not-caught-pre
 (this gate has no FLAG-word tokenizer either — the same already-disclosed
 "quoted `-c`/`-e` flag" residual PR #354 named, now confirmed to also
 cover `$'...'` quoting).
+
+## issue-370 round 2: var-indirected deferral closed for perl's double flag
+
+Independent verification #395 (on the issue-370 salvage PR carrying the
+rounds 1-3 + integration-fix work above) found that the integration fix's
+deferral to `VAR_INTERP_RE` (board-gate.sh) / its inline twin
+(scope-gate.py) reopened exactly the residual the "continued" note above
+flagged as out-of-scope: `P=perl; $P -c script.pl` ALLOWED at both gates,
+live-confirmed by running a real `perl` `BEGIN` block through the allowed
+form, while the direct form `perl -c script.pl` correctly DENIES in the
+same run.
+
+Root cause: `VAR_INTERP_RE` and scope-gate.py's equivalent alternatives
+each spelled their own hand-written name list ("these interpreters treat
+`-c` as inline-code" / "these treat `-e`"), independent of the direct-form
+checks (`INLINE_FLAG_HEADS` in board-gate.sh; the direct-form regex
+alternatives in scope-gate.py) that already hold the authoritative
+per-interpreter flag mapping. perl is round 6's one interpreter with both
+flags dangerous; the hand-written `-c` name list in both gates' var-
+indirected checks never named it, so it drifted looser than the direct
+form for exactly that interpreter.
+
+Fixed by deriving both var-indirected name groups from the direct-form
+source instead of patching a perl-specific entry into the hand-written
+list: `board-gate.sh` builds `VAR_INTERP_RE`'s two alternatives from
+`INLINE_FLAG_HEADS` itself; `scope-gate.py` (which has no per-interpreter
+dict, only regex alternatives) introduces shared `_C_FLAG_INTERP_NAMES`/
+`_E_FLAG_INTERP_NAMES` constants used by both its direct-form and var-
+indirected alternatives — collapsing scope-gate.py's separate perl-only
+`-c` alternative into the shared group as a side effect. A name's var-
+indirected flags are now always exactly its direct-form flags, by
+construction, for every interpreter in the table — not a second list
+someone has to remember to keep in sync.
+
+`run-scope-gate-tests.sh`'s `round5-var-indirected-perl-c-allowed` (the
+only test file that pinned this case — `run-board-gate-tests.sh` never
+had a var-indirected perl `-c` pin) is renamed to
+`round5-var-indirected-perl-c-denied`, now asserting `deny`. The other
+three var-indirected pins (`-bash-c-denied`, `-perl-e-denied`,
+`-bash-e-allowed`) are unchanged — this round narrows nothing else,
+including round 5/6's disclosed `P=bash; $P -e ...` give-back.
