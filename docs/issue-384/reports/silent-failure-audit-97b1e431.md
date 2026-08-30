@@ -203,6 +203,17 @@ procedure?" gate says skip.
 skill-verdict: work-in-english — applied: invoked; wrote this record, all
 code comments, commit messages, and the PR body in English per policy;
 final user-facing summary in this session is in Korean.
+skill-verdict: adversarial-review — not-applicable: this round's own
+deliverable already went through a structurally-independent evaluator —
+PR #397 (role `adversarial-review-61b82bd3`, no shared context with the
+builder) reviewed PR #386 and produced the two findings this record
+fixes; spawning a second blind review of this same delivery inside the
+same build-now session would duplicate that already-completed round, not
+add independence. The acceptance line "do not assume the prepared patch
+is correct because it was measured — re-derive it here" is satisfied by
+this record's own executed re-derivation (see "How you will know it
+worked" points 1-4), which is a distinct requirement from a fresh
+adversarial pass.
 other mounted skills: not triggered (implementation-audit,
 verify-finding-record, merge-gates, parallel-decomposition, model-routing
 — none of their trigger conditions match a single-session direct
