@@ -228,6 +228,33 @@ def _split_segments(cmdline):
     from real separators; a plain .split() would still cut at those spans.
     This walks the matches instead: a quote match extends the current
     segment, a separator match ends it.
+
+    issue-233 independent verification round 3 (background adversarial
+    hunt agent): a backslash immediately before a newline is bash's own
+    line-continuation syntax -- it deletes BOTH characters and splices
+    the words on either side into one token with zero residue
+    (`pyth\`-newline-`on3 -c ...` runs as `python3 -c ...`), the same
+    word-formation mechanism EXPANDED_HEAD_RE below already treats as
+    suspect once it lands INSIDE a head token -- but only if this
+    splitter keeps both halves in the SAME segment for gate_head_of's
+    `.split()` to see as one word run. Before this fix, every `\n` was
+    treated as a hard separator regardless of a preceding backslash: the
+    continued line was mis-split into two segments (`pyth\` and
+    `on3 -c ...`), whose OWN heads (`pyth\` alone, `on3` alone) each look
+    innocuous on their own, and the trailing `-c` word landed in the
+    wrong segment entirely to ever pair with the tainted head. Whether a
+    given `\n` is really a continuation depends on the number of
+    consecutive backslashes immediately before it -- an ODD count means
+    the last one is unescaped and does splice (the earlier pairs are
+    each a self-escaped, literal backslash); an EVEN count (including
+    zero) means the newline is a genuine, unescaped separator. Counted
+    directly here (not a fixed-width regex lookbehind, which cannot
+    express an unbounded run) and only for `\n`: a backslash before `;`/
+    `|` is also bash-escapable, but only neutralizes it into a literal
+    argument character rather than splicing two words into one new head
+    -- a different, narrower question not part of this class, checked
+    live and found not to compose into a working `-c`/`-e` bypass (see
+    the issue-233 record's Open findings).
     """
     segments = []
     current = []
@@ -238,6 +265,14 @@ def _split_segments(cmdline):
         token = m.group()
         if token[:1] in ("'", '"'):
             current.append(token)
+        elif token == "\n":
+            joined = "".join(current)
+            backslash_run = len(joined) - len(joined.rstrip("\\"))
+            if backslash_run % 2 == 1:
+                current.append(token)
+            else:
+                segments.append(joined)
+                current = []
         else:
             segments.append("".join(current))
             current = []
@@ -620,6 +655,17 @@ INLINE_FLAG_HEADS = {
     "perl": ("-e", "-c"), "ruby": ("-e",),
     "node": ("-e",), "nodejs": ("-e",),
 }
+# issue-233: an expansion-produced head (EXPANDED_HEAD_RE below) can never be
+# looked up in INLINE_FLAG_HEADS -- the token is literal `$`/backtick text,
+# not a real interpreter name -- so which flag actually means "run this
+# string as code" is unknown until expansion time. The blanket union of
+# every flag any head in the table gives inline-execution meaning to is the
+# conservative fallback for that unresolvable case; it must never be
+# consulted for a head that IS in INLINE_FLAG_HEADS (that lookup already
+# gives the exact, narrower answer per-interpreter and must not regress to
+# this wider set, e.g. bash's -e give-back).
+INLINE_FLAG_WORDS = frozenset(
+    flag for flags in INLINE_FLAG_HEADS.values() for flag in flags)
 # issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what
 # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."` reads,
 # to whitespace-splitting code, as ONE word) -- gate_head_of's
@@ -637,7 +683,16 @@ IFS_TOKEN_RE = re.compile(r"\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])")
 # `ed`/`ex` write via script commands (`w file`) -- neither takes a `-c`/`-e`
 # flag the interpreter branch below would catch, so they were absent from
 # the write-capable set entirely.
-WRITE_UNSAFE_HEADS = ("dd", "awk", "gawk", "nawk", "mawk", "ed", "ex")
+# issue-233: `eval STRING` runs STRING as freshly-typed shell text this
+# gate never parses -- no `-c`/`-e` flag involved at all (that's `eval`'s
+# whole job, unconditionally, the same reason gate_lib.gate_wrapper_head_before
+# already treats `eval` as always-code with no flag check, unlike every
+# other WRAPPER_HEADS member). Unconditional, same bucket as ed/ex (a
+# script/command text this gate cannot parse out of the invocation at
+# all) rather than awk/gawk's conditional lookahead (which exists only
+# because awk/gawk have a dominant, legitimate plain-read use this gate
+# must not break -- eval has no equivalent legitimate gated-write use).
+WRITE_UNSAFE_HEADS = ("dd", "awk", "gawk", "nawk", "mawk", "ed", "ex", "eval")
 # issue-227 review finding 2: fusion glues an interpreter name straight onto
 # a command-substitution/backtick token (`python3$(printf " ")-c '...'`), so
 # gate_head_of never resolves a bare interpreter word and the flag check
@@ -651,11 +706,168 @@ FUSED_INTERP_RE = re.compile(
 # `\$\1\b` never matches `${P}` (the `{` breaks the literal-`$`-then-name
 # match), so `${P} -c '...'` sailed through denied only by luck of no other
 # clause catching it.
+# issue-370 round 2 (verification #395): this used to spell its own two
+# name lists by hand (python3?/bash/sh/zsh for `-c`, perl/ruby/node/nodejs
+# for `-e`), independently of INLINE_FLAG_HEADS above -- and the two
+# drifted: perl carries BOTH `-c` and `-e` in INLINE_FLAG_HEADS (round 6
+# confirmed by execution that perl's `-c` still runs BEGIN/UNITCHECK/CHECK
+# blocks), but the hand-written `-c` list here never named perl, so
+# `P=perl; $P -c ...` matched neither alternative and fell through
+# allowed while the direct form `perl -c ...` correctly denies -- a
+# var-indirected deferral narrower than the direct-form check it stands
+# in for. The defect was the second, independent enumeration, not
+# anything perl-specific about it (any interpreter with more than one
+# dangerous flag would have hit the same drift) -- so instead of adding a
+# third, perl-only alternative, both name groups are derived from
+# INLINE_FLAG_HEADS itself: a name's var-indirected flags are always
+# exactly its direct-form flags, by construction, never a second list
+# someone has to remember to keep in sync.
+_VAR_INTERP_C_NAMES = "|".join(
+    re.escape(n) for n in INLINE_FLAG_HEADS if "-c" in INLINE_FLAG_HEADS[n])
+_VAR_INTERP_E_NAMES = "|".join(
+    re.escape(n) for n in INLINE_FLAG_HEADS if "-e" in INLINE_FLAG_HEADS[n])
 VAR_INTERP_RE = re.compile(
-    r"\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    r"\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
-    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
-    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b")
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
+    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b"
+    % (_VAR_INTERP_C_NAMES, _VAR_INTERP_E_NAMES))
+# issue-233: a third adversarial review round found the interpreter-head
+# masking class still leaking through spellings FUSED_INTERP_RE/
+# VAR_INTERP_RE do not name -- parameter-default expansion
+# (`${x:-python3}`, `${x:=bash}`) and a command substitution that
+# PRODUCES the head outright (`$(echo python3)`). Naming those two
+# spellings the same way (a fifth, sixth regex alternative enumerating
+# more ways to spell "produce an interpreter name") is the closed-set
+# trap this program has already spent a month escaping elsewhere
+# (issue-2600/issue-2670/issue-349 retired the same shape for a
+# different axis) -- every new review round finds one more spelling an
+# enumeration didn't name. This keys off STRUCTURE instead: a segment
+# whose head token itself begins with `$` or a backtick is never a
+# literal program name this gate can read -- what actually runs is
+# decided at expansion time, regardless of which interpreter (or
+# non-interpreter) the expansion happens to produce. No enumeration
+# needed: it does not matter whether the hidden head is python3, bash,
+# or some name this gate has never heard of.
+#
+# `search`, not `match`, and no `^` anchor: a fresh adversarial hunt round
+# found a QUOTED expansion head (`"$SHELL" -c ...`, `` "`cmd`" -c ... ``)
+# slips past an anchored start-of-token check -- the literal quote
+# character sits before the `$`/backtick, so `^[`$]` never fires even
+# though the shell still resolves this to an expansion-produced program.
+# Searching for `$`/backtick ANYWHERE in the resolved head token is safe
+# here specifically because `head` is never argument text (unlike a
+# whole-command regex scan) -- it is exactly the one token
+# gate_head_of/_resolve_transparent decided is this segment's head, so a
+# `$`/backtick anywhere inside it is always suspect, never a false hit
+# borrowed from some later, unrelated argument.
+#
+# issue-233 independent verification, round 2 (PR #354 CHANGES review):
+# `$`/backtick is generic across ways of producing those two characters,
+# but NOT generic across shell WORD FORMATION. Two rounds of adversarial
+# hunting after the first fix each found one more mechanism that spells a
+# resolvable interpreter head with NEITHER `$` nor a backtick anywhere in
+# the literal text: brace expansion with null-field removal
+# (`{python3,} -c ...`), quote-splicing (`pyt''hon3 -c ...`), a mid-word
+# backslash escape (`p\y\t\h\o\n3 -c ...` -- bash strips a `\` before an
+# ordinary character outside quotes, so this is lexically `python3`), and
+# a backslash-newline line continuation splicing two half-words with zero
+# residue (`pyth\<newline>on3 -c ...`). Enumerating a FIFTH character to a
+# denylist class after this many rounds would repeat the exact closed-set
+# mistake issue-233 exists to retire (issue-2600/issue-2670/issue-349, on
+# a different axis) -- so this flips the check from a denylist of known-
+# suspicious characters to an ALLOWLIST of known-safe ones: a plain
+# program name or relative/absolute path never needs anything outside
+# `[A-Za-z0-9_./+=@:-]` (letters, digits, underscore, dot, slash, plus,
+# equals, at, colon, hyphen -- covering every literal `INTERPRETER_HEADS`/
+# `WRITE_UNSAFE_HEADS`/`TRANSPARENT` member, versioned names like
+# `python3.11`, and paths like `./bin/tool` or `/usr/bin/env`). `head` is
+# never argument text (it is exactly the one token
+# gate_head_of/_resolve_transparent decided is this segment's head), so
+# ANY character outside that safe set appearing in it means the token was
+# not typed as a single plain word -- built via some quoting, expansion,
+# or escaping mechanism this gate cannot see through, regardless of which
+# specific mechanism or which character it happens to use. This is
+# provably terminal against the whole class (unlike another
+# enumeration): a plain word literally cannot contain a character outside
+# its own alphabet, so no future adversarial hunt round can find a FIFTH
+# spelling of "a metacharacter this denylist doesn't name" the way rounds
+# 1 and 2 each did. False-refusal cost: a head token that is quoted,
+# braced, escaped, or otherwise decorated for no functional reason (e.g.
+# `"python3" -c ...`) now also denies where it previously allowed via
+# literal `head in INTERPRETER_HEADS` matching only the bare name -- but
+# such a head was never actually reaching that literal-string membership
+# check either (the decorating characters are part of the token, so it
+# never equalled the bare interpreter name), so this is not a new
+# over-block on any PREVIOUSLY-ALLOWED interpreter -c/-e invocation, only
+# on ones that were already falling through unrecognized. A head using a
+# character this repo's own conventions do use but this safe set omits
+# (e.g. a literal `~` for a manually-typed home-relative path, or a `,`/
+# `[`/`]` in an unusual filename) would now also be refused when combined
+# with `-c`/`-e` -- judged an acceptable, narrow cost: none of
+# `INTERPRETER_HEADS`/`WRITE_UNSAFE_HEADS`/`TRANSPARENT` nor any test
+# fixture in this suite uses such a name, and the issue's own fix
+# direction explicitly prioritizes refusing to (mis)analyze an
+# unresolvable head over guessing it is safe. Pure reads are unaffected:
+# this branch only ever fires when combined with a separate
+# INLINE_FLAG_WORDS (`-c`/`-e`) trailing word, so a head merely typed with
+# any of these characters and no code flag (e.g. `"cat" reports/x.md`)
+# still falls through untouched.
+EXPANDED_HEAD_RE = re.compile(r"[^A-Za-z0-9_./+=@:-]")
+# The same class of gap applies to a FUSED flag: an expansion/escape/quote
+# glued directly onto an otherwise-literal name (`python3${X}-c` where
+# `X` holds a space -- generalizing issue-227's `$IFS` fix to ANY
+# variable holding whitespace, not one enumerated name) puts the `-c`/
+# `-e` flag INSIDE the same fused head token, not as a separate word
+# `gate_trailing_words` would ever see -- so EXPANDED_HEAD_RE.search(head)
+# correctly flags the head as tainted, but the INLINE_FLAG_WORDS check
+# right below it never fires because there is no separate "-c" word to
+# find. Checked directly against the raw, unsplit segment text instead: a
+# run of non-space characters starting the segment, containing a
+# character outside the same safe allowlist above, ending in a fused
+# `-c`/`-e`-shaped flag -- anchored to the START of the segment (not
+# `re.search` over the whole thing), so this can only ever match the head
+# token itself, never a later argument.
+EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z]*[ce]\b")
+# issue-370 salvage: a head that is NOTHING but a bare `$NAME`/`${NAME}`
+# variable reference is a special case of EXPANDED_HEAD_RE that VAR_INTERP_RE
+# below already owns: whenever the same variable's value is a literal
+# interpreter name assigned earlier in the same command text, VAR_INTERP_RE
+# decides -- now derived from INLINE_FLAG_HEADS itself (round 2), so its
+# verdict is exactly the direct-form flag grouping, per interpreter, never
+# a narrower stand-in for it -- whether that combination denies. An
+# integration-only regression this salvage would otherwise reopen (found
+# live, not in either round's own PR, and not covered by any existing test
+# on either side): `P=bash; $P -e ...` -- explicitly left as the accepted,
+# disclosed residual by round 6's own comment ("round 6 only re-derived the
+# give-back list's direct-flag entries, per scope") -- fell back into
+# EXPANDED_HEAD_RE's conservative BLANKET `INLINE_FLAG_WORDS` check below
+# (which does not know VAR_INTERP_RE's per-interpreter grouping, only that
+# -c/-e are inline-code flags for SOME interpreter), denying an invocation
+# that must stay allowed to match origin/main's own tested behavior. When
+# the assignment is visible and literal, this defers entirely to
+# VAR_INTERP_RE's own verdict instead of blanket-checking here; when no
+# such assignment is visible (`$P` set only in the environment, or never
+# assigned at all), the Python judge's conservative blanket check is
+# unchanged and applies whenever the judge runs. But for the true
+# env-only case -- no literal interpreter name anywhere in the payload
+# text -- the shell-level UNANALYZABLE_HEAD_RE fast path above can exit
+# before the judge is ever invoked, so that blanket check does not
+# run for this sub-case and this comment makes no closure claim about
+# it. Low practical exploitability: Claude Code's own Bash tool does not
+# persist shell state across separate tool calls, so `$P` cannot be set
+# in one call and relied on surviving to a later, separately-gated one.
+_BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
+
+
+def _bare_var_has_literal_interp_assignment(head, full_cmd):
+    m = _BARE_VAR_HEAD_RE.match(head)
+    if not m or full_cmd is None:
+        return False
+    name = re.escape(m.group(1))
+    return re.search(
+        r"\b%s=(?:python3?|python2|bash|sh|zsh|perl|ruby|node|nodejs)\b" % name,
+        full_cmd) is not None
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -680,6 +892,12 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     if head in INLINE_FLAG_HEADS:
         if any(w in INLINE_FLAG_HEADS[head] for w in gate_lib.gate_trailing_words(stripped)):
             return True
+    elif EXPANDED_HEAD_RE.search(head):
+        if not _bare_var_has_literal_interp_assignment(head, full_cmd):
+            if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+                return True
+    if EXPANDED_HEAD_FUSED_FLAG_RE.match(stripped):
+        return True
     if head in WRITE_UNSAFE_HEADS:
         return True
     if FUSED_INTERP_RE.search(stripped):

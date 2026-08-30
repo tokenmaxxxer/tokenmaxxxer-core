@@ -191,6 +191,110 @@ def gate_outside_quotes(text, pattern):
     return re.search(pattern, gate_dequote(text)) is not None
 
 
+# issue-233 independent verification (PR #358 CHANGES review): a plain
+# `segment.split()` splits at every whitespace character, including one a
+# backslash-escapes or one sitting inside a quoted span -- both ordinary,
+# widely-used shell idioms for a path containing a space (bash's own
+# tab-completion inserts the backslash form). `_resolve_transparent` used
+# to call `.split()` directly, fragmenting `/opt/My\ Python/python3` into
+# `/opt/My\` and `Python/python3`: the resolved "head" was neither the
+# real interpreter name nor a token EXPANDED_HEAD_RE could wave through
+# consistently -- it happened to still deny (the stray backslash is
+# itself an unsafe character) for this exact shape, but happened to ALLOW
+# a quoted path (`"/opt/My Python/python3" -c ...` resolves to head
+# "My" -- a fully safe-looking fragment with no interpreter-shaped
+# content at all), a live, undetected bypass this same review round
+# found. Same fix mirrors the backslash-newline splice this issue already
+# added to `_split_segments`: make word-formation legible to the
+# tokenizer BEFORE any check ever inspects a "head", rather than trying
+# to special-case each fragment artifact after the fact.
+#
+# before-landing warrant-hunt (background, blind to this fix's rationale):
+# the first version of this tokenizer had no notion of `$'...'` ANSI-C
+# quoting (or its `$"..."` locale-translated sibling) -- both start with a
+# literal `$`, which the generic `\S` alternative consumed as an ordinary
+# bare character BEFORE the quote-span alternatives ever got a look at the
+# following `'`, so `$'-c'` tokenized as the two-character fusion `$` +
+# `-c` = `$-c`, never the plain word `-c` real bash evaluates it to. Live
+# reproduction: `python3 $'-c' "..."` runs as an ordinary `-c` invocation,
+# but `gate_trailing_words()` never contains the literal string `"-c"`,
+# so `INLINE_FLAG_WORDS` membership never fires -- a full, confirmed
+# bypass (a role session's call denied nothing while writing outside that
+# role's own write-set). Matched here BEFORE the bare single-quote
+# alternative (same ordering the bare-`$` case needed): the `$` is
+# consumed as PART of the quote-opening token, not left for `\S` to claim
+# first.
+_WORD_TOKEN_RE = re.compile(
+    r"(?<!\\)\$'(?:[^'\\]|\\.)*'"
+    r"|(?<!\\)\$\"(?:[^\"\\]|\\.)*\""
+    r"|(?<!\\)'[^']*'"
+    r"|(?<!\\)\"(?:[^\"\\]|\\.)*\""
+    r"|\\+\n"
+    r"|\\."
+    r"|\S"
+)
+
+
+def _shell_split(segment):
+    """Split `segment` into words the way a shell forms them.
+
+    Same permissive, non-shell-parser posture as the rest of this module
+    (not full quote/escape semantics for every edge case -- see
+    GATE_QUOTE_SPAN's own docstring) but aware of the mechanisms that let
+    one argument contain whitespace without becoming a separate word: a
+    backslash immediately before any character escapes it (the backslash
+    is dropped, the character -- including a literal space -- is kept), a
+    single/double-quoted span -- including its `$'...'`/`$"..."` ANSI-C
+    and locale-translated variants, whose leading `$` is part of the
+    quote-opening syntax, not a separate literal character -- is one word
+    regardless of the whitespace inside it (the quote-opening syntax is
+    dropped, the content is kept), and a backslash-newline line
+    continuation splices with ZERO residual
+    (unlike an ordinary escape, neither character survives -- same N//2
+    odd/even backslash-run counting `_split_segments`/scope-gate.py's
+    `_splice_line_continuations` already use, since `_split_segments` may
+    hand this function a segment where the continuation was kept intact
+    rather than pre-spliced). `(?<!\\)` on both quote alternatives mirrors
+    GATE_QUOTE_SPAN: a backslash-escaped literal quote CHARACTER does not
+    open a quoted span (issue-88's warrant-hunt finding, the same gap
+    class this module's SEGMENT regex already guards against).
+
+    A plain `.split()` cannot express any of this, so an escaped-space
+    path, its quoted equivalent, and a backslash-newline-spliced head all
+    used to fragment into something that was never the actual first word
+    the shell would run.
+    """
+    words = []
+    current = []
+    last_end = 0
+    for m in _WORD_TOKEN_RE.finditer(segment):
+        start, end = m.span()
+        if start > last_end and current:
+            words.append("".join(current))
+            current = []
+        token = m.group()
+        if token[:1] == "$" and token[1:2] in ("'", '"'):
+            current.append(token[2:-1])
+        elif token[:1] in ("'", '"'):
+            current.append(token[1:-1])
+        elif token[-1:] == "\n":
+            backslashes = token[:-1]
+            current.append("\\" * (len(backslashes) // 2))
+            if len(backslashes) % 2 == 0:
+                # a genuine, unescaped newline: ends the current word.
+                if current:
+                    words.append("".join(current))
+                    current = []
+        elif token[:1] == "\\":
+            current.append(token[1:])
+        else:
+            current.append(token)
+        last_end = end
+    if current:
+        words.append("".join(current))
+    return words
+
+
 TRANSPARENT = ("xargs", "env", "time", "nice", "command", "builtin",
                "timeout", "nohup")
 # `timeout` (unlike the rest of TRANSPARENT) always takes one bare
@@ -227,7 +331,7 @@ def _resolve_transparent(segment):
     trailing_words instead of being swept away as if it were the
     wrapper's own flag.
     """
-    words = segment.split()
+    words = _shell_split(segment)
     while words:
         w = words[0].rsplit("/", 1)[-1]
         if w not in TRANSPARENT:

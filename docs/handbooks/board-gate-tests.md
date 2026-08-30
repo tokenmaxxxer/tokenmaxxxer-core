@@ -706,6 +706,56 @@ file, `git add` of the directory), a genuine-foreign-record `deny`
 control, and one path shape outside the fixture set above (a plain
 redirect to the slug's own `.md` record file, not a directory member).
 
+## issue-233 rounds 1-3 (salvaged via issue-370): interpreter-head-via-expansion, word-formation, and quote-aware splicing
+
+Landed together as a unit by issue-370's salvage of PR #363 (round 4's
+flag-side substitution-matching commit, `d434daa`, was excluded per the
+#233 ruling — expansion-built heads/flags are out of this gate's
+jurisdiction; these rounds only make the gate read literally-spelled
+text correctly, which is squarely in scope).
+
+**Round 1-2: interpreter-head-via-expansion closed structurally.** A
+segment whose head token itself begins with, or contains, `` ` `` or `$`
+is never a literal program name this gate can read, regardless of which
+interpreter the expansion produces at runtime — `EXPANDED_HEAD_RE`
+(board-gate.sh) flags any such head; `EXPANDED_HEAD_FUSED_FLAG_RE` covers
+the flag fused directly onto the same token (`python3${X}-c` where `X`
+holds whitespace). Widened from an initial `[$]`-only class to
+`` [`$'"{}] `` after independent verification found quote-splicing
+(`pyt''hon3 -c ...`) and brace expansion with null-field removal
+(`{python3,} -c ...`) also produce a resolvable head with neither `$` nor
+a backtick present.
+
+**Round 3: backslash-escape and backslash-newline word formation.**
+`EXPANDED_HEAD_RE`/`EXPANDED_HEAD_FUSED_FLAG_RE` widened again from a
+denylist of special characters to an allowlist-complement of safe
+path/word characters, closing a mid-word backslash escape
+(`p\y\t\h\o\n3`, bash strips a backslash before an ordinary character)
+generically. `board-gate.sh`'s own segment splitter, and a new
+pre-splice step added to `scope-gate.py` (which had no segmenter at
+all), now treat a backslash immediately before a newline as bash's own
+line-continuation rather than a hard separator, closing a backslash-
+newline splice case (`p\<newline>ython3`) in both gates. A before-
+landing hunt found `scope-gate.py`'s splice was quote-blind — it spliced
+a backslash-newline pair even inside a single-quoted argument, where
+real bash performs no escape processing at all, turning a real ALLOW
+(`grep 'foo t\<newline>ee bar' file`) into a false DENY by welding in the
+bare word `tee`. Rewritten as a token walk mirroring `board-gate.sh`'s
+own segmenter (quote spans matched first and passed through unmodified)
+so a backslash-newline pair inside a quoted span is left untouched.
+
+`run-board-gate-tests.sh`/`run-scope-gate-tests.sh` pin: expanded-head
+via parameter-default expansion, command substitution, and backtick
+(`expanded-head-param-default-*`, `expanded-head-cmdsub-produces-head`,
+`expanded-head-backtick-produces-head`); quoted and positional-parameter
+expansion heads (`quoted-expansion-head-double`,
+`quoted-expansion-head-backtick`, `quoted-positional-param-head`); a
+generic whitespace-fusion variable not literally named `$IFS`
+(`generic-var-whitespace-fusion`); `eval`'s unconditional deny
+(`eval-hides-interpreter-head`); and negative controls proving no
+over-refusal (`expanded-head-no-flag-not-overblocked`,
+`param-expansion-path-read-allowed`, `grep-dollar-arg-dash-e-not-overblocked`).
+
 **issue-361: the `*docs*` fast-path let a runtime-computed write target
 skip the gate entirely.** `board-gate.sh` opens with a shell-level
 pre-check, before python3 ever starts: `case "$payload" in *docs*) ;; *)
@@ -843,10 +893,10 @@ the existing perl `-e` alternative. No other head's mapping changed.
 `run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each renamed
 `round5-perl-c-checkonly-allowed` to `round6-perl-c-denied` (now
 asserting `deny`, was `allow`); the pre-existing
-`round5-var-indirected-perl-c-allowed` case is unchanged and still
-`allow` (round 1-4's substitution/indirection class was not touched this
-round, so `P=perl; $P -c ...` still bypasses via that separate,
-out-of-scope axis — noted inline in the test file).
+`round5-var-indirected-perl-c-allowed` case was left unchanged, still
+`allow`, at the time (round 1-4's substitution/indirection class was not
+touched this round, so `P=perl; $P -c ...` still bypassed via that
+separate, out-of-scope axis) — closed later, see issue-370 round 2 below.
 
 An adversarial hunt round (before-landing, tier `full`) found that
 combined short flags (`perl -wc`, `perl -cw`, `bash -xc`, `python3 -Wc`,
@@ -859,3 +909,84 @@ universal gap unrelated to perl specifically or to this round's change
 — disclosed in
 `docs/issue-233/reports/secure-coding-input-validation-injection-defense-bcd7fd6a/hunt-round6-perl-c-give-back.md`
 and left for a separate follow-up issue rather than fixed here.
+
+## issue-233 rounds 1-3 (salvaged via issue-370), continued: word-formation-aware head tokenizer
+
+`core/hooks/lib/gate-lib.py`'s `_resolve_transparent` (backing
+`gate_head_of`/`gate_trailing_words`) used a plain `segment.split()`,
+which splits at every whitespace character regardless of shell escaping
+or quoting. A real, ordinary interpreter path containing a space —
+`/opt/My\ Python/python3` (backslash-escaped) or `"/opt/My Python/python3"`
+(quoted) — fragmented at that space: the escaped form denied for the
+wrong reason (a stray backslash tripping `EXPANDED_HEAD_RE`'s
+unsafe-character class rather than a correctly-resolved interpreter
+name), and the quoted form was a genuine, undetected bypass (resolved to
+head `"My"`, sailing an ordinary `-c` invocation through ALLOWED).
+
+Fixed with a new `_shell_split` tokenizer aware of backslash-escapes
+(including a literal space), single/double-quoted spans (including their
+`$'...'`/`$"..."` ANSI-C/locale-string forms), and backslash-newline
+line-continuation splicing. A before-landing hunt found the first version
+missed the `$'...'` form specifically (its leading `$` fused onto the
+quoted span instead of being consumed as part of the quote syntax,
+turning `$'-c'` into the word `$-c` rather than `-c`) — fixed in the same
+delivery.
+
+`run-board-gate-tests.sh` pins 6 new cases (each direction — DENY with a
+trailing `-c`/`-e`, ALLOW with none): `escaped-space-interpreter-path-c-flag`,
+`quoted-path-with-spaces-c-flag`, `safe-set-unusual-char-path-c-flag`
+(a path containing a character that IS in the safe set but unusual in an
+executable name, e.g. `+` — recorded as regression coverage since no
+escaping/quoting is involved), and `ansi-c-quoted-flag-word` (the
+before-landing hunt's finding), each with its `-not-overblocked` negative
+control. `run-scope-gate-tests.sh` pins the same escaped-space/quoted-path
+pair (already correct with no code change there — `scope-gate.py`'s
+boundary-anchored "any unsafe char in the run" scan does not need a
+precise tokenizer the way `board-gate.sh` does) plus two disclosed,
+out-of-scope negative controls: `absolute-path-interpreter-c-flag-not-caught-preexisting-gap`
+(this gate has no basename/path resolver at all, unlike `board-gate.sh`'s
+`gate_head_of`) and `ansi-c-quoted-flag-word-not-caught-preexisting-gap`
+(this gate has no FLAG-word tokenizer either — the same already-disclosed
+"quoted `-c`/`-e` flag" residual PR #354 named, now confirmed to also
+cover `$'...'` quoting).
+
+## issue-370 round 2: var-indirected deferral closed for perl's double flag
+
+Independent verification #395 (on the issue-370 salvage PR carrying the
+rounds 1-3 + integration-fix work above) found that the integration fix's
+deferral to `VAR_INTERP_RE` (board-gate.sh) / its inline twin
+(scope-gate.py) reopened exactly the residual the "continued" note above
+flagged as out-of-scope: `P=perl; $P -c script.pl` ALLOWED at both gates,
+live-confirmed by running a real `perl` `BEGIN` block through the allowed
+form, while the direct form `perl -c script.pl` correctly DENIES in the
+same run.
+
+Root cause: `VAR_INTERP_RE` and scope-gate.py's equivalent alternatives
+each spelled their own hand-written name list ("these interpreters treat
+`-c` as inline-code" / "these treat `-e`"), independent of the direct-form
+checks (`INLINE_FLAG_HEADS` in board-gate.sh; the direct-form regex
+alternatives in scope-gate.py) that already hold the authoritative
+per-interpreter flag mapping. perl is round 6's one interpreter with both
+flags dangerous; the hand-written `-c` name list in both gates' var-
+indirected checks never named it, so it drifted looser than the direct
+form for exactly that interpreter.
+
+Fixed by deriving both var-indirected name groups from the direct-form
+source instead of patching a perl-specific entry into the hand-written
+list: `board-gate.sh` builds `VAR_INTERP_RE`'s two alternatives from
+`INLINE_FLAG_HEADS` itself; `scope-gate.py` (which has no per-interpreter
+dict, only regex alternatives) introduces shared `_C_FLAG_INTERP_NAMES`/
+`_E_FLAG_INTERP_NAMES` constants used by both its direct-form and var-
+indirected alternatives — collapsing scope-gate.py's separate perl-only
+`-c` alternative into the shared group as a side effect. A name's var-
+indirected flags are now always exactly its direct-form flags, by
+construction, for every interpreter in the table — not a second list
+someone has to remember to keep in sync.
+
+`run-scope-gate-tests.sh`'s `round5-var-indirected-perl-c-allowed` (the
+only test file that pinned this case — `run-board-gate-tests.sh` never
+had a var-indirected perl `-c` pin) is renamed to
+`round5-var-indirected-perl-c-denied`, now asserting `deny`. The other
+three var-indirected pins (`-bash-c-denied`, `-perl-e-denied`,
+`-bash-e-allowed`) are unchanged — this round narrows nothing else,
+including round 5/6's disclosed `P=bash; $P -e ...` give-back.

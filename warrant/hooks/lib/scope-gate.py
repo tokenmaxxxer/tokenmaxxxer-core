@@ -175,17 +175,36 @@ FIND_EXEC_FLAGS = re.compile(
 # python/python2/python3/bash/sh/zsh, `-e` for ruby/node/nodejs. This
 # narrows false denials without loosening perl; it adds no new spelling
 # to catch.
+# issue-370 round 2 (verification #395): these two name groups -- which
+# interpreters treat `-c` as inline-code, which treat `-e` -- are the
+# single source both the direct-form alternatives right below AND the
+# var-indirected alternatives further down must agree with. They used to
+# be spelled independently in both places; the var-indirected copy
+# drifted (its `-c` group never named perl, unlike the direct-form `-c`
+# group split across two alternatives above), so `P=perl; $P -c ...`
+# matched neither var-indirected alternative and fell through allowed
+# while the direct form `perl -c ...` right below correctly denies --
+# a var-indirected deferral narrower than the direct-form check it
+# stands in for. Named once here and reused, so neither copy can drift
+# from the other again, for perl or any future multi-flag interpreter.
+_C_FLAG_INTERP_NAMES = r"python3?|bash|sh|zsh|perl"
+_E_FLAG_INTERP_NAMES = r"perl|ruby|node|nodejs"
 UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"<<-?\s*['\"]?\w"
-    r"|(?:^|\s)(?:python3?|bash|sh|zsh)\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
-    r"|(?:^|\s)perl\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
-    r"|(?:^|\s)(?:perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*e(?:\s|=|$)"
+    r"|(?:^|\s)(?:%s)\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
+    r"|(?:^|\s)(?:%s)\b[^\n|;&]*\s-[A-Za-z]*e(?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
     # issue-227: `ed`/`ex` write via script commands (`w file`) that this
     # gate cannot parse out of the invocation text -- any invocation is
     # treated as unanalyzable, same as `tee`/`dd`.
-    r"|(?:^|\s)(?:ed|ex)\b"
+    # issue-233: `eval STRING` runs STRING as freshly-typed shell text,
+    # unconditionally, with no `-c`/`-e` flag involved at all -- the same
+    # bucket as `ed`/`ex` (a command text this gate cannot parse out of
+    # the invocation at all), not awk/gawk's conditional lookahead (which
+    # exists only to protect a dominant legitimate plain-read use eval
+    # has no equivalent of).
+    r"|(?:^|\s)(?:ed|ex|eval)\b"
     # issue-227: awk/gawk/nawk/mawk can ALSO write a file straight from
     # their program text (`awk 'BEGIN{print "x" > "f"}'`, `system(...)`,
     # or gawk's own `-i inplace`) -- but awk/gawk/nawk/mawk are ordinary
@@ -210,10 +229,14 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # `-c`/`-e` at all. Caught only when the same variable is assigned an
     # interpreter name earlier in the same command text. issue-227
     # re-review B1: the brace form (`${P}`) also indirects and was missed
-    # by `\$\1\b`, which never matches `${P}`.
-    r"|\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    # by `\$\1\b`, which never matches `${P}`. issue-370 round 2: the name
+    # groups here are the SAME `_C_FLAG_INTERP_NAMES`/`_E_FLAG_INTERP_NAMES`
+    # the direct-form alternatives above use, not a second hand-written
+    # copy -- see the comment at their definition for the perl drift this
+    # closes.
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
-    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
@@ -224,7 +247,219 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # merely start with the four letters IFS -- are plain reads, not hits
     # (issue-227 review finding 1: the unanchored form denied both).
     r"|\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])"
+    # issue-233: a third adversarial review round found the interpreter-
+    # head masking class still leaking through spellings the two
+    # patterns above do not name -- parameter-default expansion
+    # (`${x:-python3}`, `${x:=bash}`) and a command substitution that
+    # PRODUCES the head outright (`$(echo python3)`). Naming those two
+    # spellings the same way (a further alternative enumerating one more
+    # way to spell "produce an interpreter name") is the closed-set trap
+    # this program has already spent a month escaping elsewhere
+    # (issue-2600/issue-2670/issue-349) -- every review round finds one
+    # more spelling an enumeration didn't name. This keys off STRUCTURE
+    # instead: a head token that itself begins with `${`, `$(`, or a
+    # backtick is never a literal program name this gate can read -- what
+    # actually runs is decided at expansion time, regardless of which
+    # interpreter (or non-interpreter) the expansion produces. No
+    # enumeration needed: it does not matter whether the hidden head is
+    # python3, bash, or a name this gate has never heard of. Deliberately
+    # NOT anchored to a balanced `${...}`/`$(...)`/`` `...` `` span (a
+    # first attempt at this pattern was): a bare `$0`/`$VAR` head (no
+    # braces or parens at all) and a NESTED expansion (`${x:-${y:-python3}}`)
+    # both defeat bracket-balancing -- the inner `{`/`(` breaks a
+    # `[^{}]*`/`[^()]*` class, and a bare `$VAR` has no closing bracket to
+    # anchor on in the first place.
+    #
+    # A fresh adversarial hunt round found this still misses two spellings
+    # even with that fix: a QUOTED expansion head (`"$SHELL" -c ...`) puts
+    # a literal quote before the `$`, so a boundary-then-`$` check never
+    # fires at position 0 of the token; and an expansion FUSED into an
+    # otherwise-literal name (`python3${X}-c` where `X=' '` -- generalizing
+    # issue-227's `$IFS` fix to ANY variable holding whitespace, not one
+    # enumerated name) puts the `$` in the MIDDLE of the head token, not
+    # its start. Both need "the head token contains `$`/a backtick
+    # anywhere", not "the head token starts with one".
+    #
+    # This gate has no real tokenizer (unlike board-gate.sh's
+    # gate_head_of), so "the head token" has to be expressed as: right
+    # after a genuine command boundary (start-of-command, `;`, `&&`,
+    # `||`, `|`, or newline -- NOT bare whitespace, which would also match
+    # inside a later ARGUMENT, e.g. `grep "$PATTERN" file -e extra`'s
+    # legitimate read-only `-e`), consume one whitespace-delimited word
+    # that contains `$`/a backtick somewhere in it.
+    #
+    # issue-233 independent verification, round 2 (PR #354 CHANGES review):
+    # `$`/backtick is generic across ways of producing those two
+    # characters, but NOT generic across shell WORD FORMATION. Two rounds
+    # of adversarial hunting each found one more mechanism producing a
+    # resolvable interpreter head with NEITHER `$` nor a backtick
+    # anywhere in the literal text: brace expansion with null-field
+    # removal (`{python3,} -c ...`), quote-splicing (`pyt''hon3 -c ...`),
+    # a mid-word backslash escape (`p\y\t\h\o\n3 -c ...` -- bash strips a
+    # `\` before an ordinary character outside quotes), and a backslash-
+    # newline line continuation splicing two half-words with zero residue.
+    # Enumerating a fifth character after this many rounds repeats the
+    # exact closed-set mistake issue-233 exists to retire on a different
+    # axis (issue-2600/issue-2670/issue-349) -- so this flips from a
+    # denylist of known-suspicious characters to an ALLOWLIST of known-
+    # safe ones: a plain program name or path never needs anything
+    # outside `[A-Za-z0-9_./+=@:-]`, so any OTHER character in the head
+    # word means it was not typed as a single plain word. Expressed as
+    # the complement of that safe set, still explicitly excluding
+    # whitespace and the four boundary-delimiter characters (`;`, `&`,
+    # `|`, and implicitly newline via `\s`) this gate's own boundary
+    # anchor already uses -- without that exclusion, the single "unsafe
+    # character" slot below could itself match a separator or a space and
+    # let the match silently cross into a LATER, unrelated word (this
+    # gate has no real tokenizer, unlike board-gate.sh's `gate_head_of`,
+    # so word boundaries here are entirely what `\S*`/this exclusion say
+    # they are). Same false-refusal cost as board-gate.sh: a head quoted,
+    # braced, or escaped for no functional reason (e.g. `"python3" -c
+    # ...`) now denies where it previously fell through unrecognized --
+    # it was never reaching the literal `python3\b` alternative above
+    # either, so this is not a new over-block on any previously-allowed
+    # plain interpreter invocation, only on ones already falling through
+    # unrecognized. Still requires a real `-c`/`-e` flag later on the same
+    # head word's boundary-delimited run, so a merely decorated head with
+    # no code flag stays unaffected.
+    % (_C_FLAG_INTERP_NAMES, _E_FLAG_INTERP_NAMES,
+       _C_FLAG_INTERP_NAMES, _E_FLAG_INTERP_NAMES)
 )
+# issue-370 salvage: the two allowlist-complement alternatives above (spaced
+# and fused flag) are pulled into their own regex, with the head-ish token
+# captured, rather than left inline in UNANALYZABLE_WRITE_SHAPE -- so a
+# match can be checked against _bare_var_has_literal_interp_assignment
+# before it counts as a deny. Without this split, a bare `$NAME`/`${NAME}`
+# head is indistinguishable from a genuine unresolvable expansion, and
+# round 5/6's per-interpreter give-back (INLINE_FLAG_HEADS' board-gate.sh
+# equivalent, mirrored here in the per-flag alternatives on lines 176-178)
+# never reaches the var-indirected case that VAR_INTERP_RE (lines 216-219)
+# already owns -- `P=bash; $P -e ...` and `P=perl; $P -c ...`, both
+# explicitly left allowed as round 6's own disclosed, out-of-scope
+# residual, would otherwise fall back into this blanket -c/-e check (found
+# live integrating this salvage, not in either round's own PR).
+EXPANDED_HEAD_GENERIC_RE = re.compile(
+    r"(?:^|;|&&|\|\||\||\n)\s*(\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*)[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+    # The fusion example above (`python3${X}-c`) puts the `-c`/`-e` flag
+    # FUSED onto the same head word, with no literal space before it at
+    # all -- the `\s-[A-Za-z]*[ce]` tail above requires that space and
+    # never fires for it. A second, narrower alternative for the fused
+    # case: same head-token boundary, but the flag ends the SAME
+    # whitespace-delimited word the expansion sits in, not a later one.
+    # Same allowlist-complement widening as the spaced alternative above.
+    r"|(?:^|;|&&|\|\||\||\n)\s*(\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*)-[A-Za-z]*[ce]\b"
+)
+_BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
+
+
+def _bare_var_has_literal_interp_assignment(head, full_cmd):
+    m = _BARE_VAR_HEAD_RE.match(head)
+    if not m:
+        return False
+    name = re.escape(m.group(1))
+    return re.search(
+        r"\b%s=(?:python3?|python2|bash|sh|zsh|perl|ruby|node|nodejs)\b" % name,
+        full_cmd) is not None
+
+
+def _is_unanalyzable_write_shape(command):
+    if UNANALYZABLE_WRITE_SHAPE.search(command):
+        return True
+    for m in EXPANDED_HEAD_GENERIC_RE.finditer(command):
+        head = m.group(1) or m.group(2)
+        if not _bare_var_has_literal_interp_assignment(head, command):
+            return True
+    return False
+
+# Inside SINGLE quotes, bash performs NO escape processing at all --
+# checked live, `echo 'foo t\<newline>ee bar'` prints the backslash and
+# the newline both untouched, two literal characters, never a splice.
+# Inside DOUBLE quotes, bash actually DOES still splice a backslash-
+# newline pair (checked live too: `echo "foo t\<newline>ee bar"` prints
+# `foo tee bar`, identical to the unquoted case) -- a backslash keeps its
+# special meaning there for `$`/`` ` ``/`"`/`\`/newline specifically.
+# This function deliberately treats BOTH quote kinds as one opaque,
+# never-spliced span rather than replicating that single/double
+# asymmetry: none of the confirmed word-formation bypasses this issue
+# closes rely on a backslash-newline splice happening INSIDE a
+# double-quoted argument to construct a head (a head that is itself
+# quoted, e.g. `"pyth\<newline>on3" -c ...`, is already flagged unsafe by
+# the quote character alone, splice or no splice), so not splicing
+# double-quoted spans costs nothing against this class -- at worst an
+# obscure, legitimate double-quoted backslash-newline idiom in an
+# ARGUMENT is treated a little more conservatively than real bash, the
+# accepted over-refusal direction (issue forbids fail-closing OUT of
+# parsing, not INTO it), never an under-detection. Same quote-span shape
+# as `gate_lib.GATE_QUOTE_SPAN` (board-gate.sh's sibling primitive this
+# splice was modeled on), duplicated here rather than imported because
+# this module has no dependency on core/hooks/lib/gate-lib.py today.
+_QUOTE_SPAN_RE = re.compile(r"(?<!\\)'[^']*'|(?<!\\)\"(?:[^\"\\]|\\.)*\"")
+_SPLICE_SCAN_RE = re.compile(_QUOTE_SPAN_RE.pattern + r"|\\+\n")
+
+
+def _splice_line_continuations(text):
+    """Delete a bash backslash-newline line continuation before this
+    module's own regexes ever see it, exactly as the real shell does --
+    but never INSIDE a quoted span, where no such continuation exists.
+
+    issue-233 independent verification round 3 (background adversarial
+    hunt agent): `pyth\`-newline-`on3 -c ...` runs, in real bash, as
+    `python3 -c ...` -- the backslash-newline pair is deleted entirely,
+    splicing the two half-words with zero residue. This gate has no
+    tokenizer at all (unlike board-gate.sh's segment splitter, fixed for
+    the same finding): `UNANALYZABLE_WRITE_SHAPE.search()` runs directly
+    against the raw command text, and every one of its boundary anchors
+    treats a bare `\n` as a hard command separator, so the resolved
+    "head word" and the `-c` flag after the continuation were never in
+    the same boundary-delimited run for any alternative to connect them.
+    Splicing first makes the spliced text read exactly like the plain
+    `python3 -c ...` shape the ORIGINAL (pre-issue-233) alternative
+    already names, needing no new pattern at all.
+
+    A run of N backslashes immediately before a newline reduces, in real
+    bash, to N // 2 literal backslash characters; if N is odd, the
+    trailing single backslash also consumes (deletes) the newline
+    itself (continuation) -- if N is even, the newline survives as a
+    genuine, unescaped separator. Applied only ahead of the
+    unanalyzable-write-shape check, not the SHELL_CHAIN/readonly-only
+    path: an over-conservative "not read-only" verdict on a literal
+    multi-line read command is an accepted, pre-existing false-refusal
+    cost (issue forbids fail-closing OUT of parsing, not INTO it), not a
+    bypass, so it is left alone rather than widening this fix's surface.
+
+    issue-233 round 4 (before-landing `warrant-hunter` dispatch,
+    background, blind to this session's own reasoning): the FIRST version
+    of this function ran `_BACKSLASH_NEWLINE_RUN_RE.sub()` unconditionally
+    over the whole raw text with no notion of quoting at all, so a
+    perfectly ordinary single-quoted read like
+    `grep 'foo t`-newline-`ee bar' file` (the backslash-newline pair here
+    is two ordinary literal characters INSIDE single quotes to real bash,
+    never a continuation) got welded into containing the literal word
+    `tee`, tripping the pre-existing, unrelated `(?:^|\s)tee\b`
+    alternative and turning a real, harmless `origin/main` ALLOW into a
+    hard DENY -- confirmed live by the hunt agent, independently
+    reproduced by this session. Rewritten as a token walk mirroring
+    board-gate.sh's own `_split_segments` (its quote-span alternative is
+    checked FIRST in the same combined regex, so a quoted span is always
+    consumed as one atomic, unmodified token before the backslash-run
+    scan ever gets a chance to look inside it): every quoted span passes
+    through completely untouched, and only a `\+\n` run found OUTSIDE any
+    quoted span is spliced.
+    """
+    out = []
+    pos = 0
+    for match in _SPLICE_SCAN_RE.finditer(text):
+        out.append(text[pos:match.start()])
+        token = match.group()
+        if token[:1] in ("'", '"'):
+            out.append(token)
+        else:
+            backslashes = token[:-1]
+            literal = "\\" * (len(backslashes) // 2)
+            out.append(literal if len(backslashes) % 2 == 1 else literal + "\n")
+        pos = match.end()
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def _segment_readonly(segment):
@@ -365,7 +600,7 @@ if tool == "Bash":
     # otherwise match WITHHELD's own tee/dd entries first and merely
     # decline to vouch (same as e.g. `git push`), which is the wrong
     # posture for a shape whose write target this gate cannot read at all.
-    if UNANALYZABLE_WRITE_SHAPE.search(command):
+    if _is_unanalyzable_write_shape(_splice_line_continuations(command)):
         print(
             "warrant: refused — this Bash call carries an un-analyzable "
             "write-capable shape (a heredoc body, an interpreter -c/-e "

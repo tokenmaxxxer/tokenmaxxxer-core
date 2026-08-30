@@ -295,20 +295,182 @@ run allow round5-pytest-computed-arg      Bash \
   '{"command":"python3 -m pytest -k \"$(echo foo)\""}'
 run allow round5-script-computed-input    Bash \
   '{"command":"python3 script.py --input \"$(pwd)/data.csv\""}'
-# var-indirected form: same flag-per-interpreter split applies. Note this
-# indirected match (VAR_INTERP_RE) is the round 1-4 substitution/expansion
-# bypass class, untouched this round -- it only ever caught -e for the
-# perl/ruby/node/nodejs group, so `P=perl; $P -c ...` still allows here
-# even though the direct `perl -c ...` form above is now denied (round 6
-# only re-derived the give-back list's direct-flag entries, per scope).
+# var-indirected form: same flag-per-interpreter split applies. issue-370
+# round 2: `P=perl; $P -c ...` used to allow here even though the direct
+# `perl -c ...` form above denies -- the indirected match's `-c` name
+# group never named perl (unlike the direct-form check), a stand-in
+# narrower than what it stood in for. Fixed by deriving both the
+# indirected and direct-form name groups from the same source, closing
+# the gap for perl (and structurally, any future multi-flag interpreter).
 run deny  round5-var-indirected-bash-c-denied Bash \
   '{"command":"P=bash; $P -c '"'"'echo hi > src/other.py'"'"'"}'
 run deny  round5-var-indirected-perl-e-denied Bash \
   '{"command":"P=perl; $P -e '"'"'open(1)'"'"'"}'
 run allow round5-var-indirected-bash-e-allowed Bash \
   '{"command":"P=bash; $P -e some/script.sh"}'
-run allow round5-var-indirected-perl-c-allowed Bash \
+run deny  round5-var-indirected-perl-c-denied Bash \
   '{"command":"P=perl; $P -c some/script.pl"}'
+
+# --- issue-233: a third adversarial review found the interpreter-head
+# masking class still leaking through spellings the two patterns above do
+# not name: parameter-default expansion (`${x:-python3}`, `${x:=bash}`)
+# and a command substitution that PRODUCES the head outright
+# (`$(echo python3)`). None of these carry a literal interpreter name at
+# the head position the two existing patterns anchor on, so a further
+# alternative naming a fourth/fifth spelling is the same closed-set trap
+# this program has already spent a month escaping elsewhere. The new
+# alternative keys off structure instead: a head token that itself begins
+# with `${`, `$(`, or a backtick is never a literal program name this
+# gate can read, regardless of which interpreter (or non-interpreter) the
+# expansion produces.
+run deny  expanded-head-param-default-dash   Bash \
+  '{"command":"${x:-python3} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  expanded-head-param-default-equals Bash \
+  '{"command":"${x:=bash} -c echo hi > src/other.py"}'
+run deny  expanded-head-cmdsub-produces-head Bash \
+  '{"command":"$(echo python3) -c open(\"src/other.py\", \"w\")"}'
+run deny  expanded-head-backtick-produces-head Bash \
+  '{"command":"`echo python3` -c open(\"src/other.py\", \"w\")"}'
+# `eval STRING` runs STRING as freshly-typed shell text with no `-c`/`-e`
+# flag at all -- the same "confirmed live" residual the issue names,
+# unconditional (like ed/ex), not gated on a flag check.
+run deny  eval-hides-interpreter-head        Bash \
+  '{"command":"eval '"'"'python3 -c \"open(1)\"'"'"'"}'
+# negative control: an expansion-headed segment with NO -c/-e flag at all
+# must NOT be over-blocked.
+run allow expanded-head-no-flag-not-overblocked Bash \
+  '{"command":"${x:-cat} src/other.py"}'
+# pure-read forms named in the issue's acceptance stay allowed.
+run allow param-expansion-path-read-allowed  Bash \
+  '{"command":"cat \"${HOME}/x\""}'
+# an interpreter given a script FILE argument (no `-c`/`-e`) is a
+# DIFFERENT, already-known-open residual (issue-227 amendment 2
+# explicitly left it out of scope) -- named here as a standing
+# negative-space marker, not claimed fixed by this issue.
+run allow script-file-arg-not-this-issue-scope Bash \
+  '{"command":"sh -x file.sh"}'
+# an unrestricted session (no docs/proposals directory at all) is
+# unaffected by the same expanded-head shape.
+run_unrestricted allow expanded-head-unrestricted-session-unaffected \
+  '{"command":"${x:-python3} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+
+# --- issue-233 hunt round: two spellings the first pass missed (an
+# independent adversarial hunt agent, blind to this fix's rationale,
+# found both by reading the code and reasoning like an attacker) --
+# (1) a QUOTED expansion head slips past a boundary-then-`$` check
+# anchored at the token's first character.
+run deny  quoted-expansion-head-double   Bash \
+  '{"command":"\"$SHELL\" -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quoted-expansion-head-backtick Bash \
+  '{"command":"\"`which python3`\" -c open(\"src/other.py\", \"w\")"}'
+run deny  quoted-positional-param-head   Bash \
+  '{"command":"\"$0\" -c open(\"src/other.py\", \"w\")"}'
+# (2) a whitespace-fusion variable that is NOT `$IFS` by name, with the
+# `-c` flag FUSED onto the head token itself (no literal space before it
+# for the spaced alternative to anchor on).
+run deny  generic-var-whitespace-fusion  Bash \
+  '{"command":"X=A; python3${X}-c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# calibration: a legitimate grep -e read must not be over-blocked merely
+# because an EARLIER argument on the same line happens to contain `$`.
+run allow grep-dollar-arg-dash-e-not-overblocked Bash \
+  '{"command":"grep \"$PATTERN\" src/other.py -e extra"}'
+
+# --- issue-233 independent verification round 2 (PR #354 CHANGES review):
+# `$`/backtick is generic across ways of PRODUCING those two characters,
+# but not against shell WORD FORMATION -- brace expansion and quote-
+# splicing produce a resolvable interpreter head with neither character
+# present anywhere in the literal command text, confirmed live against
+# the pre-fix gate (real file write).
+run deny  brace-expansion-null-field-head Bash \
+  '{"command":"{python3,} -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quote-splice-single-quotes      Bash \
+  '{"command":"pyt'"'"''"'"'hon3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run deny  quote-splice-double-quotes      Bash \
+  '{"command":"pyt\"hon\"3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# negative control: a head merely quoted or brace-decorated with NO -c/-e
+# flag at all must not be over-blocked.
+run allow quoted-head-no-flag-not-overblocked Bash \
+  '{"command":"\"cat\" src/other.py"}'
+run allow braced-head-no-flag-not-overblocked Bash \
+  '{"command":"{cat} src/other.py"}'
+# negative control: braces in the PROGRAM TEXT argument (not the head
+# token) must not be over-blocked.
+run allow awk-braces-in-program-not-overblocked Bash \
+  '{"command":"awk '"'"'{print $1}'"'"' src/other.py"}'
+
+# --- issue-233 independent verification round 3 (background adversarial
+# hunt agent): a mid-word backslash escape, confirmed live.
+run deny  backslash-escape-spelling      Bash \
+  '{"command":"p\\y\\t\\h\\o\\n3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+run allow backslash-escaped-head-no-flag-not-overblocked Bash \
+  '{"command":"\\cat src/other.py"}'
+# a backslash-newline line continuation splices two half-words with zero
+# residue; UNANALYZABLE_WRITE_SHAPE has no tokenizer at all (unlike
+# board-gate.sh's segment splitter), so this needs `command` spliced
+# ahead of the regex scan rather than a new pattern.
+run deny  backslash-newline-splice       Bash \
+  '{"command":"pyth\\\non3 -c open(\"src/other.py\", \"w\").write(\"1\")"}'
+# issue-233 round 4 (before-landing warrant-hunter): the FIRST splice
+# implementation was quote-blind and welded a literal backslash-newline
+# pair INSIDE a single-quoted grep pattern into the bare word `tee`,
+# turning an ordinary read into a false deny. Inside single quotes real
+# bash performs NO escape processing at all -- this backslash and this
+# newline are two untouched literal characters, never a continuation --
+# so this must stay allow.
+run allow backslash-newline-inside-single-quotes-not-overblocked Bash \
+  '{"command":"grep '"'"'foo t\\\nee bar'"'"' src/other.py"}'
+
+# --- issue-233 CHANGES review (PR #358): an escaped-space real filesystem
+# path to an interpreter (ordinary shell syntax -- what bash's own
+# tab-completion inserts) is neither expansion nor quote-splicing, but
+# this gate's boundary-anchored "any unsafe char in the run up to -c/-e"
+# scan does not need to resolve a precise head token the way
+# board-gate.sh's tokenizer does -- a stray backslash or quote character
+# anywhere in that run already trips the same allowlist-complement
+# alternative, so both directions were already correct here with no code
+# change; recorded as regression coverage, not a fix.
+run deny  escaped-space-interpreter-path-c-flag Bash \
+  '{"command":"/opt/My\\ Python/python3 -c \"open(1)\""}'
+run allow escaped-space-interpreter-path-no-flag-not-overblocked Bash \
+  '{"command":"/opt/My\\ Python/python3 -m pytest -q"}'
+# a quoted path containing spaces stresses the identical boundary the
+# escaped-space form does.
+run deny  quoted-path-with-spaces-c-flag    Bash \
+  '{"command":"\"/opt/My Python/python3\" -c \"open(1)\""}'
+run allow quoted-path-with-spaces-no-flag-not-overblocked Bash \
+  '{"command":"\"/opt/My Python/python3\" -m pytest -q"}'
+# known, disclosed, OUT-OF-SCOPE residual (not this issue's word-formation
+# class): this gate has no tokenizer at all (see _splice_line_continuations's
+# own docstring) and its literal-interpreter-name alternative only matches
+# right after a boundary, so a full absolute path to an interpreter --
+# escaped/quoted or perfectly plain, e.g. `/usr/bin/python3 -c ...` --
+# never resolves to a basename the way board-gate.sh's gate_head_of does.
+# board-gate.sh does not share this gap (it extracts the basename after
+# the last `/`). Left unfixed here: closing it means giving this gate a
+# real path/basename resolver, a materially larger change than making the
+# existing scan aware of escaped/quoted whitespace, and orthogonal to the
+# expansion/word-formation class issue-233 targets.
+run allow absolute-path-interpreter-c-flag-not-caught-preexisting-gap Bash \
+  '{"command":"/usr/bin/python3 -c \"open(1)\""}'
+# known, disclosed, OUT-OF-SCOPE residual, same class as the one above:
+# PR #354's own "Out of scope" list already named a quoted `-c`/`-e` flag
+# on a LITERAL (undecorated) interpreter head (`python3 "-c" ...`) as a
+# disclosed, accepted gap -- this gate's regex requires a literal `-c`/
+# `-e` immediately after whitespace, and any single-token decoration on
+# the FLAG word (not the head) defeats that adjacency regardless of which
+# decoration mechanism is used. The before-landing warrant-hunt for this
+# delivery found ANSI-C quoting (`$'-c'`) reproduces the identical gap on
+# `core/hooks/board-gate.sh` (fixed there -- its tokenizer resolves
+# `$'-c'` to the plain word "-c" before the flag-membership check ever
+# runs); this gate has no equivalent tokenizer for FLAG words (only the
+# HEAD-adjacent character-class scan `_splice_line_continuations`
+# feeds), so the same `$'-c'` shape still passes through here. Named
+# explicitly (extending the existing disclosure to this decoration
+# mechanism) rather than fixed: closing it needs a real flag-word
+# tokenizer, not an escaped/quoted-whitespace-aware HEAD scan, and no
+# head decoration is involved in this shape at all.
+run allow ansi-c-quoted-flag-word-not-caught-preexisting-gap Bash \
+  '{"command":"python3 $'"'"'-c'"'"' \"open(1)\""}'
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
