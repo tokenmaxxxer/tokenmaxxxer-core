@@ -705,3 +705,51 @@ pinning the three observed refusals as `allow` (`mkdir`, `git add` of a
 file, `git add` of the directory), a genuine-foreign-record `deny`
 control, and one path shape outside the fixture set above (a plain
 redirect to the slug's own `.md` record file, not a directory member).
+
+## issue-233: interpreter-head-via-single-token-expansion, closed generically
+
+issue-227's `INTERPRETER_HEADS`/`FUSED_INTERP_RE`/`VAR_INTERP_RE`
+machinery (this file's own entries above) each enumerate one more literal
+interpreter-name spelling for `gate_head_of`/a text scan to find — and
+three consecutive rounds (#227 R3, then this issue's own opening) found
+the class leaking via a spelling none of them named: a parameter-default/
+parameter-assign expansion (`${x:-python3}`, `${x:=bash}`) or a command
+substitution that PRODUCES the head (`$(echo python3)`) never puts a
+literal interpreter name where any of those checks look — `gate_head_of`'s
+naive `.split()` returns the whole `${...}` or the pre-space slice of
+`$(...)` as `head`, which matches no entry in `INTERPRETER_HEADS`.
+
+Closed by checking the SHAPE instead of another spelling: a new
+`EXPANSION_HEAD_C_FLAG_RE` matches a segment whose head is entirely a
+single-token expansion — `${...}` (any inner form), `$(...)` (one level
+of nested parens allowed), a backtick span, or a bare `$VAR`, optionally
+`"..."`-wrapped (only single quotes make an expansion literal) —
+immediately followed by a `-c`/`-e`-shaped flag. `warrant/hooks/lib/
+scope-gate.py`'s `UNANALYZABLE_WRITE_SHAPE` regex got the identical new
+alternative. Neither file's LITERAL-interpreter-head handling
+(`INTERPRETER_HEADS`, `INLINE_FLAG_WORDS`) changed — this is additive
+only, so it cannot reopen the `perl -c` false-allow a different, unmerged
+approach to this same issue introduced by narrowing that literal-head
+flag set (issue-233 round 5's own adversarial review).
+
+An adversarial hunt round confirmed and closed four more spellings of the
+same shape before landing: a bare unbraced `$VAR` head with no
+assignment anywhere in the command text (broader than the existing
+`VAR_INTERP_RE`, which only fires when the same variable is assigned an
+interpreter name earlier in the visible text); the same expansion forms
+wrapped in double quotes; a command substitution nesting another
+substitution one level deep; and the `-e` flag spelling (not just `-c`).
+
+Explicitly out of scope, named in the issue text as already-known,
+non-blocking, and a different bypass mechanism (not single-token-
+expansion masking): `eval '...'` (a literal wrapper word already visible
+in the command text) and `sh -x file.sh` (the `-x` trace flag executing a
+script FILE, not `-c`/`-e` inline code).
+
+`run-board-gate-tests.sh` and `run-scope-gate-tests.sh` each pin 8 new
+deny cases (`param-default-expansion-head-c`, `param-assign-expansion-
+head-c`, `cmdsub-produced-head-c`, `bare-var-head-c`, `quoted-expansion-
+head-c`, `nested-cmdsub-produced-head-c`, `backtick-produced-head-c`,
+`expansion-head-e-flag`) and 4 allow controls confirming the pure-read
+forms named in the issue (`${HOME}/x`, `awk '{print}' file`) and their
+quoted-expansion equivalents stay allowed.
