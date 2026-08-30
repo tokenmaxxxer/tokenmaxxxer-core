@@ -39,14 +39,14 @@
 # never because the command is inherently dangerous. A command built to
 # deliberately hide its own write target from this pre-expansion text
 # read (bash's expansion grammar can rewrite a word into anything) is
-# outside what this gate claims to bound; closing that class needs a
-# different seam — the shell's own post-expansion argv — not a longer
-# denylist of spellings here. The threat model this gate holds is a
-# cooperative session drifting out of its lane, not an adversary routing
-# around it. The same limit holds on the head side. An interpreter head
-# that bash's own expansion grammar assembles -- brace expansion, ANSI-C
+# out of this gate's jurisdiction; closing that class needs a different
+# seam — the shell's own post-expansion argv — not a longer denylist of
+# spellings here. The threat model this gate holds is a cooperative
+# session drifting out of its lane, not an adversary routing around it.
+# The same limit holds on the head side. An interpreter head that
+# bash's own expansion grammar assembles -- brace expansion, ANSI-C
 # quoting, a hex-escaped word, or variable indirection -- is equally
-# outside what this gate claims to catch.
+# out of this gate's jurisdiction.
 #
 # There is no token machinery: human approval is a PR merge, feedback is a
 # PR comment, refusal is an issue/PR close — GitHub acts, not hook state.
@@ -860,7 +860,7 @@ if unanalyzable and skill and is_board:
          "The same limit holds on the head side. An interpreter head that "
          "bash's own expansion grammar assembles -- brace expansion, "
          "ANSI-C quoting, a hex-escaped word, or variable indirection -- "
-         "is equally outside what this gate claims to catch."
+         "is equally out of this gate's jurisdiction."
          % ("; ".join(unanalyzable), skill))
 
 if not hits:
