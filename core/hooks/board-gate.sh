@@ -808,6 +808,38 @@ EXPANDED_HEAD_RE = re.compile(r"[^A-Za-z0-9_./+=@:-]")
 # `re.search` over the whole thing), so this can only ever match the head
 # token itself, never a later argument.
 EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z]*[ce]\b")
+# issue-370 salvage: a head that is NOTHING but a bare `$NAME`/`${NAME}`
+# variable reference is a special case of EXPANDED_HEAD_RE that VAR_INTERP_RE
+# below already owns: whenever the same variable's value is a literal
+# interpreter name assigned earlier in the same command text, VAR_INTERP_RE
+# decides -- precisely, per its own (round-1-4, not round-6-narrowed) flag
+# grouping -- whether that combination denies. Two integration-only
+# regressions this salvage would otherwise reopen (found live, not in
+# either round's own PR, and not covered by any existing test on either
+# side): `P=bash; $P -e ...` and `P=perl; $P -c ...` -- both explicitly
+# left as the accepted, disclosed residual by round 6's own comment ("round
+# 6 only re-derived the give-back list's direct-flag entries, per scope")
+# -- fell back into EXPANDED_HEAD_RE's conservative BLANKET
+# `INLINE_FLAG_WORDS` check below (which does not know VAR_INTERP_RE's
+# grouping, only that -c/-e are inline-code flags for SOME interpreter),
+# denying two invocations that must stay allowed to match origin/main's own
+# tested behavior. When the assignment is visible and literal, this defers
+# entirely to VAR_INTERP_RE's own verdict instead of blanket-checking here;
+# when no such assignment is visible (`$P` set only in the environment, or
+# never assigned at all), the existing conservative blanket check is
+# unchanged -- that residual is the genuine interpreter-head-via-expansion
+# class this salvage exists to keep closed.
+_BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
+
+
+def _bare_var_has_literal_interp_assignment(head, full_cmd):
+    m = _BARE_VAR_HEAD_RE.match(head)
+    if not m or full_cmd is None:
+        return False
+    name = re.escape(m.group(1))
+    return re.search(
+        r"\b%s=(?:python3?|python2|bash|sh|zsh|perl|ruby|node|nodejs)\b" % name,
+        full_cmd) is not None
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -833,8 +865,9 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
         if any(w in INLINE_FLAG_HEADS[head] for w in gate_lib.gate_trailing_words(stripped)):
             return True
     elif EXPANDED_HEAD_RE.search(head):
-        if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
-            return True
+        if not _bare_var_has_literal_interp_assignment(head, full_cmd):
+            if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+                return True
     if EXPANDED_HEAD_FUSED_FLAG_RE.match(stripped):
         return True
     if head in WRITE_UNSAFE_HEADS:

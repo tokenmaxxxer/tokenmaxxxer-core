@@ -305,7 +305,22 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # unrecognized. Still requires a real `-c`/`-e` flag later on the same
     # head word's boundary-delimited run, so a merely decorated head with
     # no code flag stays unaffected.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
+)
+# issue-370 salvage: the two allowlist-complement alternatives above (spaced
+# and fused flag) are pulled into their own regex, with the head-ish token
+# captured, rather than left inline in UNANALYZABLE_WRITE_SHAPE -- so a
+# match can be checked against _bare_var_has_literal_interp_assignment
+# before it counts as a deny. Without this split, a bare `$NAME`/`${NAME}`
+# head is indistinguishable from a genuine unresolvable expansion, and
+# round 5/6's per-interpreter give-back (INLINE_FLAG_HEADS' board-gate.sh
+# equivalent, mirrored here in the per-flag alternatives on lines 176-178)
+# never reaches the var-indirected case that VAR_INTERP_RE (lines 216-219)
+# already owns -- `P=bash; $P -e ...` and `P=perl; $P -c ...`, both
+# explicitly left allowed as round 6's own disclosed, out-of-scope
+# residual, would otherwise fall back into this blanket -c/-e check (found
+# live integrating this salvage, not in either round's own PR).
+EXPANDED_HEAD_GENERIC_RE = re.compile(
+    r"(?:^|;|&&|\|\||\||\n)\s*(\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*)[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
     # The fusion example above (`python3${X}-c`) puts the `-c`/`-e` flag
     # FUSED onto the same head word, with no literal space before it at
     # all -- the `\s-[A-Za-z]*[ce]` tail above requires that space and
@@ -313,8 +328,29 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # case: same head-token boundary, but the flag ends the SAME
     # whitespace-delimited word the expansion sits in, not a later one.
     # Same allowlist-complement widening as the spaced alternative above.
-    r"|(?:^|;|&&|\|\||\||\n)\s*\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*-[A-Za-z]*[ce]\b"
+    r"|(?:^|;|&&|\|\||\||\n)\s*(\S*[^A-Za-z0-9_./+=@:\s;&|-]\S*)-[A-Za-z]*[ce]\b"
 )
+_BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
+
+
+def _bare_var_has_literal_interp_assignment(head, full_cmd):
+    m = _BARE_VAR_HEAD_RE.match(head)
+    if not m:
+        return False
+    name = re.escape(m.group(1))
+    return re.search(
+        r"\b%s=(?:python3?|python2|bash|sh|zsh|perl|ruby|node|nodejs)\b" % name,
+        full_cmd) is not None
+
+
+def _is_unanalyzable_write_shape(command):
+    if UNANALYZABLE_WRITE_SHAPE.search(command):
+        return True
+    for m in EXPANDED_HEAD_GENERIC_RE.finditer(command):
+        head = m.group(1) or m.group(2)
+        if not _bare_var_has_literal_interp_assignment(head, command):
+            return True
+    return False
 
 # Inside SINGLE quotes, bash performs NO escape processing at all --
 # checked live, `echo 'foo t\<newline>ee bar'` prints the backslash and
@@ -545,7 +581,7 @@ if tool == "Bash":
     # otherwise match WITHHELD's own tee/dd entries first and merely
     # decline to vouch (same as e.g. `git push`), which is the wrong
     # posture for a shape whose write target this gate cannot read at all.
-    if UNANALYZABLE_WRITE_SHAPE.search(_splice_line_continuations(command)):
+    if _is_unanalyzable_write_shape(_splice_line_continuations(command)):
         print(
             "warrant: refused — this Bash call carries an un-analyzable "
             "write-capable shape (a heredoc body, an interpreter -c/-e "
