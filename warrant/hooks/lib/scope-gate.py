@@ -141,6 +141,20 @@ FIND_EXEC_FLAGS = re.compile(
 # is actually being enforced (exactly one proposal approved, the branch
 # this whole block already runs in) -- an unrestricted session with no
 # approved proposal never reaches here (stand_down() above).
+#
+# Jurisdiction limit (issue-233): this is a write-set discipline check,
+# not a security sandbox. It reads the command TEXT before the shell runs
+# it, and it catches every write shape that text states literally -- a
+# plain `python3 -c "..."`, a plain heredoc, a plain `dd`. It does not
+# claim to catch a shape where bash's own expansion grammar produces the
+# interpreter HEAD (e.g. `python3`) or its inline-code FLAG (e.g. `-c`/
+# `-e`) instead of the command text naming either directly -- brace
+# expansion, ANSI-C quoting, a hex-escaped word, variable indirection, or
+# any other rewrite bash performs before exec. Both sides are the same
+# unbounded grammar for the same reason: a pre-expansion text read cannot
+# compute what bash is about to produce, on the head or on the flag, so
+# closing either needs a different seam (the shell's own post-expansion
+# argv), not one more spelling added here.
 UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"<<-?\s*['\"]?\w"
     r"|(?:^|\s)(?:python3?|bash|sh|zsh|perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*[ce](?:\s|=|$)"
@@ -336,7 +350,12 @@ if tool == "Bash":
             "so this refuses rather than risk a masked out-of-set write "
             "(issue-225). Use a provably read-only invocation (e.g. "
             "python3 -m pytest), or write through Write/Edit or a plain "
-            "redirect the write-set check can read the target of."
+            "redirect the write-set check can read the target of. This is "
+            "a write-set discipline check, not a security boundary "
+            "(issue-233): it catches a write shape the command text "
+            "states literally, and it does not claim to catch a shape "
+            "where the interpreter head or its flag is itself produced "
+            "by an expansion rather than named directly in the text."
             % proposal_path,
             file=sys.stderr,
         )

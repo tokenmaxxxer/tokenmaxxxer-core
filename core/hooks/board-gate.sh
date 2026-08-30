@@ -32,6 +32,22 @@
 #       per-role extra subtree the contract grants (feasibility: spikes/**,
 #       ops: postmortems/**). Foreign-record writes are refused (s11).
 #
+# Jurisdiction limit (issue-233): this is a write-set discipline check for
+# R1/R4/R5, not a security sandbox. It reads the command TEXT before the
+# shell runs it, and it catches every write shape that text states
+# literally — a plain `python3 -c "..."`, a plain heredoc, a plain `dd`.
+# It does not claim to catch a shape where bash's own expansion grammar
+# produces the interpreter HEAD (e.g. `python3`) or its inline-code FLAG
+# (e.g. `-c`/`-e`) instead of the command text naming either directly —
+# brace expansion, ANSI-C quoting, a hex-escaped word, variable
+# indirection, or any other rewrite bash performs before exec. Both sides
+# are the same unbounded grammar for the same reason: a pre-expansion text
+# read cannot compute what bash is about to produce, on the head or on the
+# flag, so closing either needs a different seam (the shell's own
+# post-expansion argv), not one more spelling added here. The threat model
+# this gate holds is a cooperative session drifting out of its lane, not
+# an adversary routing around it.
+#
 # There is no token machinery: human approval is a PR merge, feedback is a
 # PR comment, refusal is an issue/PR close — GitHub acts, not hook state.
 #
@@ -750,7 +766,12 @@ if unanalyzable and skill and is_board:
          "refuses rather than risk a masked out-of-set write (issue-225 — "
          "the on-the-record PR #1627 bypass). Use a provably read-only "
          "invocation (e.g. python3 -m pytest), or write through "
-         "Write/Edit or a plain redirect this gate can read the target of."
+         "Write/Edit or a plain redirect this gate can read the target of. "
+         "This is a write-set discipline check, not a security boundary "
+         "(issue-233): it catches a write shape the command text states "
+         "literally, and it does not claim to catch a shape where the "
+         "interpreter head or its flag is itself produced by an expansion "
+         "rather than named directly in the text."
          % ("; ".join(unanalyzable), skill))
 
 if not hits:
