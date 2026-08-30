@@ -16,11 +16,31 @@ command -v python3 >/dev/null 2>&1 || { trap - EXIT; exit 0; }
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
 root="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || { trap - EXIT; exit 0; }
 [ -n "$root" ] || { trap - EXIT; exit 0; }
-[ -d "$root/docs/proposals" ] || { trap - EXIT; exit 0; }
 
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
-WARRANT_ROOT="$root" WARRANT_BRANCH="$branch" python3 <<'PY'
+# issue-scoped session (CLAUDE_SKILL set AND branch resolves to exactly
+# issue-<n>/<CLAUDE_SKILL>, board-gate.sh R4's own pattern:
+# `^issue-([0-9]+)/(.+)$` with group(2) == skill, board-gate.sh:1003):
+# a role session only ever writes its own proposals under
+# docs/issue-<n>/proposals/ (the per-issue layout every --skills spawn
+# uses per on-the-record#2572) and only ever acts inside its own
+# issue's tree — the top-level docs/proposals/ directory holds OTHER
+# units it has no mandate to touch. Scope the scan there instead; fall
+# back to the top-level directory unchanged for anything that doesn't
+# match — a non-issue-scoped (interactive/operator) session, or a
+# branch whose issue segment isn't purely numeric. The issue number
+# must be digits-only (not a bash glob like `issue-*`, which would
+# also match a non-numeric fragment such as `issue-40b/<skill>` and
+# then silently miss a real top-level open unit when the resulting
+# docs/issue-40b/proposals/ doesn't exist).
+proposals_rel="docs/proposals"
+if [ -n "${CLAUDE_SKILL:-}" ] && [[ "$branch" =~ ^issue-([0-9]+)/(.+)$ ]] && [ "${BASH_REMATCH[2]}" = "${CLAUDE_SKILL}" ]; then
+  proposals_rel="docs/issue-${BASH_REMATCH[1]}/proposals"
+fi
+[ -d "$root/$proposals_rel" ] || { trap - EXIT; exit 0; }
+
+WARRANT_ROOT="$root" WARRANT_BRANCH="$branch" WARRANT_PROPOSALS_REL="$proposals_rel" python3 <<'PY'
 import os
 import re
 import subprocess
@@ -29,7 +49,8 @@ import time
 
 root = os.environ["WARRANT_ROOT"]
 branch = os.environ.get("WARRANT_BRANCH", "")
-proposals = os.path.join(root, "docs", "proposals")
+proposals_rel = os.environ["WARRANT_PROPOSALS_REL"]
+proposals = os.path.join(root, *proposals_rel.split("/"))
 
 STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
 
@@ -76,14 +97,14 @@ for name in sorted(os.listdir(proposals)):
     if block is None:
         continue
     if block is _UNCLOSED:
-        malformed_units.append("docs/proposals/" + name)
+        malformed_units.append(proposals_rel + "/" + name)
         continue
     found = STATUS.search(block)
     status = found.group(1).lower() if found else "proposed"
     if status in ("proposed", "approved"):
-        open_units.append((status, "docs/proposals/" + name))
+        open_units.append((status, proposals_rel + "/" + name))
     elif status in ("withdrawn", "rejected"):
-        closed_units.append((status, "docs/proposals/" + name))
+        closed_units.append((status, proposals_rel + "/" + name))
 
 if not open_units and not closed_units and not malformed_units:
     sys.exit(0)

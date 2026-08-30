@@ -96,8 +96,21 @@ EOF
   exit 0
 fi
 
-DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol.md"
-cat <<EOF
+if [ "${CORE_BUILD_NOW:-}" = "1" ]; then
+  DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol-build-now.md"
+  cat <<EOF
+[core] Interaction protocol for role ${skill} (role-handoff contract v3), build-now (single-phase). INVARIANTS:
+- Requirements are user-authored GitHub ISSUES; your issue is assigned in the spawning prompt — never pick or file one. No issue named: ask and stop.
+- ALL output returns as a PULL REQUEST from branch issue-<n>/${skill}; never push main. The board is what is MERGED to main, not open PRs.
+- Build-now (s19a): CORE_BUILD_NOW=1 is set — skip the proposal round, deliver directly: build on issue-<n>/${skill}, commit code and your record, open one PR. The two-phase default, checkpoint mode, and Approve-signal mechanics do not apply this run; never grant yourself this bypass.
+- Layout: code src/, tests test/, docs/ six buckets; your record is docs/issue-<n>/reports/${skill}.md, and you write only your own record area. docs/issue-<n> commits use git commit -m with a Subject: issue-<n> trailer; git add new files explicitly first.
+- A session that stages a change to any docs/specs/* file also regenerates docs/specs/reconciled-index.md (python3 gates/spec_index.py --update) in the same commit, where the repo ships that generator.
+- This build-now PR is the delivery PR: it must carry Closes/Fixes/Resolves #<issue> (issue complete) or Advances/Part of #<issue> (intentionally partial) — never neither.
+- Verification is verify-at-landing: a deliverable is work plus EXECUTED acceptance evidence — command and output in your record. Do not author persistent test files by default. Never omit SKIPPED lines; a hand-typed pass count must equal the pasted summary count.
+EOF
+else
+  DFILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}/directive/session-protocol.md"
+  cat <<EOF
 [core] Interaction protocol for role ${skill} (role-handoff contract v3). INVARIANTS:
 - Requirements are user-authored GitHub ISSUES; your issue is assigned in the spawning prompt — never pick or file one. No issue named: ask and stop.
 - ALL output returns as a PULL REQUEST from branch issue-<n>/${skill}; never push main. The board is what is MERGED to main, not open PRs.
@@ -108,6 +121,7 @@ cat <<EOF
 - PR trailer phase split: a phase-1 proposal PR references its issue as a plain #<issue>; Closes/Fixes/Resolves #<issue> is forbidden until the phase-2 delivery PR, which must carry it.
 - Verification is verify-at-landing: a deliverable is work plus EXECUTED acceptance evidence — command and output in your record. Do not author persistent test files by default. Never omit SKIPPED lines; a hand-typed pass count must equal the pasted summary count.
 EOF
+fi
 
 # issue-299: this used to end with "Read ${DFILE} NOW, before any work" —
 # on-the-record #2204 measured that exact imperative-Read shape costing a
