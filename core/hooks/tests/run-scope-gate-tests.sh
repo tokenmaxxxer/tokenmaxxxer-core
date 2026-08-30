@@ -295,19 +295,20 @@ run allow round5-pytest-computed-arg      Bash \
   '{"command":"python3 -m pytest -k \"$(echo foo)\""}'
 run allow round5-script-computed-input    Bash \
   '{"command":"python3 script.py --input \"$(pwd)/data.csv\""}'
-# var-indirected form: same flag-per-interpreter split applies. Note this
-# indirected match (VAR_INTERP_RE) is the round 1-4 substitution/expansion
-# bypass class, untouched this round -- it only ever caught -e for the
-# perl/ruby/node/nodejs group, so `P=perl; $P -c ...` still allows here
-# even though the direct `perl -c ...` form above is now denied (round 6
-# only re-derived the give-back list's direct-flag entries, per scope).
+# var-indirected form: same flag-per-interpreter split applies. issue-370
+# round 2: `P=perl; $P -c ...` used to allow here even though the direct
+# `perl -c ...` form above denies -- the indirected match's `-c` name
+# group never named perl (unlike the direct-form check), a stand-in
+# narrower than what it stood in for. Fixed by deriving both the
+# indirected and direct-form name groups from the same source, closing
+# the gap for perl (and structurally, any future multi-flag interpreter).
 run deny  round5-var-indirected-bash-c-denied Bash \
   '{"command":"P=bash; $P -c '"'"'echo hi > src/other.py'"'"'"}'
 run deny  round5-var-indirected-perl-e-denied Bash \
   '{"command":"P=perl; $P -e '"'"'open(1)'"'"'"}'
 run allow round5-var-indirected-bash-e-allowed Bash \
   '{"command":"P=bash; $P -e some/script.sh"}'
-run allow round5-var-indirected-perl-c-allowed Bash \
+run deny  round5-var-indirected-perl-c-denied Bash \
   '{"command":"P=perl; $P -c some/script.pl"}'
 
 # --- issue-233: a third adversarial review found the interpreter-head
