@@ -848,9 +848,15 @@ EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z
 # the assignment is visible and literal, this defers entirely to
 # VAR_INTERP_RE's own verdict instead of blanket-checking here; when no
 # such assignment is visible (`$P` set only in the environment, or never
-# assigned at all), the existing conservative blanket check is unchanged --
-# that residual is the genuine interpreter-head-via-expansion class this
-# salvage exists to keep closed.
+# assigned at all), the Python judge's conservative blanket check is
+# unchanged and applies whenever the judge runs. But for the true
+# env-only case -- no literal interpreter name anywhere in the payload
+# text -- the shell-level UNANALYZABLE_HEAD_RE fast path above can exit
+# before the judge is ever invoked, so that blanket check does not
+# run for this sub-case and this comment makes no closure claim about
+# it. Low practical exploitability: Claude Code's own Bash tool does not
+# persist shell state across separate tool calls, so `$P` cannot be set
+# in one call and relied on surviving to a later, separately-gated one.
 _BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
 
 
