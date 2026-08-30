@@ -706,6 +706,70 @@ file, `git add` of the directory), a genuine-foreign-record `deny`
 control, and one path shape outside the fixture set above (a plain
 redirect to the slug's own `.md` record file, not a directory member).
 
+**issue-361: the `*docs*` fast-path let a runtime-computed write target
+skip the gate entirely.** `board-gate.sh` opens with a shell-level
+pre-check, before python3 ever starts: `case "$payload" in *docs*) ;; *)
+exit 0 ;; esac` — if the literal substring `docs` never appears anywhere
+in the raw command text, the hook exits 0 with no analysis at all, and a
+second, independent copy of the same bet (`if DOCS in cmdline:`) gated
+the python judge's own Bash-handling branch one layer further in, so even
+a command that somehow reached python3 without a `docs` hit still
+contributed nothing to `candidates`/`unanalyzable`. Disclosed live by
+PR #360's delivery of issue-233 (out of scope there, not a defect in that
+PR): `python3 -c "..."` building its write target at Python runtime from
+`chr()` codes carries no `docs` substring in the *Bash* command text even
+though the target path is `docs/issue-3/reports/pwned.md` once the
+interpreter runs it — the fast path (and its python-layer twin) waved the
+call through, silently skipping issue-225's own unanalyzable-write-shape
+deny, which exists precisely to refuse commands whose write target isn't
+visible in the text.
+
+**Why a second literal-name scan does not repeat the bug, and where it
+does not reach.** A write *target* can be built entirely at interpreter
+runtime and never appear as text — that's the whole defect class. The
+*shape* markers that make a write unanalyzable in the first place — an
+interpreter head (`INTERPRETER_HEADS`) paired with an inline `-c`/`-e`
+flag (`INLINE_FLAG_WORDS`), a write-unsafe head (`WRITE_UNSAFE_HEADS`),
+a heredoc (`<<`), or an `$IFS`/`${IFS` fusion — are caught by this scan
+only *when they are spelled literally* in the command text. This is a
+deliberately over-inclusive proxy, not a soundness guarantee: a false
+positive costs one extra python3 call, never a missed analysis, but a
+head assembled through bash's expansion grammar reaches the shell the
+same way a literal head does. A variable holding a `printf`-octal-decoded
+interpreter name is one confirmed shape (issue-361 PR #377), and this
+scan does not catch it. Nothing else in the gate catches it either —
+closing that class is out of this gate's jurisdiction (issue-233 round 5,
+PR #367), the same limit that already excludes a hidden write target
+from this fast path. This scan is not a widening of the
+`docs`/`reports`-style path-name scan (still just `docs`); it's an
+independent scan for the literally-spelled subset of the same shape
+vocabulary the python judge already treats as unanalyzable.
+Boundary-anchored (`(^|[^a-zA-Z0-9_])...`) so `python3 -m pytest` (head
+present, no `-c`/`-e` word) and `grep -c`/`echo -e` (flag word present, no
+interpreter head) both stay on the fast path — only the AND of the two
+(or a bare write-unsafe head, heredoc, or `$IFS`) forces the python judge.
+The python-layer `if DOCS in cmdline:` gate was removed outright rather
+than mirrored: once python3 has already started, the segment-scan it
+guarded is pure-Python string/regex work, not a subprocess — the cost the
+gate exists to dodge was already paid to reach that line.
+
+**Measured cost (issue-361 acceptance).** Interleaved single-call timing
+of `git status` (fast-path-eligible, before vs. after, alternating so
+neither run gets a cold-cache advantage), N=200–300 per trial, three
+trials: the shell-level shape scan adds **~0.7–0.9ms per ordinary Bash
+call** (~4–6% relative) over the pre-existing `*docs*`-only fast path.
+Removing the pre-check entirely (always running the full python judge)
+costs **~30ms/call** by comparison (measured via the same harness against
+a `docs/`-write payload that already forces full analysis) — the fix
+keeps upwards of 97% of the original fast path's savings while a `python3
+-c`/`-e` (or heredoc/`dd`/`$IFS`) shape with no `docs` substring now
+denies. The full-analysis (`docs`-write) path itself shows no measurable
+regression from removing the redundant `if DOCS in cmdline:` gate.
+`chr-assembled-path-no-docs-substring` and
+`unanalyzable-shape-no-docs-substring` in `run-board-gate-tests.sh` pin
+the close; `ordinary-command-still-fast-path` and
+`interpreter-head-without-flag-fast-path` pin the preserved savings.
+
 ## issue-233 round 5: jurisdiction limit stated explicitly; `-c`/`-e` narrowed to a per-interpreter allowlist
 
 Rounds 1-4 of issue-233 treated `_is_unanalyzable_write_shape`'s
