@@ -179,7 +179,15 @@ instead of three that agree.
 
 ## What did not work
 
-None.
+Attempted `gh pr close 378` to close the superseded PR after opening
+PR #382. Refused by `pretooluse-dispatcher.sh`'s `gh-guard`: "merging or
+closing a PR is the human's acceptance/refusal — a role session only
+opens PRs and pushes to its own issue branch (two-account model,
+contract v3 s8)." Posted a comment on PR #378 instead
+(`derived: gh pr comment 378 --repo tokenmaxxxer/tokenmaxxxer-core
+--body-file ...` — succeeded, comment
+https://github.com/tokenmaxxxer/tokenmaxxxer-core/pull/378#issuecomment-5467108287)
+pointing at PR #382 and flagging that a human needs to close #378.
 
 ## Upstream basis
 
@@ -285,5 +293,7 @@ Each re-derived live on this branch against `origin/main`
 
 ## Next steps
 
-None — `loop_state: landed`. PR #378 (superseded by this delivery) will
-be closed with a comment pointing at the PR this record ships with.
+None for this session — `loop_state: landed`. This record ships as PR
+#382. PR #378 (superseded) carries a comment pointing at #382; a human
+needs to close #378 (role sessions cannot close PRs, per "What did not
+work" above).
