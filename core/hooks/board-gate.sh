@@ -620,6 +620,17 @@ INLINE_FLAG_HEADS = {
     "perl": ("-e", "-c"), "ruby": ("-e",),
     "node": ("-e",), "nodejs": ("-e",),
 }
+# issue-233: an expansion-produced head (EXPANDED_HEAD_RE below) can never be
+# looked up in INLINE_FLAG_HEADS -- the token is literal `$`/backtick text,
+# not a real interpreter name -- so which flag actually means "run this
+# string as code" is unknown until expansion time. The blanket union of
+# every flag any head in the table gives inline-execution meaning to is the
+# conservative fallback for that unresolvable case; it must never be
+# consulted for a head that IS in INLINE_FLAG_HEADS (that lookup already
+# gives the exact, narrower answer per-interpreter and must not regress to
+# this wider set, e.g. bash's -e give-back).
+INLINE_FLAG_WORDS = frozenset(
+    flag for flags in INLINE_FLAG_HEADS.values() for flag in flags)
 # issue-227: `${IFS}`/`$IFS` used in place of a literal space fuses what
 # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."` reads,
 # to whitespace-splitting code, as ONE word) -- gate_head_of's
@@ -637,7 +648,16 @@ IFS_TOKEN_RE = re.compile(r"\$IFS(?![A-Za-z0-9_])|\$\{IFS(?=[:}])")
 # `ed`/`ex` write via script commands (`w file`) -- neither takes a `-c`/`-e`
 # flag the interpreter branch below would catch, so they were absent from
 # the write-capable set entirely.
-WRITE_UNSAFE_HEADS = ("dd", "awk", "gawk", "nawk", "mawk", "ed", "ex")
+# issue-233: `eval STRING` runs STRING as freshly-typed shell text this
+# gate never parses -- no `-c`/`-e` flag involved at all (that's `eval`'s
+# whole job, unconditionally, the same reason gate_lib.gate_wrapper_head_before
+# already treats `eval` as always-code with no flag check, unlike every
+# other WRAPPER_HEADS member). Unconditional, same bucket as ed/ex (a
+# script/command text this gate cannot parse out of the invocation at
+# all) rather than awk/gawk's conditional lookahead (which exists only
+# because awk/gawk have a dominant, legitimate plain-read use this gate
+# must not break -- eval has no equivalent legitimate gated-write use).
+WRITE_UNSAFE_HEADS = ("dd", "awk", "gawk", "nawk", "mawk", "ed", "ex", "eval")
 # issue-227 review finding 2: fusion glues an interpreter name straight onto
 # a command-substitution/backtick token (`python3$(printf " ")-c '...'`), so
 # gate_head_of never resolves a bare interpreter word and the flag check
@@ -656,6 +676,50 @@ VAR_INTERP_RE = re.compile(
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
     r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
     r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b")
+# issue-233: a third adversarial review round found the interpreter-head
+# masking class still leaking through spellings FUSED_INTERP_RE/
+# VAR_INTERP_RE do not name -- parameter-default expansion
+# (`${x:-python3}`, `${x:=bash}`) and a command substitution that
+# PRODUCES the head outright (`$(echo python3)`). Naming those two
+# spellings the same way (a fifth, sixth regex alternative enumerating
+# more ways to spell "produce an interpreter name") is the closed-set
+# trap this program has already spent a month escaping elsewhere
+# (issue-2600/issue-2670/issue-349 retired the same shape for a
+# different axis) -- every new review round finds one more spelling an
+# enumeration didn't name. This keys off STRUCTURE instead: a segment
+# whose head token itself begins with `$` or a backtick is never a
+# literal program name this gate can read -- what actually runs is
+# decided at expansion time, regardless of which interpreter (or
+# non-interpreter) the expansion happens to produce. No enumeration
+# needed: it does not matter whether the hidden head is python3, bash,
+# or some name this gate has never heard of.
+#
+# `search`, not `match`, and no `^` anchor: a fresh adversarial hunt round
+# found a QUOTED expansion head (`"$SHELL" -c ...`, `` "`cmd`" -c ... ``)
+# slips past an anchored start-of-token check -- the literal quote
+# character sits before the `$`/backtick, so `^[`$]` never fires even
+# though the shell still resolves this to an expansion-produced program.
+# Searching for `$`/backtick ANYWHERE in the resolved head token is safe
+# here specifically because `head` is never argument text (unlike a
+# whole-command regex scan) -- it is exactly the one token
+# gate_head_of/_resolve_transparent decided is this segment's head, so a
+# `$`/backtick anywhere inside it is always suspect, never a false hit
+# borrowed from some later, unrelated argument.
+EXPANDED_HEAD_RE = re.compile(r"[`$]")
+# The same hunt round found a SECOND spelling: an expansion FUSED into an
+# otherwise-literal name (`python3${X}-c` where `X` holds a space --
+# generalizing issue-227's `$IFS` fix to ANY variable holding whitespace,
+# not one enumerated name) puts the `-c`/`-e` flag INSIDE the same fused
+# head token, not as a separate word `gate_trailing_words` would ever
+# see -- so EXPANDED_HEAD_RE.search(head) correctly flags the head as
+# expansion-tainted, but the INLINE_FLAG_WORDS check right below it never
+# fires because there is no separate "-c" word to find. Checked directly
+# against the raw, unsplit segment text instead: a run of non-space
+# characters starting the segment, containing `$`/a backtick, ending in a
+# fused `-c`/`-e`-shaped flag -- anchored to the START of the segment (not
+# `re.search` over the whole thing), so this can only ever match the head
+# token itself, never a later argument.
+EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[`$]\S*-[A-Za-z]*[ce]\b")
 
 
 def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
@@ -680,6 +744,11 @@ def _is_unanalyzable_write_shape(stripped, head, full_cmd=None):
     if head in INLINE_FLAG_HEADS:
         if any(w in INLINE_FLAG_HEADS[head] for w in gate_lib.gate_trailing_words(stripped)):
             return True
+    elif EXPANDED_HEAD_RE.search(head):
+        if any(w in INLINE_FLAG_WORDS for w in gate_lib.gate_trailing_words(stripped)):
+            return True
+    if EXPANDED_HEAD_FUSED_FLAG_RE.match(stripped):
+        return True
     if head in WRITE_UNSAFE_HEADS:
         return True
     if FUSED_INTERP_RE.search(stripped):
