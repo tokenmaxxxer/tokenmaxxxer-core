@@ -145,7 +145,7 @@ RULES = [
 ]
 
 def _deny_for(why):
-    deny("refused for role session '%s': %s. (two-account model, "
+    deny("refused for skill session '%s': %s. (two-account model, "
          "contract v3 s8)" % (skill, why))
 
 dq = gate_lib.gate_dequote(cmd)
