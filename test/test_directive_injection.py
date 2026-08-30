@@ -8,17 +8,25 @@ SessionStart output as a subprocess, the same technique
 tests/test_promoted_hooks.py and tests/test_silent_failure_repros.py use
 for the other core/hooks/*.sh gates.
 """
+import re
 import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 CORE = REPO / "core"
 SESSION_PROTOCOL = CORE / "directive" / "session-protocol.md"
+BUILD_NOW_SESSION_PROTOCOL = CORE / "directive" / "session-protocol-build-now.md"
 
 # A phrase that lives only in session-protocol.md's body, never in
 # directive.sh's own short INVARIANTS index -- proof of delivery, not just
 # absence of the old Read pointer.
 BODY_ONLY_PHRASE = "Terminal loop_state is per-kind"
+
+# issue-384 round 3: a phrase that lives only in the build-now variant's
+# body, never in the two-phase file or either INVARIANTS index -- proof
+# CORE_BUILD_NOW=1 actually swaps in the build-now section file, not just
+# the short heredoc.
+BUILD_NOW_BODY_ONLY_PHRASE = "This session is running build-now"
 
 
 def _fake_repo(tmp_path):
@@ -41,10 +49,11 @@ def _fake_gh_bin(tmp_path):
     return bindir
 
 
-def render_directive(tmp_path, plugin_root_core):
+def render_directive(tmp_path, plugin_root_core, build_now=False):
     """Run core/hooks/directive.sh the same way the SessionStart hook would,
     with a fake authenticated gh so the precondition probe passes
-    deterministically (matches core/hooks/tests/run-ups-diet-tests.sh)."""
+    deterministically (matches core/hooks/tests/run-ups-diet-tests.sh).
+    build_now=True renders the CORE_BUILD_NOW=1 path (issue-384)."""
     repo = _fake_repo(tmp_path)
     bindir = _fake_gh_bin(tmp_path)
     env = {
@@ -54,6 +63,8 @@ def render_directive(tmp_path, plugin_root_core):
         "CLAUDE_PLUGIN_ROOT_CORE": str(plugin_root_core),
         "CLAUDE_SKILL": "implementation",
     }
+    if build_now:
+        env["CORE_BUILD_NOW"] = "1"
     proc = subprocess.run(
         ["bash", str(CORE / "hooks" / "directive.sh")],
         capture_output=True, text=True, env=env, timeout=15,
@@ -128,6 +139,95 @@ def test_session_protocol_md_uses_generic_role_placeholder_not_dollar_role(tmp_p
     text = SESSION_PROTOCOL.read_text()
     assert "${role}" not in text
     assert "<role>" in text
+
+
+def test_build_now_protocol_content_genuinely_present(tmp_path):
+    """issue-384 round 3: independent verification (#397) demonstrated live
+    that no test in the suite exercised directive.sh's CORE_BUILD_NOW=1
+    path -- editing the build-now injected text left the full test suite
+    output byte-identical. This is the build-now counterpart of
+    test_protocol_content_genuinely_present above: the build-now section
+    file's actual body must reach stdout, not just its own short
+    INVARIANTS index."""
+    proc = render_directive(tmp_path, CORE, build_now=True)
+    assert proc.returncode == 0, proc.stderr
+    assert BUILD_NOW_BODY_ONLY_PHRASE in proc.stdout
+    assert BUILD_NOW_BODY_ONLY_PHRASE not in CORE.joinpath("hooks", "directive.sh").read_text()
+    # a bullet shared verbatim between both variants' bodies (issue-384's
+    # heredoc dedup) must also be present -- proves the shared-bullet
+    # variables render, not just the branch-specific text.
+    assert BODY_ONLY_PHRASE in proc.stdout
+    assert "Interaction protocol for skill implementation" in proc.stdout
+    assert "build-now (single-phase)" in proc.stdout
+
+
+def test_build_now_byte_stable_across_two_renders(tmp_path):
+    """Same caching-stability guarantee as test_byte_stable_across_two_renders,
+    for the CORE_BUILD_NOW=1 path."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    a = render_directive(tmp_path / "a", CORE, build_now=True)
+    b = render_directive(tmp_path / "b", CORE, build_now=True)
+    assert a.stdout == b.stdout
+
+
+def test_shared_bullets_between_protocol_variants_stay_in_sync():
+    """issue-384 round 3: the two-phase and build-now section files share a
+    block of bullets (layout, commit staging, headless/single-shot, board
+    state, record fields, terminal loop_state, operational-surface,
+    docs/specs regeneration) that are meant to be identical apart from the
+    role->skill vocabulary rename in progress elsewhere in this repo
+    (see docs/issue-349's record on why that rename is deliberately not
+    yet applied to session-protocol.md itself). This round's own leak --
+    session-protocol-build-now.md:54 still saying "roles'" -- survived
+    both prior review rounds because their grep used \\brole\\b, which
+    cannot match the plural. Re-deriving the build-now text from the
+    two-phase text via the same substitution this repo's rename already
+    uses (whole-word role/roles -> skill/skills, boundary-safe including
+    possessives) and diffing against the real file catches that whole
+    class of drift structurally, not by pinning today's bytes."""
+
+    def role_to_skill(text):
+        text = text.replace("<role>", "<skill>")
+        text = re.sub(r"\broles\b", "skills", text)
+        text = re.sub(r"\brole\b", "skill", text)
+        text = re.sub(r"\bRoles\b", "Skills", text)
+        text = re.sub(r"\bRole\b", "Skill", text)
+        return text
+
+    def between(text, start, end):
+        i = text.index(start)
+        j = text.index(end, i)
+        return text[i:j]
+
+    two_phase = SESSION_PROTOCOL.read_text()
+    build_now = BUILD_NOW_SESSION_PROTOCOL.read_text()
+
+    # Chunk 1: "Requirements enter..." / "YOUR issue is assigned..." bullets
+    # -- zero role/skill vocabulary in either file, must be byte-identical.
+    req_two_phase = between(
+        two_phase, "- Requirements enter as GitHub ISSUES", "- ALL of your output"
+    )
+    req_build_now = between(
+        build_now, "- Requirements enter as GitHub ISSUES", "- ALL of your output"
+    )
+    assert role_to_skill(req_two_phase) == req_build_now
+
+    # Chunk 2: the long shared middle -- layout through docs/specs
+    # regeneration -- between the phase-mechanics bullets and each file's
+    # own PR-trailer bullet.
+    middle_two_phase = between(
+        two_phase, "- Output layout, enforced:", "- PR trailer phase split:"
+    )
+    middle_build_now = between(
+        build_now, "- Output layout, enforced:", "- This build-now PR is the delivery PR:"
+    )
+    assert role_to_skill(middle_two_phase) == middle_build_now
+
+    # Chunk 3: the trailing Verification bullet -- identical in both today.
+    verify_two_phase = two_phase[two_phase.index("- Verification is verify-at-landing"):]
+    verify_build_now = build_now[build_now.index("- Verification is verify-at-landing"):]
+    assert role_to_skill(verify_two_phase) == verify_build_now
 
 
 def test_only_directive_sh_uses_the_now_before_any_work_shape(tmp_path):
