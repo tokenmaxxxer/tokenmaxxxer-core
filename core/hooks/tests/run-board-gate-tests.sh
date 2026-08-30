@@ -738,11 +738,13 @@ run deny  unknown-head-not-analyzed       Bash '{"command":"mytool --body \"$(ca
 # judge's own Bash branch) used to let a write target computed at
 # *interpreter* runtime skip analysis entirely -- including issue-225's
 # own unanalyzable-write-shape deny -- whenever the literal substring
-# "docs" never appeared anywhere in the raw command text. The interpreter
-# head and its inline -c/-e flag, unlike the write target, ARE spelled
-# literally in the command text for the shell to actually run them, so a
-# second raw-text scan for that shape (not a widening of the `docs`
-# name-substring scan) closes it.
+# "docs" never appeared anywhere in the raw command text. A second
+# raw-text scan (not a widening of the `docs` name-substring scan)
+# closes that hole for an interpreter head and its inline -c/-e flag
+# WHEN they are spelled literally in the command text; a head produced
+# by bash's expansion grammar is a separate, out-of-jurisdiction class
+# (see board-gate.sh's issue-361/issue-233 comments) that this scan
+# does not and is not meant to catch.
 #
 # the PR #360 record's own reproduction: the write target is spelled only
 # via a chr()-style byte list evaluated at Python runtime -- no literal
@@ -759,6 +761,40 @@ run allow ordinary-command-still-fast-path     Bash '{"command":"git status"}'
 # -- this is the case issue-361 must NOT regress (a bare `python3 -m
 # pytest` is an extremely common, provably non-writing invocation).
 run allow interpreter-head-without-flag-fast-path Bash '{"command":"python3 -m pytest -q"}'
+
+# --- issue-233 round 5: the gate's job (inline -c/-e, unanalyzable write
+# set) stays denied; the flag letter is no longer applied to interpreters
+# that don't give it that meaning ------------------------------------------
+# still denied -- this is the gate's actual job: an interpreter head with
+# an inline-code flag it actually recognizes as "execute this string".
+run deny  round5-bash-c-still-denied      Bash '{"command":"cd '$BOARD' && bash -c \"echo hi > pwn.md\""}'
+run deny  round5-perl-e-still-denied      Bash '{"command":"cd '$BOARD' && perl -e \"open(1)\""}'
+run deny  round5-ruby-e-still-denied      Bash '{"command":"cd '$BOARD' && ruby -e \"open(1)\""}'
+run deny  round5-node-e-still-denied      Bash '{"command":"cd '$BOARD' && node -e \"open(1)\""}'
+# given back -- these carried no evasion and no unanalyzable write shape
+# of their own; derived live (docs/issue-233 round 5 record) that main
+# denied every one of these before this fix, for no R1/R4/R5 benefit.
+# bash/sh -e is the errexit option, not an inline-code flag; `bash
+# script.sh` (no -e) was already allowed, same unreadable script body.
+run allow round5-bash-e-errexit-allowed   Bash '{"command":"cd '$BOARD' && bash -e reports/script.sh"}'
+run allow round5-sh-e-errexit-allowed     Bash '{"command":"cd '$BOARD' && sh -e reports/script.sh"}'
+# ruby -c and node -c mean "check syntax, do not run" -- the opposite of
+# inline execution -- confirmed by execution (a staged BEGIN-block /
+# top-level write did not run under -c for either).
+# issue-233 round 6: perl -c is NOT syntax-check-only -- it still runs
+# BEGIN/UNITCHECK/CHECK blocks, confirmed by execution (a BEGIN-block
+# write staged in the script ran under -c exactly as it would unflagged).
+# perl is dropped from the give-back entirely; -c rejoins -e as denied.
+run deny  round6-perl-c-denied            Bash '{"command":"cd '$BOARD' && perl -c reports/script.pl"}'
+run allow round5-ruby-c-checkonly-allowed Bash '{"command":"cd '$BOARD' && ruby -c reports/script.rb"}'
+run allow round5-node-c-checkonly-allowed Bash '{"command":"cd '$BOARD' && node -c reports/script.js"}'
+# python has no -e flag at all; it can never introduce inline code.
+run allow round5-python-e-not-a-flag      Bash '{"command":"cd '$BOARD' && python3 -e reports/foo.py"}'
+# ordinary computed-argument shapes the gate's own deny message points to
+# as the safe alternative stay allowed (unaffected by this change; kept as
+# a regression guard for the shapes this round's investigation surfaced).
+run allow round5-pytest-computed-arg      Bash '{"command":"cd '$BOARD' && python3 -m pytest -k \"$(echo foo)\""}'
+run allow round5-script-computed-input    Bash '{"command":"cd '$BOARD' && python3 script.py --input \"$(pwd)/data.csv\""}'
 
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
