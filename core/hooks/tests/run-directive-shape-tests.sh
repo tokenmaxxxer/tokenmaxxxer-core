@@ -151,13 +151,13 @@ unset_out="$(role_directive_case "")"
 typo_out="$(role_directive_case "typo-not-a-real-spelling")"
 on_out="$(role_directive_case "1")"
 
-case "$unset_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+case "$unset_out" in *"Skill directive"*) got=present ;; *) got=absent ;; esac
 report present "$got" "role-directive.sh: kill-switch unset (empty state) — hook active"
 
-case "$typo_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+case "$typo_out" in *"Skill directive"*) got=present ;; *) got=absent ;; esac
 report present "$got" "role-directive.sh: typo value in \$IMPLEMENTATION_CYCLE_OFF keeps hook ACTIVE (was: disabled)"
 
-case "$on_out" in *"Role directive"*) got=present ;; *) got=absent ;; esac
+case "$on_out" in *"Skill directive"*) got=present ;; *) got=absent ;; esac
 report absent "$got" "role-directive.sh: exact '1' in \$IMPLEMENTATION_CYCLE_OFF disables hook"
 
 # Static drift guard: none of the 4 files may carry the pre-fix hand-rolled

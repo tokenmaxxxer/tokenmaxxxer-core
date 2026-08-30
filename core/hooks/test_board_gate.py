@@ -112,7 +112,7 @@ def test_heredoc_redirect_to_foreign_skill_report_denied(board):
     command = "cat <<'EOF' > docs/issue-198/reports/verify.md\nbody\nEOF"
     rc, err = run_gate(board, command)
     assert rc == 2
-    assert "belongs to another role" in err
+    assert "belongs to another skill" in err
 
 
 def test_plain_redirect_write_outside_write_set_still_denied(board):
@@ -184,7 +184,7 @@ def test_author_less_legacy_record_still_enforces_skill_filename_rule(board):
     _write_record(board, "verify.md", author=None, body="no frontmatter here\n")
     rc, err = run_gate(board, "echo hi >> docs/issue-198/reports/verify.md")
     assert rc == 2
-    assert "belongs to another role" in err
+    assert "belongs to another skill" in err
 
 
 def test_extra_subtree_keys_match_current_skill_names():
@@ -279,7 +279,7 @@ def test_multiskill_foreign_record_still_denied(multiskill_board):
     command = "git add docs/issue-336/reports/%s/" % other_skill
     rc, err = run_gate(multiskill_board, command, skill=MULTISKILL_SKILL)
     assert rc == 2
-    assert "belongs to another role" in err
+    assert "belongs to another skill" in err
 
 
 def test_multiskill_path_shape_not_in_fixture_set(multiskill_board):
@@ -333,7 +333,7 @@ def test_forloop_body_literal_write_still_denied(board):
                "verify.md; done")
     rc, err = run_gate(board, command)
     assert rc == 2
-    assert "belongs to another role" in err
+    assert "belongs to another skill" in err
 
 
 def test_case_dispatch_mentioning_foreign_issue_passes(board):
@@ -354,4 +354,4 @@ def test_case_arm_literal_write_still_denied(board):
                ";;\nesac")
     rc, err = run_gate(board, command)
     assert rc == 2
-    assert "belongs to another role" in err
+    assert "belongs to another skill" in err

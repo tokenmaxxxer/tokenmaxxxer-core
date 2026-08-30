@@ -44,7 +44,7 @@ core_role_directive() {
   gate_kill_switch_active "$off_val" || return 0
 
   cat <<EOF
-[${skill}] Role directive (on top of core's protocol):
+[${skill}] Skill directive (on top of core's protocol):
 
 ${you_decide}
 ${use_when}

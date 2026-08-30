@@ -93,22 +93,22 @@ skill = os.environ["CLAUDE_SKILL"].strip()
 RULES = [
     (r"\bgh\s+pr\s+review\b.*(--approve|-a\b|--request-changes)",
      "a PR review verdict is the human's act, relayed by the orchestrator "
-     "with the user's account — never a role session's",
+     "with the user's account — never a skill session's",
      True),
     (r"\bgh\s+pr\s+(merge|close|reopen)\b",
-     "merging or closing a PR is the human's acceptance/refusal — a role "
+     "merging or closing a PR is the human's acceptance/refusal — a skill "
      "session only opens PRs and pushes to its own issue branch",
      True),
     (r"\bgh\s+issue\s+(create|close|reopen|edit|transfer|delete)\b",
      "issues are the user's requirement backlog, user-authored only "
-     "(contract v3 s9) — no role touches them",
+     "(contract v3 s9) — no skill touches them",
      True),
     (r"\bgh\s+api\b.*(pulls?/\d+/(reviews|merge)|/merge\b)",
      "the raw-API spelling of a review/merge is still a review/merge",
      False),
     (r"\bgh\s+pr\s+comment\b.*\bAPPROVE\b",
      "an APPROVE-shaped comment is the single-account approval signal — "
-     "posting it from a role session is a forged approval",
+     "posting it from a skill session is a forged approval",
      False),
     (r"\bgh\s+api\b.*(issues|pulls?)/\d+/comments.*\bAPPROVE\b",
      "the raw-API spelling of an APPROVE comment is still a forged "
@@ -116,7 +116,7 @@ RULES = [
      False),
     (r"\bgit\s+push\b[^\n;|&]*\s(origin\s+)?(main|master)\b",
      "nothing reaches main except a PR the human merges (contract v3 s10) "
-     "— push your issue-<n>/<role> branch instead",
+     "— push your issue-<n>/<skill> branch instead",
      False),
     # Endpoint+verb rules below match the REST/GraphQL surface itself, not
     # the `gh` token — the same act is still the act whether it is spelled
@@ -134,7 +134,7 @@ RULES = [
     (r"(?=.*\bissues?/\d+(?!/))"
      r"(?=.*(-X\s*(POST|PUT|PATCH|DELETE)\b|--method[= ]|-f\s+(state|title|body)=))",
      "the raw-API spelling of an issue edit/close/reopen is still "
-     "user-only backlog work — no role touches issues, whatever the client",
+     "user-only backlog work — no skill touches issues, whatever the client",
      False),
     (r"(?=.*\bgraphql\b)"
      r"(?=.*\b(mergePullRequest|addPullRequestReview|closePullRequest|"
