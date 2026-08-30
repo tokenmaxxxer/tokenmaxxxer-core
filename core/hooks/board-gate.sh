@@ -703,11 +703,32 @@ FUSED_INTERP_RE = re.compile(
 # `\$\1\b` never matches `${P}` (the `{` breaks the literal-`$`-then-name
 # match), so `${P} -c '...'` sailed through denied only by luck of no other
 # clause catching it.
+# issue-370 round 2 (verification #395): this used to spell its own two
+# name lists by hand (python3?/bash/sh/zsh for `-c`, perl/ruby/node/nodejs
+# for `-e`), independently of INLINE_FLAG_HEADS above -- and the two
+# drifted: perl carries BOTH `-c` and `-e` in INLINE_FLAG_HEADS (round 6
+# confirmed by execution that perl's `-c` still runs BEGIN/UNITCHECK/CHECK
+# blocks), but the hand-written `-c` list here never named perl, so
+# `P=perl; $P -c ...` matched neither alternative and fell through
+# allowed while the direct form `perl -c ...` correctly denies -- a
+# var-indirected deferral narrower than the direct-form check it stands
+# in for. The defect was the second, independent enumeration, not
+# anything perl-specific about it (any interpreter with more than one
+# dangerous flag would have hit the same drift) -- so instead of adding a
+# third, perl-only alternative, both name groups are derived from
+# INLINE_FLAG_HEADS itself: a name's var-indirected flags are always
+# exactly its direct-form flags, by construction, never a second list
+# someone has to remember to keep in sync.
+_VAR_INTERP_C_NAMES = "|".join(
+    re.escape(n) for n in INLINE_FLAG_HEADS if "-c" in INLINE_FLAG_HEADS[n])
+_VAR_INTERP_E_NAMES = "|".join(
+    re.escape(n) for n in INLINE_FLAG_HEADS if "-e" in INLINE_FLAG_HEADS[n])
 VAR_INTERP_RE = re.compile(
-    r"\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    r"\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
-    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
-    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b")
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
+    r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b"
+    % (_VAR_INTERP_C_NAMES, _VAR_INTERP_E_NAMES))
 # issue-233: a third adversarial review round found the interpreter-head
 # masking class still leaking through spellings FUSED_INTERP_RE/
 # VAR_INTERP_RE do not name -- parameter-default expansion
@@ -809,23 +830,24 @@ EXPANDED_HEAD_FUSED_FLAG_RE = re.compile(r"^\S*[^A-Za-z0-9_./+=@:\s-]\S*-[A-Za-z
 # variable reference is a special case of EXPANDED_HEAD_RE that VAR_INTERP_RE
 # below already owns: whenever the same variable's value is a literal
 # interpreter name assigned earlier in the same command text, VAR_INTERP_RE
-# decides -- precisely, per its own (round-1-4, not round-6-narrowed) flag
-# grouping -- whether that combination denies. Two integration-only
-# regressions this salvage would otherwise reopen (found live, not in
-# either round's own PR, and not covered by any existing test on either
-# side): `P=bash; $P -e ...` and `P=perl; $P -c ...` -- both explicitly
-# left as the accepted, disclosed residual by round 6's own comment ("round
-# 6 only re-derived the give-back list's direct-flag entries, per scope")
-# -- fell back into EXPANDED_HEAD_RE's conservative BLANKET
-# `INLINE_FLAG_WORDS` check below (which does not know VAR_INTERP_RE's
-# grouping, only that -c/-e are inline-code flags for SOME interpreter),
-# denying two invocations that must stay allowed to match origin/main's own
-# tested behavior. When the assignment is visible and literal, this defers
-# entirely to VAR_INTERP_RE's own verdict instead of blanket-checking here;
-# when no such assignment is visible (`$P` set only in the environment, or
-# never assigned at all), the existing conservative blanket check is
-# unchanged -- that residual is the genuine interpreter-head-via-expansion
-# class this salvage exists to keep closed.
+# decides -- now derived from INLINE_FLAG_HEADS itself (round 2), so its
+# verdict is exactly the direct-form flag grouping, per interpreter, never
+# a narrower stand-in for it -- whether that combination denies. An
+# integration-only regression this salvage would otherwise reopen (found
+# live, not in either round's own PR, and not covered by any existing test
+# on either side): `P=bash; $P -e ...` -- explicitly left as the accepted,
+# disclosed residual by round 6's own comment ("round 6 only re-derived the
+# give-back list's direct-flag entries, per scope") -- fell back into
+# EXPANDED_HEAD_RE's conservative BLANKET `INLINE_FLAG_WORDS` check below
+# (which does not know VAR_INTERP_RE's per-interpreter grouping, only that
+# -c/-e are inline-code flags for SOME interpreter), denying an invocation
+# that must stay allowed to match origin/main's own tested behavior. When
+# the assignment is visible and literal, this defers entirely to
+# VAR_INTERP_RE's own verdict instead of blanket-checking here; when no
+# such assignment is visible (`$P` set only in the environment, or never
+# assigned at all), the existing conservative blanket check is unchanged --
+# that residual is the genuine interpreter-head-via-expansion class this
+# salvage exists to keep closed.
 _BARE_VAR_HEAD_RE = re.compile(r"^\$\{?(\w+)\}?$")
 
 

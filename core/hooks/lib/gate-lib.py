@@ -219,10 +219,11 @@ def gate_outside_quotes(text, pattern):
 # reproduction: `python3 $'-c' "..."` runs as an ordinary `-c` invocation,
 # but `gate_trailing_words()` never contains the literal string `"-c"`,
 # so `INLINE_FLAG_WORDS` membership never fires -- a full, confirmed
-# bypass (a `qa`-role call denied nothing while writing outside `qa`'s own
-# write-set). Matched here BEFORE the bare single-quote alternative (same
-# ordering the bare-`$` case needed): the `$` is consumed as PART of the
-# quote-opening token, not left for `\S` to claim first.
+# bypass (a role session's call denied nothing while writing outside that
+# role's own write-set). Matched here BEFORE the bare single-quote
+# alternative (same ordering the bare-`$` case needed): the `$` is
+# consumed as PART of the quote-opening token, not left for `\S` to claim
+# first.
 _WORD_TOKEN_RE = re.compile(
     r"(?<!\\)\$'(?:[^'\\]|\\.)*'"
     r"|(?<!\\)\$\"(?:[^\"\\]|\\.)*\""

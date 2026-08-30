@@ -171,11 +171,24 @@ FIND_EXEC_FLAGS = re.compile(
 # python/python2/python3/bash/sh/zsh, `-e` for ruby/node/nodejs. This
 # narrows false denials without loosening perl; it adds no new spelling
 # to catch.
+# issue-370 round 2 (verification #395): these two name groups -- which
+# interpreters treat `-c` as inline-code, which treat `-e` -- are the
+# single source both the direct-form alternatives right below AND the
+# var-indirected alternatives further down must agree with. They used to
+# be spelled independently in both places; the var-indirected copy
+# drifted (its `-c` group never named perl, unlike the direct-form `-c`
+# group split across two alternatives above), so `P=perl; $P -c ...`
+# matched neither var-indirected alternative and fell through allowed
+# while the direct form `perl -c ...` right below correctly denies --
+# a var-indirected deferral narrower than the direct-form check it
+# stands in for. Named once here and reused, so neither copy can drift
+# from the other again, for perl or any future multi-flag interpreter.
+_C_FLAG_INTERP_NAMES = r"python3?|bash|sh|zsh|perl"
+_E_FLAG_INTERP_NAMES = r"perl|ruby|node|nodejs"
 UNANALYZABLE_WRITE_SHAPE = re.compile(
     r"<<-?\s*['\"]?\w"
-    r"|(?:^|\s)(?:python3?|bash|sh|zsh)\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
-    r"|(?:^|\s)perl\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
-    r"|(?:^|\s)(?:perl|ruby|node|nodejs)\b[^\n|;&]*\s-[A-Za-z]*e(?:\s|=|$)"
+    r"|(?:^|\s)(?:%s)\b[^\n|;&]*\s-[A-Za-z]*c(?:\s|=|$)"
+    r"|(?:^|\s)(?:%s)\b[^\n|;&]*\s-[A-Za-z]*e(?:\s|=|$)"
     r"|(?:^|\s)tee\b"
     r"|(?:^|\s)dd\b"
     # issue-227: `ed`/`ex` write via script commands (`w file`) that this
@@ -212,10 +225,14 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # `-c`/`-e` at all. Caught only when the same variable is assigned an
     # interpreter name earlier in the same command text. issue-227
     # re-review B1: the brace form (`${P}`) also indirects and was missed
-    # by `\$\1\b`, which never matches `${P}`.
-    r"|\b(\w+)=(?:python3?|bash|sh|zsh)\b[^\n]*"
+    # by `\$\1\b`, which never matches `${P}`. issue-370 round 2: the name
+    # groups here are the SAME `_C_FLAG_INTERP_NAMES`/`_E_FLAG_INTERP_NAMES`
+    # the direct-form alternatives above use, not a second hand-written
+    # copy -- see the comment at their definition for the perl drift this
+    # closes.
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\1\}|\$\1\b)[^\n]*-c\b"
-    r"|\b(\w+)=(?:perl|ruby|node|nodejs)\b[^\n]*"
+    r"|\b(\w+)=(?:%s)\b[^\n]*"
     r"(?:\$\{\2\}|\$\2\b)[^\n]*-e\b"
     # issue-227: `${IFS}`/`$IFS` used as a space substitute fuses what
     # would otherwise be separate tokens (`python3${IFS}-c${IFS}"..."`),
@@ -301,6 +318,8 @@ UNANALYZABLE_WRITE_SHAPE = re.compile(
     # unrecognized. Still requires a real `-c`/`-e` flag later on the same
     # head word's boundary-delimited run, so a merely decorated head with
     # no code flag stays unaffected.
+    % (_C_FLAG_INTERP_NAMES, _E_FLAG_INTERP_NAMES,
+       _C_FLAG_INTERP_NAMES, _E_FLAG_INTERP_NAMES)
 )
 # issue-370 salvage: the two allowlist-complement alternatives above (spaced
 # and fused flag) are pulled into their own regex, with the head-ish token
