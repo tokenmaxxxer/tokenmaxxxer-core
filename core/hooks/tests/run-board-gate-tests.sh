@@ -733,5 +733,32 @@ run deny  safe-heredoc-plus-extra-subst   Bash '{"command":"gh pr create --title
 # an unknown head with the same flag shape is not in the analyzed set.
 run deny  unknown-head-not-analyzed       Bash '{"command":"mytool --body \"$(cat <<'"'"'EOF'"'"'\n'$BOARD'\nEOF\n)\""}'
 
+# --- issue-361: the `*docs*` fast-path substring pre-check (and its
+# redundant `if DOCS in cmdline` twin one layer down, in the python
+# judge's own Bash branch) used to let a write target computed at
+# *interpreter* runtime skip analysis entirely -- including issue-225's
+# own unanalyzable-write-shape deny -- whenever the literal substring
+# "docs" never appeared anywhere in the raw command text. The interpreter
+# head and its inline -c/-e flag, unlike the write target, ARE spelled
+# literally in the command text for the shell to actually run them, so a
+# second raw-text scan for that shape (not a widening of the `docs`
+# name-substring scan) closes it.
+#
+# the PR #360 record's own reproduction: the write target is spelled only
+# via a chr()-style byte list evaluated at Python runtime -- no literal
+# "docs" substring, not even an escaped one, anywhere in the command text.
+run deny  chr-assembled-path-no-docs-substring Bash '{"command":"python3 -c \"import pathlib;pathlib.Path(bytes([100,111,99,115,47,105,115,115,117,101,45,51,47,114,101,112,111,114,116,115,47,112,119,110,101,100,46,109,100]).decode()).write_text(chr(120))\""}'
+# the minimal case: a bare interpreter -c invocation with no docs/ mention
+# of any kind is unanalyzable and must deny, not silently allow.
+run deny  unanalyzable-shape-no-docs-substring Bash '{"command":"python3 -c \"pass\""}'
+# the pre-check's own purpose still holds: an ordinary command naming
+# neither docs/ nor an unanalyzable write shape still short-circuits in
+# shell before python3 ever starts (unchanged for the majority case).
+run allow ordinary-command-still-fast-path     Bash '{"command":"git status"}'
+# an interpreter head with no -c/-e flag of its own stays fast-path-safe
+# -- this is the case issue-361 must NOT regress (a bare `python3 -m
+# pytest` is an extremely common, provably non-writing invocation).
+run allow interpreter-head-without-flag-fast-path Bash '{"command":"python3 -m pytest -q"}'
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

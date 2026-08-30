@@ -64,10 +64,40 @@ payload="$(cat 2>/dev/null || true)"
 # only ruled out escaping the slash, not the letters). Any payload
 # carrying a JSON \u escape therefore falls through to the python judge
 # unconditionally.
+#
+# issue-361: a Bash write TARGET can be built entirely at interpreter
+# runtime (`python3 -c "...chr()..."`, no literal "docs" in the command
+# text at all -- not even escaped) and the scan above proves nothing
+# about it either way. Unlike a target path, though, the shape that makes
+# such a write unanalyzable in the first place -- an interpreter head
+# (INTERPRETER_HEADS below) paired with an inline -c/-e flag, a
+# write-unsafe head (WRITE_UNSAFE_HEADS), a heredoc, or an $IFS/${IFS
+# fusion -- has to be spelled literally in the command text for the shell
+# to actually run it; the runtime-assembly trick that defeats a path scan
+# does not defeat a shape scan. So this is a second, independent
+# raw-text scan for THAT closed set (the same one the python judge below
+# already treats as unanalyzable, issue-225) -- not a widening of the
+# `docs` path-name scan above, which stays exactly "docs". A false
+# positive here (e.g. some unrelated command that happens to mention both
+# an interpreter name and a bare -c/-e word) only costs one extra python3
+# call, never a missed analysis.
+UNANALYZABLE_HEAD_RE='(^|[^a-zA-Z0-9_])(python3|python2|python|bash|sh|zsh|perl|ruby|node|nodejs)([^a-zA-Z0-9_]|$)'
+UNANALYZABLE_FLAG_RE='(^|[^a-zA-Z0-9_-])(-c|-e)([^a-zA-Z0-9_-]|$)'
+UNANALYZABLE_WRITE_HEAD_RE='(^|[^a-zA-Z0-9_])(dd|awk|gawk|nawk|mawk|ed|ex|tee)([^a-zA-Z0-9_]|$)'
+
+unanalyzable_shape=0
+if [[ "$payload" == *'<<'* || "$payload" == *'$IFS'* || "$payload" == *'${IFS'* ]]; then
+  unanalyzable_shape=1
+elif [[ "$payload" =~ $UNANALYZABLE_WRITE_HEAD_RE ]]; then
+  unanalyzable_shape=1
+elif [[ "$payload" =~ $UNANALYZABLE_HEAD_RE && "$payload" =~ $UNANALYZABLE_FLAG_RE ]]; then
+  unanalyzable_shape=1
+fi
+
 case "$payload" in
   *'\u'*) ;;
   *docs*) ;;
-  *) trap - EXIT; exit 0 ;;
+  *) [ "$unanalyzable_shape" = 1 ] || { trap - EXIT; exit 0; } ;;
 esac
 
 command -v python3 >/dev/null 2>&1 || gate_deny "board-gate" "python3 not found; cannot evaluate gate"
@@ -622,71 +652,80 @@ elif tool == "Bash":
     cmdline = ti.get("command")
     if not isinstance(cmdline, str):
         deny("Bash payload carries no command string")
-    if DOCS in cmdline:
-        probe = DEVNULL_REDIR.sub(" ", _mask_heredocs(cmdline))
-        classified = []
-        for seg in _split_segments(probe):
-            stripped = seg.strip()
-            if not stripped:
-                continue
-            classified.append((seg, stripped, _segment_is_failing(seg, stripped)))
-        if not any(failing for _, _, failing in classified):
-            allow()          # a plain read of the board is not a write (s4)
-        # In-order walk (issue-99), replacing the old whole-block rescan:
-        # a preceding read-only `cd` into a docs/ path is tracked as
-        # cd_tail — sticky, never cleared by a later non-docs/ `cd` (a
-        # deliberate, named over-blocking trade-off; a full relative-path
-        # resolver that un-tracks on leaving docs/ was scouted and
-        # rejected — see the proposal's Rationale). Every docs-path-shaped
-        # token a segment that could not be proven read-only carries of
-        # its own becomes a candidate, same as before (issue-90, scoped to
-        # failing segments only); a failing segment with NO token of its
-        # own now reconstructs DOCS + cd_tail instead of the dead
-        # candidates.append(DOCS) fallback, but only when cd_tail is
-        # actually set — a failing segment with no docs/ token of its own
-        # and no preceding docs/-landing cd contributes nothing, which is
-        # exactly issue-90's own preserved negative space (a docs/ mention
-        # living only in an already-read-only segment elsewhere on the
-        # line must not manufacture a candidate here).
-        cd_tail = ""
-        for seg, stripped, failing in classified:
-            if not failing:
-                if gate_lib.gate_head_of(stripped) == "cd":
-                    target = _cd_target(stripped)
-                    if target:
-                        tail = _docs_relative_tail(target)
-                        if tail:
-                            cd_tail = tail
-                continue
-            windows = _write_target_windows(seg, stripped)
-            scan_targets = [seg] if windows is None else windows
-            own_hits = []
-            for target in scan_targets:
-                # issue-336: the trailing class used to be [\w./-]*, which
-                # excludes `+` -- and since #2572 made `--skills` the sole
-                # spawn form, a multi-skill session's own role/slug
-                # (skill_branch_slug() in the on-the-record plugin joins
-                # skill names with `+`) always contains one. A path tail
-                # that stops at the first `+` truncates the session's own
-                # record path to a PREFIX, which then fails the exact
-                # `tail[0] == skill` owner comparison below even though the
-                # write is the session's own. `+` is added here, not
-                # special-cased around: it is simply one more character a
-                # `--skills`-composed slug can legitimately produce
-                # alongside the word chars, dots, slashes and hyphens
-                # already accepted -- the class still only ever matches a
-                # SUPERSET of what it matched before (every previously
-                # accepted tail stays accepted; `+`-bearing tails are no
-                # longer cut short).
-                own_hits.extend(re.findall(r"[\w./~$:-]*%s[\w.+/-]*" % re.escape(DOCS), target))
-            if own_hits:
-                candidates.extend(own_hits)
-            elif cd_tail:
-                candidates.append(DOCS + cd_tail)
-            if not own_hits:
-                head = gate_lib.gate_head_of(stripped)
-                if _is_unanalyzable_write_shape(stripped, head, cmdline):
-                    unanalyzable.append(stripped)
+    # issue-361: this used to be gated on `if DOCS in cmdline:`, mirroring
+    # the shell fast path's own literal-substring bet -- and losing the
+    # same bet for the same reason. A write target built at interpreter
+    # runtime (`python3 -c "...chr()..."`, no literal "docs" anywhere in
+    # cmdline) made this whole block a no-op: `candidates`/`unanalyzable`
+    # stayed empty, so `if not hits: allow()` far below waved the call
+    # through with issue-225's own unanalyzable-write-shape deny never
+    # even consulted. Always classifying the command here costs pure-Python
+    # string/regex work, not a subprocess -- the python3 startup cost this
+    # gate is trying to avoid was already paid to reach this line.
+    probe = DEVNULL_REDIR.sub(" ", _mask_heredocs(cmdline))
+    classified = []
+    for seg in _split_segments(probe):
+        stripped = seg.strip()
+        if not stripped:
+            continue
+        classified.append((seg, stripped, _segment_is_failing(seg, stripped)))
+    if not any(failing for _, _, failing in classified):
+        allow()          # a plain read of the board is not a write (s4)
+    # In-order walk (issue-99), replacing the old whole-block rescan:
+    # a preceding read-only `cd` into a docs/ path is tracked as
+    # cd_tail — sticky, never cleared by a later non-docs/ `cd` (a
+    # deliberate, named over-blocking trade-off; a full relative-path
+    # resolver that un-tracks on leaving docs/ was scouted and
+    # rejected — see the proposal's Rationale). Every docs-path-shaped
+    # token a segment that could not be proven read-only carries of
+    # its own becomes a candidate, same as before (issue-90, scoped to
+    # failing segments only); a failing segment with NO token of its
+    # own now reconstructs DOCS + cd_tail instead of the dead
+    # candidates.append(DOCS) fallback, but only when cd_tail is
+    # actually set — a failing segment with no docs/ token of its own
+    # and no preceding docs/-landing cd contributes nothing, which is
+    # exactly issue-90's own preserved negative space (a docs/ mention
+    # living only in an already-read-only segment elsewhere on the
+    # line must not manufacture a candidate here).
+    cd_tail = ""
+    for seg, stripped, failing in classified:
+        if not failing:
+            if gate_lib.gate_head_of(stripped) == "cd":
+                target = _cd_target(stripped)
+                if target:
+                    tail = _docs_relative_tail(target)
+                    if tail:
+                        cd_tail = tail
+            continue
+        windows = _write_target_windows(seg, stripped)
+        scan_targets = [seg] if windows is None else windows
+        own_hits = []
+        for target in scan_targets:
+            # issue-336: the trailing class used to be [\w./-]*, which
+            # excludes `+` -- and since #2572 made `--skills` the sole
+            # spawn form, a multi-skill session's own role/slug
+            # (skill_branch_slug() in the on-the-record plugin joins
+            # skill names with `+`) always contains one. A path tail
+            # that stops at the first `+` truncates the session's own
+            # record path to a PREFIX, which then fails the exact
+            # `tail[0] == skill` owner comparison below even though the
+            # write is the session's own. `+` is added here, not
+            # special-cased around: it is simply one more character a
+            # `--skills`-composed slug can legitimately produce
+            # alongside the word chars, dots, slashes and hyphens
+            # already accepted -- the class still only ever matches a
+            # SUPERSET of what it matched before (every previously
+            # accepted tail stays accepted; `+`-bearing tails are no
+            # longer cut short).
+            own_hits.extend(re.findall(r"[\w./~$:-]*%s[\w.+/-]*" % re.escape(DOCS), target))
+        if own_hits:
+            candidates.extend(own_hits)
+        elif cd_tail:
+            candidates.append(DOCS + cd_tail)
+        if not own_hits:
+            head = gate_lib.gate_head_of(stripped)
+            if _is_unanalyzable_write_shape(stripped, head, cmdline):
+                unanalyzable.append(stripped)
 else:
     allow()
 
