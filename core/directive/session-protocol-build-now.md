@@ -51,7 +51,7 @@
   mandates delegation, including freelunch's priority="absolute"
   directive (contract v3 s22).
 - The board is what is MERGED to main. An open PR is not yet on the board;
-  read other roles' state from main, not from open PRs.
+  read other skills' state from main, not from open PRs.
 - Your own record (contract §20) must state, in some accepted spelling: what
   was done ("what was done", "what i did", "## done", "work done", "summary
   of work" -- write a summary of work); why ("why", "rationale", "reason:");
